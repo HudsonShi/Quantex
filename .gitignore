@@ -1,0 +1,23 @@
+# LaTeX aux files
+*.aux
+*.log
+*.out
+*.toc
+*.lot
+*.lof
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Output PDF (optional — comment out if you want to track PDF)
+main.pdf
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~

@@ -1,0 +1,213 @@
+\chapter{随机过程}
+
+\section{随机过程基础}
+
+\subsection{定义与分类}
+
+随机过程是定义在概率空间上的时间索引随机变量族 $\{X_t\}_{t \in T}$。按状态空间和时间索引分类：
+
+\begin{itemize}[leftmargin=*]
+  \item 离散时间、离散状态：马尔可夫链（如信用评级迁移）
+  \item 离散时间、连续状态：GARCH、ARMA
+  \item 连续时间、连续状态：布朗运动、扩散过程（金融衍生品定价的核心）
+  \item 连续时间、离散状态：泊松过程（跳跃风险建模）
+\end{itemize}
+
+\subsection{马尔可夫性质}
+
+若过程的未来仅依赖于当前状态而不依赖历史，则为马尔可夫过程：
+
+\begin{equation}
+  P(X_{t+s} \in A \mid \mathcal{F}_t) = P(X_{t+s} \in A \mid X_t)
+\end{equation}
+
+许多金融模型基于此假设：资产价格的未来分布仅依赖于当前价格。
+
+\subsection{鞅 (Martingale)}
+
+鞅是公平博弈的数学形式化：
+
+\begin{equation}
+  \mathbb{E}[X_{t+s} \mid \mathcal{F}_t] = X_t
+\end{equation}
+
+在风险中性测度下，折现资产价格为鞅——这是现代衍生品定价的数学基石。
+
+\section{布朗运动}
+
+\subsection{标准布朗运动}
+
+布朗运动（Wiener Process）$W_t$ 的性质：
+
+\begin{enumerate}[leftmargin=*]
+  \item $W_0 = 0$ a.s.
+  \item \textbf{独立增量}：对 $0 \leq s < t$，$W_t - W_s$ 独立于 $\mathcal{F}_s$
+  \item \textbf{平稳增量}：$W_t - W_s \sim \mathcal{N}(0, t-s)$
+  \item \textbf{连续样本路径}：以概率 1，$t \mapsto W_t$ 连续
+\end{enumerate}
+
+\begin{keybox}
+布朗运动的两个关键性质：(1) 处处连续但处处不可微；(2) 在有限区间上的二次变差为区间长度：$\langle W \rangle_t = t$。
+\end{keybox}
+
+\subsection{布朗运动的变换}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{标度性质}：$cW_{t/c^2}$ 也是布朗运动
+  \item \textbf{反射原理}：用于计算首达时分布
+  \item \textbf{时间反演}：$t W_{1/t}$ 也是布朗运动
+\end{itemize}
+
+\section{伊藤积分}
+
+\subsection{动机与定义}
+
+伊藤积分解决了积分对象不可微的问题。对于简单过程：
+
+\begin{equation}
+  \int_0^T \phi_t dW_t = \sum_{i=0}^{n-1} \phi_{t_i}(W_{t_{i+1}} - W_{t_i})
+\end{equation}
+
+关键：积分值取左端点（非可料），这是伊藤积分区别于 Stratonovich 积分的核心。
+
+\subsection{伊藤引理}
+
+若 $X_t$ 满足 $dX_t = \mu_t dt + \sigma_t dW_t$，$f(t,x)$ 为 $C^{1,2}$ 函数，则：
+
+\begin{equation}
+  df(t,X_t) = \left(\frac{\partial f}{\partial t} + \mu_t\frac{\partial f}{\partial x} + \frac{1}{2}\sigma_t^2\frac{\partial^2 f}{\partial x^2}\right)dt + \sigma_t\frac{\partial f}{\partial x}dW_t
+\end{equation}
+
+$\frac{1}{2}\sigma_t^2\frac{\partial^2 f}{\partial x^2}$ 项是二阶修正——这是随机微积分与普通微积分的本质差异，来源于 $(dW_t)^2 = dt$。
+
+\begin{example}[几何布朗运动的伊藤引理]
+设 $S_t$ 遵循 $dS_t = \mu S_t dt + \sigma S_t dW_t$，令 $f(S) = \ln S$：
+\begin{equation}
+  d(\ln S_t) = \left(\mu - \frac{1}{2}\sigma^2\right)dt + \sigma dW_t
+\end{equation}
+因此 $\ln S_T \sim \mathcal{N}\left(\ln S_0 + (\mu - \sigma^2/2)T, \sigma^2 T\right)$。
+\end{example}
+
+\subsection{随机微分方程 (SDE)}
+
+一般形式：
+\begin{equation}
+  dX_t = \mu(t,X_t)dt + \sigma(t,X_t)dW_t
+\end{equation}
+
+解的存在唯一性：Lipschitz 条件和线性增长条件（参考 Oksendal 的 SDE 理论）。
+
+常见解析解：
+\begin{itemize}[leftmargin=*]
+  \item 几何布朗运动：$S_t = S_0 \exp((\mu - \sigma^2/2)t + \sigma W_t)$
+  \item Ornstein-Uhlenbeck 过程：$X_t = X_0 e^{-\theta t} + \mu(1-e^{-\theta t}) + \sigma \int_0^t e^{-\theta(t-s)} dW_s$
+\end{itemize}
+
+\section{跳跃过程}
+
+\subsection{泊松过程}
+
+强度为 $\lambda$ 的泊松过程 $N_t$：
+\begin{itemize}[leftmargin=*]
+  \item $N_0 = 0$
+  \item 独立增量
+  \item $N_t - N_s \sim \text{Poisson}(\lambda(t-s))$
+\end{itemize}
+
+\subsection{复合泊松过程}
+
+\begin{equation}
+  J_t = \sum_{i=1}^{N_t} Y_i
+\end{equation}
+
+其中 $Y_i \sim \text{i.i.d.}$ 为跳跃幅度。
+
+\subsection{跳跃扩散模型 (Merton, 1976)}
+
+\begin{equation}
+  \frac{dS_t}{S_{t-}} = \mu dt + \sigma dW_t + dJ_t
+\end{equation}
+
+其中 $J_t$ 为复合泊松过程，跳跃幅度通常取对数正态分布。Merton 模型可以生成隐含波动率微笑，弥补 BS 模型的局限。
+
+\subsection{L\'evy 过程}
+
+L\'evy 过程是具有平稳独立增量和随机连续的随机过程。L\'evy-Khintchine 表示：
+
+\begin{equation}
+  \mathbb{E}[e^{iuX_t}] = \exp\left[t\left(ibu - \frac{1}{2}\sigma^2 u^2 + \int_{\mathbb{R}}(e^{iux} - 1 - iux\mathbf{1}_{|x|<1})\nu(dx)\right)\right]
+\end{equation}
+
+其中 $(b,\sigma^2,\nu)$ 为特征三元组，$\nu$ 为 L\'evy 测度（控制跳跃频率和大小）。
+
+常见金融 L\'evy 模型：VG（Variance Gamma）、NIG（Normal Inverse Gaussian）、CGMY。
+
+\section{鞅表示与对冲}
+
+\subsection{鞅表示定理}
+
+在布朗运动过滤下，任意鞅 $M_t$ 可表示为：
+
+\begin{equation}
+  M_t = M_0 + \int_0^t H_s dW_s
+\end{equation}
+
+这保证了完备市场中所有未定权益可 Delta 对冲。
+
+\subsection{市场完备性}
+
+在一个存在 $d$ 个布朗运动和 $n$ 个风险资产的市场：
+\begin{itemize}[leftmargin=*]
+  \item $n \geq d$：市场完备（所有未定权益可复制）
+  \item $n < d$：不完备市场（如带随机波动率的模型）
+\end{itemize}
+
+\section{测度变换与计价单位}
+
+\subsection{概览}
+
+测度变换（Measure Change）是 Q Quant 的核心操作：
+
+\begin{theorem}[Girsanov]
+若 $\frac{d\mathbb{Q}}{d\mathbb{P}} = \mathcal{E}\left(-\int_0^T \lambda_s dW_s\right)$，则：
+\begin{equation}
+  W_t^{\mathbb{Q}} = W_t^{\mathbb{P}} + \int_0^t \lambda_s ds
+\end{equation}
+在 $\mathbb{Q}$ 下是布朗运动。
+\end{theorem}
+
+在金融中，$\lambda$ 为夏普比率（Sharpe Ratio），即超额收益比波动率：
+
+\begin{equation}
+  \lambda_t = \frac{\mu_t - r}{\sigma_t}
+\end{equation}
+
+\subsection{数例}
+
+$\mathbb{Q}$ 测度下股票 SDE：
+\begin{equation}
+  dS_t = r S_t dt + \sigma S_t dW_t^{\mathbb{Q}}
+\end{equation}
+
+漂移从 $\mu$ 变为 $r$（风险中性化）。Girsanov 定理从数学上证明：改变测度等价于改变漂移——波动率不变。
+
+\section{Feynman-Kac 公式}
+
+偏微分方程与随机过程的桥梁：
+
+\begin{theorem}[Feynman-Kac]
+若 $u(t,x)$ 满足：
+\begin{equation}
+  \frac{\partial u}{\partial t} + \mu(t,x)\frac{\partial u}{\partial x} + \frac{1}{2}\sigma^2(t,x)\frac{\partial^2 u}{\partial x^2} - r(t,x)u + f(t,x) = 0
+\end{equation}
+且终端条件 $u(T,x) = g(x)$，则：
+\begin{equation}
+  u(t,x) = \mathbb{E}\left[\int_t^T e^{-\int_t^s r(\tau,X_\tau)d\tau} f(s,X_s)ds + e^{-\int_t^T r(\tau,X_\tau)d\tau} g(X_T) \mid X_t = x\right]
+\end{equation}
+\end{theorem}
+
+这建立了 BS PDE 与风险中性期望的等价性——数学上的同一座桥，从两个方向架设。
+
+\section{小结}
+
+随机过程是量化金融的数学心脏。布朗运动提供了基准随机性，伊藤积分使我们能够在"处处不可微"的世界中做微积分，L\'evy 过程将跳跃风险纳入模型，Girsanov 和 Feynman-Kac 构建了 PDE、SDE 和鞅定价的统一框架。这是通向 Q Quant 的必修数学通道。

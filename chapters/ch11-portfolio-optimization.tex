@@ -1,0 +1,213 @@
+\chapter{组合优化}
+
+\section{马科维茨均值-方差优化}
+
+\subsection{问题表述}
+
+经典均值-方差优化（Markowitz, 1952）：
+
+\begin{align}
+  \max_{w} \quad & w^T\mu - \frac{\lambda}{2} w^T\Sigma w \\
+  \text{s.t.} \quad & w^T\mathbf{1} = 1
+\end{align}
+
+其中 $w$ 为权重向量，$\mu$ 为期望收益向量，$\Sigma$ 为协方差矩阵，$\lambda$ 为风险厌恶系数。
+
+\subsection{解析解（无约束 + 全额投资）}
+
+\begin{equation}
+  w^* = \frac{\Sigma^{-1}\mathbf{1}}{\mathbf{1}^T\Sigma^{-1}\mathbf{1}} + \frac{1}{\lambda}\Sigma^{-1}\left(\mu - \frac{\mathbf{1}^T\Sigma^{-1}\mu}{\mathbf{1}^T\Sigma^{-1}\mathbf{1}}\mathbf{1}\right)
+\end{equation}
+
+解释：第一项为最小方差组合（GMVP），第二项为基于期望收益的倾斜。
+
+\subsection{有效前沿}
+
+有效前沿是给定方差下期望收益最大的组合集合。两个基金分离定理：任意有效组合 = GMVP + 切点组合的线性组合。
+
+\begin{keybox}
+均值-方差优化最大的问题是"错误放大"：$\Sigma$ 的微小估计误差会在 $\Sigma^{-1}$ 中被剧烈放大，导致极端权重和糟糕的样本外表现。这被称为 Markowitz 优化困境。
+\end{keybox}
+
+\section{协方差矩阵估计}
+
+\subsection{样本协方差}
+
+\begin{equation}
+  S = \frac{1}{T-1}\sum_{t=1}^{T}(R_t - \bar{R})(R_t - \bar{R})^T
+\end{equation}
+
+当 $N \gg T$（资产数量远大于时间跨度）时，$S$ 奇异，不可逆。
+
+\subsection{收缩估计 (Shrinkage)}
+
+Ledoit-Wolf 收缩：
+\begin{equation}
+  \hat{\Sigma}_{\text{LW}} = \delta F + (1-\delta)S
+\end{equation}
+
+其中 $F$ 为目标矩阵（如等相关系数矩阵或常数相关矩阵），$\delta$ 为收缩强度。这大幅改善了样本外表现。
+
+\subsection{因子结构协方差}
+
+基于因子模型的协方差矩阵：
+\begin{equation}
+  \Sigma = B\Sigma_f B^T + D
+\end{equation}
+
+其中 $B$ 为因子载荷，$\Sigma_f$ 为因子协方差，$D$ 为对角特质方差。这将 $O(N^2)$ 参数缩减为 $O(NK)$。
+
+\subsection{指数加权移动平均 (EWMA)}
+
+\begin{equation}
+  \Sigma_t = (1-\lambda)R_{t-1}R_{t-1}^T + \lambda \Sigma_{t-1}
+\end{equation}
+
+RiskMetrics 采用 $\lambda = 0.94$（日频）或 $0.97$（月频）。EWMA 赋予近期观测更高权重，捕捉时变协方差结构。
+
+\section{鲁棒组合优化}
+
+\subsection{不确定性集}
+
+鲁棒优化将参数不确定性纳入建模，在最坏情况下优化：
+
+\begin{equation}
+  \max_{w} \min_{\mu \in \mathcal{U}_\mu,\;\Sigma \in \mathcal{U}_\Sigma} \left[w^T\mu - \frac{\lambda}{2} w^T\Sigma w\right]
+\end{equation}
+
+常见不确定性集：
+\begin{itemize}[leftmargin=*]
+  \item 盒约束：$\mathcal{U}_\mu = \{\mu : |\mu_i - \hat{\mu}_i| \leq \varepsilon_i\}$
+  \item 椭球约束：$\mathcal{U}_\mu = \{\mu : (\mu - \hat{\mu})^T \Omega^{-1}(\mu - \hat{\mu}) \leq \kappa^2\}$
+\end{itemize}
+
+\subsection{Black-Litterman 再探}
+
+BL 是一种贝叶斯收缩方法，将主观观点与市场均衡融合，解决了均值估计不可靠的问题。（详见第八章贝叶斯方法部分）
+
+\section{风险平价 (Risk Parity)}
+
+\subsection{等风险贡献 (ERC)}
+
+ERC 组合要求每个资产对组合风险的边际贡献相等：
+
+\begin{equation}
+  w_i \cdot \frac{\partial \sigma_p}{\partial w_i} = w_j \cdot \frac{\partial \sigma_p}{\partial w_j}, \quad \forall i,j
+\end{equation}
+
+即：
+\begin{equation}
+  \frac{(\Sigma w)_i}{w_i} = \text{常数}
+\end{equation}
+
+ERC 是介于等权重和最小方差之间的方案，在市场下行时表现优于均值-方差优化（因为它不依赖不可靠的 $\mu$ 估计）。
+
+\subsection{风险预算 (Risk Budgeting)}
+
+推广版：
+\begin{equation}
+  w_i \cdot \frac{(\Sigma w)_i}{\sigma_p} = b_i \cdot \sigma_p
+\end{equation}
+
+其中 $b_i$ 为资产 $i$ 的风险预算，$\sum b_i = 1$。
+
+\section{约束优化与交易成本}
+
+\subsection{带约束的组合优化}
+
+实际组合优化涉及大量约束：
+
+\begin{itemize}[leftmargin=*]
+  \item 权重上下限：$l_i \leq w_i \leq u_i$
+  \item 行业暴露约束：$\sum_{i \in \text{Sector}} w_i \leq c_{\text{sector}}$
+  \item 因子暴露约束：$|w^T B_k| \leq e_k$
+  \item 换手率约束：$\|w - w_0\|_1 \leq \tau$
+  \item 做空约束（中国 A 股常见）
+\end{itemize}
+
+二次规划 (QP) 是求解带约束均值-方差问题的标准工具（cvxopt、OSQP、Gurobi）。
+
+\subsection{交易成本建模}
+
+交易成本是组合再平衡的实际约束：
+
+\begin{equation}
+  TC(w, w_0) = \kappa \cdot \|w - w_0\|_1 + \eta \cdot \|w - w_0\|_2^2
+\end{equation}
+
+第一项为线性市场冲击（价差），第二项为二次冲击（大单冲击）。将 $TC$ 纳入目标函数可避免过度交易。
+
+\section{绩效归因 (Performance Attribution)}
+
+\subsection{Brinson 归因}
+
+Brinson 模型将组合超额收益分解为：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{配置效应}（Allocation Effect）：行业/资产类别的超配/低配贡献
+  \item \textbf{选股效应}（Selection Effect）：在行业内的选股能力贡献
+  \item \textbf{交互效应}（Interaction Effect）：配置与选股的交叉影响
+\end{itemize}
+
+\subsection{因子归因}
+
+\begin{equation}
+  R_p - R_b = \sum_{k} (w_{p,k} - w_{b,k}) \cdot f_k + \varepsilon
+\end{equation}
+
+将收益差异按因子分解，识别 Alpha 来源是选股能力还是因子暴露。
+
+\subsection{Brinson-Fachler 归因}
+
+改进的 Brinson 归因使用基准权重归一化选股效应，避免了经典 Brinson 方法中选股效应与配置效应的混淆。
+
+\section{动态组合管理}
+
+\subsection{常数混合 vs 买入持有 vs CPPI}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{买入持有}：不调整权重，收益曲线是标的的线性函数
+  \item \textbf{常数混合}：定期再平衡到固定权重，收益曲线是凹函数（波动率收割）
+  \item \textbf{CPPI}（固定比例组合保险）：$E_t = \max(0, m(A_t - F_t))$，收益曲线是凸函数（下行保护）
+\end{itemize}
+
+\subsection{动态规划与 Merton 问题}
+
+Merton (1969, 1971) 的连续时间消费-投资问题：
+
+\begin{equation}
+  \max_{c_t, w_t} \mathbb{E}\left[\int_0^T U(c_t)dt + U(W_T)\right]
+\end{equation}
+
+CRRA 效用下的最优解：
+\begin{equation}
+  w^* = \frac{\mu - r}{\gamma \sigma^2}
+\end{equation}
+
+即 Merton 比率：最优股票配置 = 夏普比率 /（风险厌恶 $\times$ 方差）。在连续时间下，这是常数（投资机会恒定）。
+
+\section{另类组合构建方法}
+
+\subsection{风险贡献平价 (RCP) 的扩展}
+
+Hierarchical Risk Parity (HRP, Lopez de Prado, 2016)：通过层次聚类和递归二分法构建组合，避免协方差矩阵求逆，对样本外表现更鲁棒。
+
+\subsection{最大分散度组合}
+
+\begin{equation}
+  \max_w \frac{w^T\sigma}{w^T\Sigma w}
+\end{equation}
+
+最大化组合波动率加权平均与组合波动率的比率。
+
+\subsection{最大去相关组合 (MDP)}
+
+\begin{equation}
+  \min_w w^T \Sigma_{\text{corr}} w
+\end{equation}
+
+用相关矩阵替代协方差矩阵，降低了规模效应的干扰。
+
+\section{小结}
+
+组合优化是投资管理的最后环节——在 Alpha 信号和风险模型之上，将预测转化为仓位。从 Markowitz 的经典框架到鲁棒优化和风险平价，从协方差收缩到交易成本纳入，实践中的组合优化需要同时驾驭数学优雅和工程务实。记住：最好的组合优化模型不是理论上最优的，而是样本外稳定的。

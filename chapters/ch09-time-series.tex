@@ -1,0 +1,248 @@
+\chapter{时间序列分析}
+
+\section{经典时间序列模型}
+
+\subsection{平稳性与自相关}
+
+弱平稳条件：
+\begin{itemize}[leftmargin=*]
+  \item 均值恒定：$\mathbb{E}[y_t] = \mu$
+  \item 自协方差仅依赖于滞后：$\text{Cov}(y_t, y_{t-k}) = \gamma_k$
+\end{itemize}
+
+样本自相关函数（ACF）：
+\begin{equation}
+  \hat{\rho}_k = \frac{\sum_{t=k+1}^{T} (y_t - \bar{y})(y_{t-k} - \bar{y})}{\sum_{t=1}^{T} (y_t - \bar{y})^2}
+\end{equation}
+
+偏自相关函数（PACF）用于辨识 AR 模型的阶数。
+
+\subsection{AR(p) 模型}
+
+\begin{equation}
+  y_t = c + \phi_1 y_{t-1} + \phi_2 y_{t-2} + \cdots + \phi_p y_{t-p} + \varepsilon_t
+\end{equation}
+
+平稳性条件：特征方程 $1 - \phi_1 z - \cdots - \phi_p z^p = 0$ 的根均在单位圆外。
+
+\subsection{MA(q) 模型}
+
+\begin{equation}
+  y_t = \mu + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \cdots + \theta_q \varepsilon_{t-q}
+\end{equation}
+
+MA 过程始终平稳，有限阶 MA 具有截尾的 ACF。
+
+\subsection{ARMA(p,q) 模型}
+
+\begin{equation}
+  y_t = c + \sum_{i=1}^{p} \phi_i y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j \varepsilon_{t-j}
+\end{equation}
+
+使用滞后算子 $L$：
+\begin{equation}
+  \phi(L) y_t = c + \theta(L) \varepsilon_t
+\end{equation}
+
+其中 $\phi(L) = 1 - \phi_1 L - \cdots - \phi_p L^p$，$\theta(L) = 1 + \theta_1 L + \cdots + \theta_q L^q$。
+
+\subsection{ARIMA(p,d,q) 模型}
+
+\begin{equation}
+  \phi(L)(1-L)^d y_t = c + \theta(L) \varepsilon_t
+\end{equation}
+
+$(1-L)^d$ 为 $d$ 阶差分算子，使非平稳序列变为平稳。
+
+Box-Jenkins 方法：识别（ACF/PACF 判断 p,q）$\to$ 估计 $\to$ 诊断检验（残差白噪声检验）$\to$ 预测。
+
+\subsection{SARIMA}
+
+季节性 ARIMA：$\text{SARIMA}(p,d,q)(P,D,Q)_s$
+
+\begin{equation}
+  \phi(L)\Phi(L^s)(1-L)^d(1-L^s)^D y_t = \theta(L)\Theta(L^s)\varepsilon_t
+\end{equation}
+
+\section{波动率建模 (GARCH 族)}
+
+\subsection{ARCH 模型}
+
+Engle (1982) 的自回归条件异方差模型：
+
+\begin{align}
+  r_t &= \mu_t + \varepsilon_t, \quad \varepsilon_t = \sigma_t z_t, \quad z_t \sim \text{i.i.d.}(0,1) \\
+  \sigma_t^2 &= \omega + \sum_{i=1}^{q} \alpha_i \varepsilon_{t-i}^2
+\end{align}
+
+\subsection{GARCH(p,q) 模型}
+
+Bollerslev (1986) 的推广：
+
+\begin{equation}
+  \sigma_t^2 = \omega + \sum_{i=1}^{q} \alpha_i \varepsilon_{t-i}^2 + \sum_{j=1}^{p} \beta_j \sigma_{t-j}^2
+\end{equation}
+
+GARCH(1,1) 是金融中最常用的波动率模型：
+
+\begin{equation}
+  \sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \beta \sigma_{t-1}^2
+\end{equation}
+
+无条件方差：$\mathbb{E}[\sigma^2] = \omega / (1 - \alpha - \beta)$，要求 $\alpha + \beta < 1$。
+
+\subsection{GARCH 扩展}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{EGARCH}：对 $\log\sigma_t^2$ 建模，捕捉杠杆效应（好消息与坏消息对波动率的非对称影响）
+  \item \textbf{GJR-GARCH}：在方差方程中引入负收益指示变量，直接捕捉非对称
+  \item \textbf{FIGARCH}：长记忆波动率模型（分数阶差分）
+  \item \textbf{DCC-GARCH}：动态条件相关——多变量波动率模型
+\end{itemize}
+
+\begin{keybox}
+金融收益率的"程式化事实"（Stylized Facts）：肥尾（Leptokurtosis）、波动率聚集（Volatility Clustering）、杠杆效应（Leverage Effect）、长记忆性。GARCH 族模型正是为了捕捉这些特征而发展。
+\end{keybox}
+
+\section{深度学习时间序列模型}
+
+\subsection{循环神经网络 (RNN)}
+
+RNN 核心递归：
+\begin{equation}
+  h_t = \tanh(W_h h_{t-1} + W_x x_t + b)
+\end{equation}
+
+RNN 的梯度消失/爆炸问题阻碍了长序列学习。
+
+\subsection{长短期记忆网络 (LSTM)}
+
+LSTM 通过门控机制解决长期依赖问题：
+
+\begin{align}
+  f_t &= \sigma(W_f \cdot [h_{t-1}, x_t] + b_f) \quad \text{（遗忘门）} \\
+  i_t &= \sigma(W_i \cdot [h_{t-1}, x_t] + b_i) \quad \text{（输入门）} \\
+  \tilde{C}_t &= \tanh(W_C \cdot [h_{t-1}, x_t] + b_C) \quad \text{（候选记忆）} \\
+  C_t &= f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \quad \text{（记忆单元更新）} \\
+  o_t &= \sigma(W_o \cdot [h_{t-1}, x_t] + b_o) \quad \text{（输出门）} \\
+  h_t &= o_t \odot \tanh(C_t) \quad \text{（隐状态）}
+\end{align}
+
+\textbf{金融应用}：
+\begin{itemize}[leftmargin=*]
+  \item 波动率预测：LSTM-GARCH 混合模型，LSTM 捕捉非线性动态
+  \item Alpha 信号生成：多变量金融时间序列 $\to$ LSTM $\to$ 收益预测
+  \item 高频交易：订单簿数据 $\to$ LSTM $\to$ 短期价格方向
+\end{itemize}
+
+\subsection{门控循环单元 (GRU)}
+
+GRU 是 LSTM 的简化变体（合并记忆单元和隐状态）：
+
+\begin{align}
+  z_t &= \sigma(W_z \cdot [h_{t-1}, x_t]) \quad \text{（更新门）} \\
+  r_t &= \sigma(W_r \cdot [h_{t-1}, x_t]) \quad \text{（重置门）} \\
+  \tilde{h}_t &= \tanh(W \cdot [r_t \odot h_{t-1}, x_t]) \\
+  h_t &= (1 - z_t) \odot h_{t-1} + z_t \odot \tilde{h}_t
+\end{align}
+
+\subsection{Transformer 时间序列模型}
+
+Transformer 的自注意力机制为金融时间序列带来了范式创新：
+
+\textbf{缩放点积注意力}：
+\begin{equation}
+  \text{Attention}(Q,K,V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\end{equation}
+
+\textbf{多头注意力}：
+\begin{equation}
+  \text{MultiHead}(Q,K,V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)W^O
+\end{equation}
+
+其中 $\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)$。
+
+\textbf{位置编码}：
+\begin{align}
+  PE_{(pos, 2i)} &= \sin(pos / 10000^{2i/d_{\text{model}}}) \\
+  PE_{(pos, 2i+1)} &= \cos(pos / 10000^{2i/d_{\text{model}}})
+\end{align}
+
+\textbf{金融 Transformer 变体}：
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Informer}：ProbSparse 自注意力，$O(L\log L)$ 复杂度，适合长序列
+  \item \textbf{Autoformer}：自相关机制替代自注意力，分解季节性和趋势成分
+  \item \textbf{PatchTST}：将时间序列分割为 Patch（类似 ViT），独立通道建模
+  \item \textbf{Temporal Fusion Transformer (TFT)}：可解释的多水平时间序列预测，支持静态协变量
+\end{itemize}
+
+\subsection{金融时间序列的 Transformer 应用}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{多资产收益预测}：跨资产注意力捕捉资产间的领先-滞后关系
+  \item \textbf{组合管理}：Attention 权重解释资产间的时变相关性
+  \item \textbf{异常检测}：Transformer 重构误差用于识别市场异常
+  \item \textbf{文本驱动的预测}：融合新闻/社交媒体与价格数据（跨模态 Transformer）
+\end{enumerate}
+
+\section{协整与误差修正模型}
+
+\subsection{协整 (Cointegration)}
+
+若 $y_t$ 和 $x_t$ 均为 $I(1)$（一阶单整），但存在 $\beta$ 使得：
+
+\begin{equation}
+  u_t = y_t - \beta x_t \sim I(0)
+\end{equation}
+
+则 $y_t$ 和 $x_t$ 协整，具有长期均衡关系。这是配对交易策略的数学基础。
+
+\subsection{误差修正模型 (ECM)}
+
+\begin{align}
+  \Delta y_t &= \alpha_y (y_{t-1} - \beta x_{t-1}) + \sum \gamma_i \Delta y_{t-i} + \sum \delta_i \Delta x_{t-i} + \varepsilon_t
+\end{align}
+
+其中误差修正项 $\alpha_y (y_{t-1} - \beta x_{t-1})$ 将短期动态拉回长期均衡。
+
+\subsection{Johansen 检验}
+
+向量误差修正模型（VECM）：
+\begin{equation}
+  \Delta Y_t = \Pi Y_{t-1} + \sum_{i=1}^{p-1} \Gamma_i \Delta Y_{t-i} + \varepsilon_t
+\end{equation}
+
+$\Pi = \alpha\beta^T$ 的秩决定了协整关系的数量。迹检验和最大特征值检验是最常用的 Johansen 检验。
+
+\section{模型评估}
+
+\subsection{预测评估指标}
+
+\begin{align}
+  \text{MSE} &= \frac{1}{n}\sum_{i=1}^{n} (y_i - \hat{y}_i)^2 \\
+  \text{MAE} &= \frac{1}{n}\sum_{i=1}^{n} |y_i - \hat{y}_i| \\
+  \text{MAPE} &= \frac{100\%}{n}\sum_{i=1}^{n} \left|\frac{y_i - \hat{y}_i}{y_i}\right|
+\end{align}
+
+\subsection{Diebold-Mariano 检验}
+
+用于比较两个预测模型的准确性差异是否显著：
+
+\begin{equation}
+  DM = \frac{\bar{d}}{\sqrt{\widehat{\text{Var}}(\bar{d})}}
+\end{equation}
+
+其中 $d_t$ 为两模型预测误差差异的时间序列。
+
+\subsection{回测 VaR (Backtesting)}
+
+Kupiec 检验（无条件覆盖）：
+\begin{equation}
+  LR_{UC} = -2 \ln\left[\frac{(1-p)^{N-x}p^{x}}{(1-x/N)^{N-x}(x/N)^{x}}\right] \sim \chi^2_1
+\end{equation}
+
+Christoffersen 检验还检查异常值的独立性（条件覆盖），防止波动率聚集导致的违规聚类。
+
+\section{小结}
+
+时间序列分析是量化金融的脊椎——从经典的 ARIMA/GARCH 到现代的 LSTM/Transformer，模型复杂度与日俱增，但核心目标不变：提取序列中的可预测信号。传统模型可解释性强、参数少、适合低频宏观数据；深度学习方法适合高维、非线性、多频率的数据环境。实践中应权衡模型复杂度与泛化能力。

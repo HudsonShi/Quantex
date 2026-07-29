@@ -1,0 +1,224 @@
+\chapter{金融工程}
+
+\section{金融工程方法论}
+
+金融工程（Financial Engineering）是运用数学、统计学和计算机科学来设计、定价和管理金融产品的学科。其核心循环为：
+
+\begin{center}
+识别需求 $\to$ 产品设计 $\to$ 定价建模 $\to$ 风险管理 $\to$ 执行与对冲
+\end{center}
+
+\section{远期与期货定价}
+
+\subsection{远期合约定价}
+
+无套利定价原理：在无摩擦市场下，远期价格 $F_0$ 必须满足：
+
+\begin{equation}
+  F_0 = S_0 e^{rT}
+\end{equation}
+
+考虑持有成本（存储费 $u$、便利收益率 $y$）：
+
+\begin{equation}
+  F_0 = S_0 e^{(r + u - y)T}
+\end{equation}
+
+对于股票指数（含股息收益率 $q$）：
+
+\begin{equation}
+  F_0 = S_0 e^{(r - q)T}
+\end{equation}
+
+\subsection{期货与远期的差异}
+
+\begin{table}[h]
+\centering
+\caption{期货 vs 远期}
+\begin{tabular}{@{}lll@{}}
+\toprule
+特征 & 远期 & 期货 \\
+\midrule
+交易场所 & OTC & 交易所 \\
+标准化 & 定制 & 标准化 \\
+信用风险 & 双边 & CCP 清算 \\
+保证金 & 无 & 逐日盯市 \\
+流动性 & 低 & 高 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{期权定价理论}
+
+\subsection{期权收益函数}
+
+欧式看涨期权到期收益：
+\begin{equation}
+  C_T = \max(S_T - K, 0)
+\end{equation}
+
+欧式看跌期权到期收益：
+\begin{equation}
+  P_T = \max(K - S_T, 0)
+\end{equation}
+
+\subsection{看跌-看涨平价 (Put-Call Parity)}
+
+欧式期权在无套利条件下满足：
+
+\begin{equation}
+  C + Ke^{-rT} = P + S_0
+\end{equation}
+
+这是金融工程最基本的复制关系——一个看涨 + 现金 = 看跌 + 标的。
+
+\subsection{Black-Scholes-Merton 公式}
+
+在以下假设下：
+\begin{itemize}[leftmargin=*]
+  \item 标的服从几何布朗运动：$dS = \mu S\,dt + \sigma S\,dW$
+  \item 无摩擦市场、连续交易、常数利率和波动率
+  \item 无套利机会
+\end{itemize}
+
+Black-Scholes PDE：
+
+\begin{equation}
+  \frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + rS\frac{\partial V}{\partial S} - rV = 0
+\end{equation}
+
+欧式看涨期权解析解：
+
+\begin{align}
+  C &= S_0 N(d_1) - Ke^{-rT} N(d_2) \\
+  d_1 &= \frac{\ln(S_0/K) + (r + \sigma^2/2)T}{\sigma\sqrt{T}} \\
+  d_2 &= d_1 - \sigma\sqrt{T}
+\end{align}
+
+其中 $N(\cdot)$ 为标准正态分布的累积分布函数。
+
+\subsection{希腊字母 (Greeks)}
+
+\begin{table}[h]
+\centering
+\caption{期权敏感度指标}
+\begin{tabular}{@{}lll@{}}
+\toprule
+希腊字母 & 定义 & 意义 \\
+\midrule
+$\Delta$ & $\partial V / \partial S$ & 标的价格敏感度 \\
+$\Gamma$ & $\partial^2 V / \partial S^2$ & Delta 变化率 \\
+$\Theta$ & $\partial V / \partial t$ & 时间损耗 \\
+$\nu$ (Vega) & $\partial V / \partial \sigma$ & 波动率敏感度 \\
+$\rho$ & $\partial V / \partial r$ & 利率敏感度 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{keybox}
+Gamma 是期权的"加速度计"：ATM 近到期期权的 Gamma 极高，Delta 对冲频率需随之增加。交易员正是通过管理 Greeks 敞口来控制风险。
+\end{keybox}
+
+\section{波动率建模}
+
+\subsection{隐含波动率 (Implied Volatility)}
+
+隐含波动率是将市场期权价格代入 BS 公式反解出的 $\sigma$。波动率微笑（Volatility Smile）和偏斜（Skew）揭示了市场对尾部风险的定价偏差。
+
+\subsection{局部波动率模型}
+
+Dupire 公式从期权价格曲面推导局部波动率函数 $\sigma_L(S,t)$：
+
+\begin{equation}
+  \sigma_L^2(K,T) = \frac{\frac{\partial C}{\partial T} + rK\frac{\partial C}{\partial K}}{\frac{1}{2}K^2\frac{\partial^2 C}{\partial K^2}}
+\end{equation}
+
+\subsection{随机波动率模型}
+
+Heston 模型同时建模标的和波动率：
+
+\begin{align}
+  dS_t &= \mu S_t\,dt + \sqrt{v_t} S_t\,dW_t^S \\
+  dv_t &= \kappa(\theta - v_t)\,dt + \xi\sqrt{v_t}\,dW_t^v
+\end{align}
+
+其中 $dW_t^S dW_t^v = \rho\,dt$（通常 $\rho < 0$，即杠杆效应）。
+
+\section{结构化产品}
+
+\subsection{保本票据 (Principal-Protected Notes)}
+
+结构：零息债券 + 看涨期权多头。本金由债券保证，收益由期权提供上行参与。
+
+\subsection{自动赎回产品 (Autocallables)}
+
+触发特征：若标的在观察日超过障碍水平，产品提前赎回并支付票息。否则持续至到期或发生敲入。定价依赖于复杂的路径依赖蒙特卡洛模拟。
+
+\section{固定收益金融工程}
+
+\subsection{利率互换 (IRS)}
+
+固定利率方支付固定利率 $K$，浮动利率方支付 LIBOR/SOFR。互换利率 $K$ 满足：
+
+\begin{equation}
+  K = \frac{1 - B(0,T_n)}{\sum_{i=1}^{n} \tau_i B(0,T_i)}
+\end{equation}
+
+其中 $B(0,t)$ 为零息债券价格。
+
+\subsection{利率上限/下限 (Cap/Floor)}
+
+Caplet（单期 Cap）是利率看涨期权，其 Black 公式：
+
+\begin{equation}
+  \text{Caplet} = \tau \cdot B(0,T_{i+1}) \cdot [F_i N(d_1) - K N(d_2)]
+\end{equation}
+
+其中 $F_i$ 为远期利率。
+
+\section{信用衍生品}
+
+\subsection{信用违约互换 (CDS)}
+
+CDS 买方支付定期保费（CDS Spread），在参考实体违约时获得赔偿：
+
+\begin{equation}
+  \text{CDS Spread} \approx \frac{(1-R) \cdot \sum_{i} B(0,t_i) [Q(t_{i-1}) - Q(t_i)]}{\sum_{i} \tau_i B(0,t_i) Q(t_i)}
+\end{equation}
+
+其中 $R$ 为回收率，$Q(t)$ 为生存概率。
+
+\subsection{担保债务凭证 (CDO)}
+
+CDO 将信用风险池分层（Tranche）：优先层（Senior）、夹层层（Mezzanine）、权益层（Equity）。损失按从下到上的顺序吸收。CDO 定价的核心是相关建模——Gaussian Copula 模型虽然因金融危机而臭名昭著，但仍是理解相关风险的经典框架。
+
+\section{风险管理框架}
+
+\subsection{在险价值 (VaR)}
+
+在给定置信水平 $\alpha$ 和时间范围下，最大可能损失：
+
+\begin{equation}
+  \text{VaR}_{\alpha} = \inf\{x : P(L > x) \leq 1-\alpha\}
+\end{equation}
+
+参数化 VaR（正态假设）：
+\begin{equation}
+  \text{VaR}_{\alpha} = \mu + \sigma \cdot z_{\alpha}
+\end{equation}
+
+\subsection{预期亏空 (Expected Shortfall / CVaR)}
+
+ES 是 Basel III 推荐的风险度量，克服了 VaR 的次可加性缺陷：
+
+\begin{equation}
+  ES_{\alpha} = \mathbb{E}[L \mid L > \text{VaR}_{\alpha}]
+\end{equation}
+
+\subsection{压力测试与情景分析}
+
+历史情景：2008 金融危机、2020 新冠冲击、2022 加息周期。假设情景：权益暴跌 30\% + 利率飙升 200bp 等复合冲击。
+
+\section{小结}
+
+金融工程是量化金融的核心应用领域。从 BSM 的解析优雅到 Heston 的数值复杂度，从单一衍生品到结构化产品组合，金融工程师需要掌握定价理论、数值方法和风险管理的完整工具链。

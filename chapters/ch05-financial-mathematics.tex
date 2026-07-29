@@ -1,0 +1,196 @@
+\chapter{金融数学}
+
+\section{利息理论}
+
+\subsection{计息方式}
+
+单利（Simple Interest）：
+\begin{equation}
+  A = P(1 + rt)
+\end{equation}
+
+复利（Compound Interest）：
+\begin{equation}
+  A = P(1 + r)^t
+\end{equation}
+
+连续复利（Continuous Compounding）：
+\begin{equation}
+  A = Pe^{rt}
+\end{equation}
+
+\subsection{利率的数学表示}
+
+名义利率 $i^{(m)}$（每年计息 $m$ 次）与实际年利率 $i$ 的关系：
+
+\begin{equation}
+  1 + i = \left(1 + \frac{i^{(m)}}{m}\right)^m \quad\Rightarrow\quad i^{(m)} = m\left[(1+i)^{1/m} - 1\right]
+\end{equation}
+
+贴现因子（Discount Factor）：
+\begin{equation}
+  v = \frac{1}{1+i}
+\end{equation}
+
+\subsection{年金 (Annuity)}
+
+期末付年金现值（Annuity-Immediate）：
+\begin{equation}
+  a_{\overline{n}|} = \frac{1 - v^n}{i}
+\end{equation}
+
+期初付年金现值（Annuity-Due）：
+\begin{equation}
+  \ddot{a}_{\overline{n}|} = \frac{1 - v^n}{d}, \quad d = \frac{i}{1+i}
+\end{equation}
+
+永续年金（Perpetuity）：
+\begin{equation}
+  a_{\overline{\infty}|} = \frac{1}{i}
+\end{equation}
+
+\subsection{贷款摊销}
+
+等额本息还款：每期还款额 $R$ 满足：
+\begin{equation}
+  L = R \cdot a_{\overline{n}|}
+\end{equation}
+
+其中 $L$ 为贷款本金，$n$ 为总期数。第 $k$ 期利息部分和本金部分：
+\begin{align}
+  I_k &= R\left(1 - v^{n-k+1}\right) \\
+  P_k &= R \cdot v^{n-k+1}
+\end{align}
+
+\section{债券数学}
+
+\subsection{债券价格}
+
+含应计利息的全价（Dirty Price）：
+\begin{equation}
+  P_{\text{dirty}} = \sum_{t} \frac{C_t}{(1+y)^{t}}
+\end{equation}
+
+净价（Clean Price）= 全价 $-$ 应计利息（Accrued Interest）。
+
+\subsection{收益率曲线拟合}
+
+Nelson-Siegel 模型：
+
+\begin{equation}
+  y(\tau) = \beta_0 + \beta_1 \frac{1 - e^{-\tau/\lambda}}{\tau/\lambda} + \beta_2 \left(\frac{1 - e^{-\tau/\lambda}}{\tau/\lambda} - e^{-\tau/\lambda}\right)
+\end{equation}
+
+其中 $\beta_0$ 为长期水平，$\beta_1$ 为短期成分，$\beta_2$ 为中期驼峰，$\lambda$ 控制衰减速度。
+
+Svensson 扩展（增加一个驼峰）：
+
+\begin{equation}
+  y(\tau) = \beta_0 + \beta_1 \frac{1 - e^{-\tau/\lambda_1}}{\tau/\lambda_1} + \beta_2 \left(\frac{1 - e^{-\tau/\lambda_1}}{\tau/\lambda_1} - e^{-\tau/\lambda_1}\right) + \beta_3 \left(\frac{1 - e^{-\tau/\lambda_2}}{\tau/\lambda_2} - e^{-\tau/\lambda_2}\right)
+\end{equation}
+
+\section{期权定价的数学基础}
+
+\subsection{无套利定价与鞅}
+
+在风险中性测度 $\mathbb{Q}$ 下，任意衍生品价格为其折现期望收益：
+
+\begin{equation}
+  V_t = e^{-r(T-t)} \mathbb{E}^{\mathbb{Q}}[H(S_T) \mid \mathcal{F}_t]
+\end{equation}
+
+\subsection{Black-Scholes 偏微分方程推导}
+
+构造 Delta 对冲组合 $\Pi = V - \Delta S$，在自融资条件下：
+
+\begin{equation}
+  d\Pi = \left(\frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 V}{\partial S^2}\right)dt
+\end{equation}
+
+无套利要求 $d\Pi = r\Pi\,dt$，代入得 Black-Scholes PDE。
+
+\subsection{数值方法 I：二叉树模型}
+
+Cox-Ross-Rubinstein (CRR) 参数化：
+
+\begin{align}
+  u &= e^{\sigma\sqrt{\Delta t}} \\
+  d &= e^{-\sigma\sqrt{\Delta t}} = 1/u \\
+  p &= \frac{e^{r\Delta t} - d}{u - d}
+\end{align}
+
+\subsection{数值方法 II：有限差分法}
+
+对于 Black-Scholes PDE，Crank-Nicolson 格式：
+
+\begin{equation}
+  \frac{V_j^{n+1} - V_j^n}{\Delta t} + \frac{1}{2}\left(\mathcal{L}V_j^n + \mathcal{L}V_j^{n+1}\right) = 0
+\end{equation}
+
+其中 $\mathcal{L}$ 为空间差分算子。Crank-Nicolson 具有二阶精度和无条件稳定性。
+
+\section{蒙特卡洛模拟}
+
+\subsection{基本原理}
+
+欧式期权价格的蒙特卡洛估计：
+
+\begin{equation}
+  \hat{V} = e^{-rT} \frac{1}{N} \sum_{i=1}^{N} H(S_T^{(i)})
+\end{equation}
+
+其中 $S_T^{(i)} = S_0 \exp\left((r - \sigma^2/2)T + \sigma\sqrt{T} Z_i\right)$，$Z_i \sim \mathcal{N}(0,1)$。
+
+估计标准误差：
+\begin{equation}
+  \text{SE} = \frac{\hat{\sigma}_V}{\sqrt{N}}
+\end{equation}
+
+收敛速度 $O(1/\sqrt{N})$ 是 MC 的根本局限。
+
+\subsection{方差缩减技术}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{对偶变量 (Antithetic Variates)}：使用 $(Z, -Z)$ 成对模拟
+  \item \textbf{控制变量 (Control Variate)}：利用已知期望的相关变量修正估计
+  \item \textbf{重要性采样 (Importance Sampling)}：改变采样分布以增加"重要"区域的样本密度
+  \item \textbf{分层抽样 (Stratified Sampling)}：将样本空间分层
+\end{itemize}
+
+\subsection{拟蒙特卡洛 (QMC)}
+
+使用低差异序列（Sobol、Halton、Faure）替代伪随机数，收敛速度可达 $O((\log N)^d / N)$，优于标准 MC 的 $O(1/\sqrt{N})$。
+
+\section{数值优化基础}
+
+\subsection{无约束优化}
+
+梯度下降：
+\begin{equation}
+  x_{k+1} = x_k - \alpha_k \nabla f(x_k)
+\end{equation}
+
+牛顿法：
+\begin{equation}
+  x_{k+1} = x_k - [\nabla^2 f(x_k)]^{-1} \nabla f(x_k)
+\end{equation}
+
+BFGS（拟牛顿法）：避免 Hesse 矩阵的显式计算和求逆。
+
+\subsection{约束优化}
+
+一般形式：
+\begin{equation}
+  \min_{x} f(x) \quad \text{s.t.} \quad g_i(x) \leq 0,\; h_j(x) = 0
+\end{equation}
+
+拉格朗日函数：
+\begin{equation}
+  \mathcal{L}(x,\lambda,\mu) = f(x) + \sum_i \lambda_i g_i(x) + \sum_j \mu_j h_j(x)
+\end{equation}
+
+KKT 条件给出最优性的必要条件。
+
+\section{小结}
+
+金融数学是量化金融的语言——从复利到 BS PDE，从蒙特卡洛到数值优化，这些工具构成了量化分析师的工具箱。扎实的数学功底是将金融直觉转化为可计算模型的前提。

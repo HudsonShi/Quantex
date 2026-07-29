@@ -1,0 +1,237 @@
+\chapter{金融概率与统计分析}
+
+\section{概率论基础回顾}
+
+\subsection{随机变量与分布}
+
+累积分布函数（CDF）：
+\begin{equation}
+  F_X(x) = P(X \leq x)
+\end{equation}
+
+概率密度函数（PDF）：
+\begin{equation}
+  f_X(x) = \frac{d}{dx}F_X(x)
+\end{equation}
+
+\subsection{矩与特征函数}
+
+$k$ 阶原点矩：$\mu_k' = \mathbb{E}[X^k]$
+
+$k$ 阶中心矩：$\mu_k = \mathbb{E}[(X - \mathbb{E}[X])^k]$
+
+偏度（Skewness）：
+\begin{equation}
+  \gamma_1 = \frac{\mu_3}{\mu_2^{3/2}}
+\end{equation}
+
+峰度（Kurtosis）：
+\begin{equation}
+  \gamma_2 = \frac{\mu_4}{\mu_2^2} - 3
+\end{equation}
+
+超额峰度 $>0$ 意味着"肥尾"——极端事件比正态分布预测的更频繁，这对金融风险管理至关重要。
+
+\subsection{矩母函数与特征函数}
+
+矩母函数（MGF）：
+\begin{equation}
+  M_X(t) = \mathbb{E}[e^{tX}]
+\end{equation}
+
+特征函数（CF）：
+\begin{equation}
+  \phi_X(t) = \mathbb{E}[e^{itX}]
+\end{equation}
+
+特征函数始终存在且唯一确定分布，是 Fourier 期权定价方法的数学基础。
+
+\section{金融中的关键概率分布}
+
+\subsection{正态分布与对数正态分布}
+
+对数正态分布是 Black-Scholes 模型中资产价格的假设：
+
+\begin{equation}
+  S_T = S_0 \exp\left((\mu - \sigma^2/2)T + \sigma\sqrt{T} Z\right), \quad Z \sim \mathcal{N}(0,1)
+\end{equation}
+
+对数正态的 PDF：
+\begin{equation}
+  f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left(-\frac{(\ln x - \mu)^2}{2\sigma^2}\right), \quad x > 0
+\end{equation}
+
+\subsection{学生 $t$ 分布}
+
+$t$ 分布的肥尾特性使其更适合金融收益建模：
+
+\begin{equation}
+  f(x; \nu) = \frac{\Gamma\left(\frac{\nu+1}{2}\right)}{\sqrt{\nu\pi}\,\Gamma\left(\frac{\nu}{2}\right)} \left(1 + \frac{x^2}{\nu}\right)^{-(\nu+1)/2}
+\end{equation}
+
+随着 $\nu \to \infty$，$t$ 分布收敛于正态分布。
+
+\subsection{广义误差分布 (GED)}
+
+GED 是广义肥尾分布族，由 Nelson (1991) 引入金融：
+
+\begin{equation}
+  f(x; \nu) = \frac{\nu \exp\left(-\frac{1}{2}|x/\lambda|^{\nu}\right)}{\lambda \cdot 2^{1+1/\nu} \Gamma(1/\nu)}
+\end{equation}
+
+其中 $\nu$ 控制尾部厚度（$\nu=2$ 对应正态分布）。
+
+\subsection{极值理论分布}
+
+广义极值分布 (GEV)：
+\begin{equation}
+  G(z) = \exp\left[-\left(1 + \xi\frac{z-\mu}{\sigma}\right)^{-1/\xi}\right]
+\end{equation}
+
+$\xi > 0$（Fr\'echet）对应肥尾，$\xi = 0$（Gumbel）对应正态尾，$\xi < 0$（Weibull）对应有限上界。
+
+\begin{keybox}
+极值理论（EVT）是量化极端风险管理（如 VaR 99.9\% 下的修正）的核心工具。使用 POT（Peaks Over Threshold）方法拟合广义 Pareto 分布来估计尾部风险是业界标准做法。
+\end{keybox}
+
+\section{统计推断}
+
+\subsection{估计方法}
+
+\textbf{极大似然估计 (MLE)}：
+\begin{equation}
+  \hat{\theta}_{\text{MLE}} = \arg\max_{\theta} \sum_{i=1}^{n} \log f(x_i; \theta)
+\end{equation}
+
+\textbf{广义矩方法 (GMM)}：
+\begin{equation}
+  \hat{\theta}_{\text{GMM}} = \arg\min_{\theta} \left[\frac{1}{n}\sum_i g(x_i,\theta)\right]^T W \left[\frac{1}{n}\sum_i g(x_i,\theta)\right]
+\end{equation}
+
+GMM 在条件矩约束下非常灵活，广泛用于资产定价的实证检验。
+
+\subsection{假设检验}
+
+\textbf{似然比检验 (LRT)}：
+\begin{equation}
+  LR = -2(\log L_0 - \log L_1) \sim \chi^2_{df}
+\end{equation}
+
+\textbf{Wald 检验}和\textbf{Score 检验}是另外两种渐近等价的大样本检验。
+
+\subsection{Bootstrap}
+
+金融时间序列的独立性假设不成立，因此需使用块 Bootstrap（Block Bootstrap）：
+\begin{itemize}[leftmargin=*]
+  \item Moving Block Bootstrap (MBB)
+  \item Stationary Bootstrap（随机块长度）
+  \item 用于计算统计量的置信区间，无需分布假设
+\end{itemize}
+
+\section{回归分析}
+
+\subsection{线性回归}
+
+OLS 估计量：
+\begin{equation}
+  \hat{\beta} = (X^TX)^{-1}X^T y
+\end{equation}
+
+高斯-马尔可夫定理：在经典假设下，OLS 是最佳线性无偏估计（BLUE）。
+
+\subsection{回归诊断}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{多重共线性}：VIF（方差膨胀因子）$> 10$ 表示严重共线性
+  \item \textbf{异方差}：Breusch-Pagan 检验；White 异方差一致性标准误
+  \item \textbf{自相关}：Durbin-Watson 统计量（时间序列回归中尤为重要）
+\end{itemize}
+
+\subsection{面板数据回归}
+
+固定效应模型（控制不可观测的个体异质性）：
+\begin{equation}
+  y_{it} = \alpha_i + \beta X_{it} + \varepsilon_{it}
+\end{equation}
+
+随机效应模型：$\alpha_i$ 为随机变量（GLS 估计）。
+
+Fama-MacBeth 两步法（资产定价的标准方法）：
+\begin{enumerate}[leftmargin=*]
+  \item 时间序列回归估计 $\beta$
+  \item 横截面回归：$\bar{R}_i = \lambda_0 + \lambda_1 \hat{\beta}_i + \eta_i$
+\end{enumerate}
+
+\section{贝叶斯方法}
+
+\subsection{贝叶斯定理}
+
+\begin{equation}
+  P(\theta \mid D) = \frac{P(D \mid \theta) P(\theta)}{P(D)}
+\end{equation}
+
+其中：
+\begin{itemize}[leftmargin=*]
+  \item $P(\theta \mid D)$：后验分布（Posterior）
+  \item $P(D \mid \theta)$：似然（Likelihood）
+  \item $P(\theta)$：先验分布（Prior）
+  \item $P(D)$：边缘似然（证据）
+\end{itemize}
+
+\subsection{Black-Litterman 模型}
+
+BL 模型将主观观点与市场均衡回报融合，本质是贝叶斯收缩估计：
+
+\begin{align}
+  \mathbb{E}[R] &= \left[(\tau\Sigma)^{-1} + P^T\Omega^{-1}P\right]^{-1} \left[(\tau\Sigma)^{-1}\Pi + P^T\Omega^{-1}Q\right] \\
+  \text{Cov}(R) &= \Sigma + \left[(\tau\Sigma)^{-1} + P^T\Omega^{-1}P\right]^{-1}
+\end{align}
+
+其中 $\Pi$ 为均衡回报，$Q$ 为观点向量，$P$ 为观点选择矩阵，$\Omega$ 为观点不确定性。
+
+\subsection{MCMC}
+
+在高维贝叶斯推断中，MCMC（马尔可夫链蒙特卡洛）是标准工具：
+\begin{itemize}[leftmargin=*]
+  \item Metropolis-Hastings 算法
+  \item Gibbs 采样
+  \item Hamiltonian Monte Carlo (HMC) / NUTS (Stan、PyMC 使用)
+\end{itemize}
+
+\section{金融数据处理专题}
+
+\subsection{缺失数据处理}
+
+金融数据中缺失值很常见（非交易日、数据供应商差异）。常用方法：
+\begin{itemize}[leftmargin=*]
+  \item 前值填充（Forward Fill）
+  \item 线性/样条插值
+  \item 多重插补（Multiple Imputation）
+  \item MICE（链式方程多重插补）
+\end{itemize}
+
+\subsection{异常值处理}
+
+MAD（Median Absolute Deviation）方法：
+\begin{equation}
+  \text{MAD} = \text{median}(|x_i - \text{median}(x)|)
+\end{equation}
+
+偏离中位数超过 $k \times \text{MAD}$ 的观测标记为异常（$k=3$ 是常用阈值）。
+
+金融时间序列中更常用 Winsorization（缩尾）而非删除——将极端值替换为分位数边界值，保留样本量。
+
+\subsection{平稳性检验}
+
+ADF 检验（Augmented Dickey-Fuller）：
+\begin{equation}
+  \Delta y_t = \alpha + \beta t + \gamma y_{t-1} + \sum_{i=1}^{p} \delta_i \Delta y_{t-i} + \varepsilon_t
+\end{equation}
+
+原假设 $H_0: \gamma = 0$（存在单位根），拒绝则序列平稳。
+
+KPSS 检验作为互补——其原假设为平稳，与 ADF 结合使用可提高判断的可靠性。
+
+\section{小结}
+
+金融概率与统计分析是 P Quant 的数学基础设施。从分布建模到假设检验，从回归分析到贝叶斯推断，这些工具支撑着因子研究、风险测量和投资决策的全流程。金融数据的特殊性——肥尾、异方差、自相关——要求选择适合的统计方法而非简单套用经典工具箱。

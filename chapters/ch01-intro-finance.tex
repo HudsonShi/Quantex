@@ -1,0 +1,179 @@
+\chapter{金融入门}
+
+\section{金融体系概览}
+
+金融体系（Financial System）是经济资源配置的核心机制，由金融市场、金融中介、金融工具和监管框架四个支柱构成。
+
+\begin{keybox}
+金融的本质是跨期资源配置：将富余部门的储蓄引导至短缺部门的投资，在时间与风险两个维度上优化资本配置效率。
+\end{keybox}
+
+\subsection{金融市场的分类}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{按期限}：货币市场（Money Market，$\le 1$年）与资本市场（Capital Market，$>1$年）
+  \item \textbf{按发行层级}：一级市场（Primary Market，证券首次发行）与二级市场（Secondary Market，已发行证券交易）
+  \item \textbf{按资产类别}：权益市场、固定收益市场、外汇市场、大宗商品市场、衍生品市场
+  \item \textbf{按组织形态}：交易所市场（Exchange）与场外市场（OTC）
+\end{itemize}
+
+\subsection{金融中介}
+
+金融中介（Financial Intermediaries）解决信息不对称、降低交易成本、实现风险转换：
+
+\begin{itemize}[leftmargin=*]
+  \item 存款机构：商业银行、储蓄机构、信用合作社
+  \item 契约型储蓄机构：保险公司、养老基金
+  \item 投资中介：投资银行、共同基金、对冲基金、私募股权
+\end{itemize}
+
+\section{核心金融工具}
+
+\subsection{权益证券（Equity）}
+
+普通股代表对公司的剩余索取权。其估值基础为未来现金流的折现：
+
+\begin{equation}
+  P_0 = \sum_{t=1}^{\infty} \frac{D_t}{(1+r)^t}
+\end{equation}
+
+其中 $P_0$ 为当前股价，$D_t$ 为第 $t$ 期股利，$r$ 为要求回报率。
+
+在恒定增长率 $g$ 假设下，得到 Gordon 增长模型：
+
+\begin{equation}
+  P_0 = \frac{D_1}{r - g}, \quad r > g
+\end{equation}
+
+\subsection{固定收益证券（Fixed Income）}
+
+债券（Bond）是固定收益证券的典型代表，承诺在未来特定日期支付利息（票息）和偿还本金（面值）。
+
+债券定价公式：
+
+\begin{equation}
+  P = \sum_{t=1}^{n} \frac{C}{(1+y)^t} + \frac{F}{(1+y)^n}
+\end{equation}
+
+其中 $C$ 为票息，$F$ 为面值，$y$ 为到期收益率（YTM），$n$ 为剩余期数。
+
+\begin{definition}[久期 Duration]
+麦考利久期衡量债券价格对收益率变化的敏感度（一阶近似）：
+\begin{equation}
+  D = \frac{\sum_{t=1}^{n} t \cdot PV(CF_t)}{P}
+\end{equation}
+修正久期 $D^* = D / (1+y)$，则有 $\Delta P / P \approx -D^* \cdot \Delta y$。
+\end{definition}
+
+\begin{definition}[凸性 Convexity]
+凸性衡量久期随收益率变化的速率（二阶效应）：
+\begin{equation}
+  C = \frac{1}{P} \cdot \frac{1}{(1+y)^2} \sum_{t=1}^{n} \frac{t(t+1) \cdot CF_t}{(1+y)^t}
+\end{equation}
+\end{definition}
+
+\subsection{衍生品（Derivatives）基础}
+
+衍生品的价值派生于标的资产（Underlying），主要包括：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{远期合约}（Forward）：双方约定在未来某日以约定价格买卖标的资产
+  \item \textbf{期货合约}（Futures）：标准化、在交易所交易的远期
+  \item \textbf{期权}（Option）：赋予买方在未来以行权价买入（Call）或卖出（Put）标的资产的权利而非义务
+  \item \textbf{互换}（Swap）：双方约定交换未来现金流的协议，如利率互换（IRS）、信用违约互换（CDS）
+\end{itemize}
+
+\section{财务报表分析基础}
+
+三大财务报表构成了公司分析的基本框架：
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{资产负债表}（Balance Sheet）：资产 = 负债 + 所有者权益
+  \item \textbf{利润表}（Income Statement）：收入 - 费用 = 净利润
+  \item \textbf{现金流量表}（Cash Flow Statement）：经营、投资、融资活动现金流
+\end{enumerate}
+
+\subsection{关键财务比率}
+
+\begin{table}[h]
+\centering
+\caption{核心财务比率}
+\begin{tabular}{@{}lll@{}}
+\toprule
+类别 & 比率 & 公式 \\
+\midrule
+盈利能力 & ROE & $NI / Equity$ \\
+         & ROA & $NI / Total\ Assets$ \\
+\midrule
+偿债能力 & 流动比率 & $Current\ Assets / Current\ Liabilities$ \\
+         & 利息覆盖倍数 & $EBIT / Interest\ Expense$ \\
+\midrule
+估值指标 & P/E & $Price / EPS$ \\
+         & P/B & $Price / Book\ Value\ per\ Share$ \\
+         & EV/EBITDA & 企业价值相对经营利润的倍数 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{利率与货币时间价值}
+
+\subsection{利率的决定因素}
+
+名义利率 $r_{\text{nom}}$ 可以分解为：
+\begin{equation}
+  r_{\text{nom}} = r_{\text{real}} + \pi^e + RP
+\end{equation}
+
+其中 $r_{\text{real}}$ 为实际无风险利率，$\pi^e$ 为预期通胀，$RP$ 为风险溢价（含违约风险、流动性风险、期限风险等）。
+
+\subsection{收益率曲线}
+
+收益率曲线（Yield Curve）描述不同期限债券收益率之间的关系：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{正常形态}：长期收益率 > 短期收益率（向上倾斜）
+  \item \textbf{倒挂}：短期收益率 > 长期收益率（常预示衰退）
+  \item \textbf{平坦}：长短期收益率接近
+\end{itemize}
+
+\begin{keybox}
+收益率曲线是宏观经济最重要的领先指标之一。历史上，收益率曲线倒挂（尤其是 2Y-10Y 利差转负）对美国经济衰退有较强的预测能力。
+\end{keybox}
+
+\section{现代金融理论基础}
+
+\subsection{有效市场假说 (EMH)}
+
+Eugene Fama 提出的 EMH 将市场效率分为三个层次：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{弱式有效}：价格反映所有历史交易信息，技术分析无效
+  \item \textbf{半强式有效}：价格反映所有公开信息，基本面分析无效
+  \item \textbf{强式有效}：价格反映所有信息（含内幕信息），无任何超额收益可能
+\end{itemize}
+
+\subsection{行为金融学挑战}
+
+行为金融学指出市场并非完全理性：
+
+\begin{itemize}[leftmargin=*]
+  \item 过度自信（Overconfidence）
+  \item 损失厌恶（Loss Aversion）—— 卡尼曼与特沃斯基的前景理论
+  \item 羊群效应（Herding）
+  \item 锚定效应（Anchoring）
+  \item 处置效应（Disposition Effect）
+\end{itemize}
+
+\section{金融市场参与者}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{散户投资者}（Retail Investors）：个人投资者
+  \item \textbf{机构投资者}（Institutional Investors）：养老基金、主权财富基金、保险公司
+  \item \textbf{做市商}（Market Makers）：提供双边报价，维持市场流动性
+  \item \textbf{高频交易商}（HFT）：利用算法在极短时间尺度上交易
+  \item \textbf{监管机构}：SEC（美国）、CSRC（中国证监会）、FCA（英国）等
+\end{itemize}
+
+\section{小结}
+
+本章建立了金融体系的基本知识框架：从市场结构到核心工具，从财务报表分析到利率理论，再到现代金融理论的思想脉络。后续章节将在此基础上深入量化方法。

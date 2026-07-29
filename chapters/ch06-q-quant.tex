@@ -1,0 +1,195 @@
+\chapter{Q Quant：风险中性定价与衍生品}
+
+\section{Q Quant 的哲学}
+
+Q Quant 得名于风险中性测度 $\mathbb{Q}$。其核心理念是：在无套利假设下，存在一个等价鞅测度，使得所有资产价格的折现过程为鞅。
+
+\begin{keybox}
+Q Quant 关心的是"相对定价"：给定市场上已有产品的价格，如何一致地（无套利地）为相关衍生品定价。核心工具是鞅方法、测度变换和随机分析。
+\end{keybox}
+
+\section{测度论基础}
+
+\subsection{概率空间与测度}
+
+概率空间 $(\Omega, \mathcal{F}, \mathbb{P})$：
+\begin{itemize}[leftmargin=*]
+  \item $\Omega$：样本空间
+  \item $\mathcal{F}$：$\sigma$-代数（事件集合）
+  \item $\mathbb{P}$：概率测度
+\end{itemize}
+
+\subsection{Radon-Nikodym 导数}
+
+若 $\mathbb{Q} \ll \mathbb{P}$（$\mathbb{Q}$ 关于 $\mathbb{P}$ 绝对连续），则存在 $\frac{d\mathbb{Q}}{d\mathbb{P}}$ 使得：
+
+\begin{equation}
+  \mathbb{E}^{\mathbb{Q}}[X] = \mathbb{E}^{\mathbb{P}}\left[\frac{d\mathbb{Q}}{d\mathbb{P}} X\right]
+\end{equation}
+
+在连续时间，Radon-Nikodym 导数过程为指数鞅：
+
+\begin{equation}
+  \frac{d\mathbb{Q}}{d\mathbb{P}}\bigg|_{\mathcal{F}_t} = \exp\left(-\frac{1}{2}\int_0^t \lambda_s^2 ds + \int_0^t \lambda_s dW_s^{\mathbb{P}}\right)
+\end{equation}
+
+其中 $\lambda_t$ 为风险的市场价格（Market Price of Risk）。
+
+\subsection{Girsanov 定理}
+
+若 $\frac{d\mathbb{Q}}{d\mathbb{P}} = \mathcal{E}\left(\int_0^T \lambda_t dW_t\right)$，则：
+
+\begin{equation}
+  W_t^{\mathbb{Q}} = W_t^{\mathbb{P}} - \int_0^t \lambda_s ds
+\end{equation}
+
+是 $\mathbb{Q}$ 下的标准布朗运动。这提供了漂移变换的数学基础。
+
+\section{鞅定价方法}
+
+\subsection{基本资产定价定理}
+
+\begin{theorem}[第一基本定理]
+市场无套利 $\iff$ 存在等价鞅测度 $\mathbb{Q}$。
+\end{theorem}
+
+\begin{theorem}[第二基本定理]
+市场完备（所有未定权益可复制）$\iff$ 等价鞅测度唯一。
+\end{theorem}
+
+\subsection{风险中性定价公式}
+
+对于任意未定权益 $H_T$：
+
+\begin{equation}
+  V_t = B_t \mathbb{E}^{\mathbb{Q}}\left[\frac{H_T}{B_T} \mid \mathcal{F}_t\right]
+\end{equation}
+
+其中 $B_t = e^{rt}$ 为货币市场账户（假设常数利率）。
+
+\subsection{计价单位变换}
+
+任意正资产 $N_t$ 可作为计价单位（Num\'eraire）。在对应的远期测度 $\mathbb{Q}^N$ 下：
+
+\begin{equation}
+  \frac{V_t}{N_t} = \mathbb{E}^{\mathbb{Q}^N}\left[\frac{H_T}{N_T} \mid \mathcal{F}_t\right]
+\end{equation}
+
+\begin{example}[$T$-远期测度]
+取零息债券 $P(t,T)$ 为计价单位，则远期利率 $f(t,T)$ 在 $\mathbb{Q}^T$ 下为鞅，LIBOR 利率在对应远期测度下为鞅。这简化了利率衍生品定价。
+\end{example}
+
+\section{利率模型}
+
+\subsection{短期利率模型}
+
+Vasicek 模型：
+\begin{equation}
+  dr_t = \kappa(\theta - r_t)dt + \sigma dW_t
+\end{equation}
+
+Cox-Ingersoll-Ross (CIR) 模型：
+\begin{equation}
+  dr_t = \kappa(\theta - r_t)dt + \sigma\sqrt{r_t} dW_t
+\end{equation}
+
+CIR 保证了利率非负（当 $2\kappa\theta \geq \sigma^2$），是更现实的短期利率模型。
+
+\begin{keybox}
+Vasicek 的零息债券价格具有解析形式：$P(t,T) = A(t,T)e^{-B(t,T)r_t}$，其中 $A$ 和 $B$ 为确定性的函数。这种\textit{仿射期限结构}特性使得校准和定价非常高效。
+\end{keybox}
+
+\subsection{Heath-Jarrow-Morton (HJM) 框架}
+
+HJM 直接对远期利率曲线建模：
+
+\begin{equation}
+  df(t,T) = \alpha(t,T)dt + \sigma(t,T)dW_t
+\end{equation}
+
+无套利条件要求：
+\begin{equation}
+  \alpha(t,T) = \sigma(t,T)\int_t^T \sigma(t,s)ds
+\end{equation}
+
+即漂移项完全由波动率结构决定。
+
+\subsection{LIBOR 市场模型 (LMM / BGM)}
+
+LMM 对远期 LIBOR 利率直接建模，是业界利率衍生品定价的主流框架：
+
+\begin{equation}
+  \frac{dL_k(t)}{L_k(t)} = \mu_k(t)dt + \sigma_k(t)dW_t^{k}
+\end{equation}
+
+\section{信用衍生品定价}
+
+\subsection{约化形式模型 (Reduced-Form Models)}
+
+违约时间 $\tau$ 建模为具有强度 $\lambda_t$ 的首跳时间：
+
+\begin{equation}
+  \mathbb{Q}(\tau > T \mid \mathcal{F}_t) = \mathbb{E}^{\mathbb{Q}}\left[\exp\left(-\int_t^T \lambda_s ds\right) \mid \mathcal{F}_t\right]
+\end{equation}
+
+\subsection{Copula 与相关违约}
+
+高斯 Copula（因子形式）：
+
+\begin{equation}
+  X_i = \sqrt{\rho} Z + \sqrt{1-\rho} \varepsilon_i
+\end{equation}
+
+其中 $Z$ 为系统性因子，$\varepsilon_i$ 为特质因子，均由标准正态分布驱动。违约发生在 $X_i$ 超过阈值时。
+
+\begin{warningbox}
+高斯 Copula 因其过度简化尾部依赖而备受批评——这正是 2008 年金融危机中 CDO 定价模型失败的数学根源。现代实践更倾向于使用 $t$-Copula 或 Clayton Copula 来捕捉尾部依赖。
+\end{warningbox}
+
+\section{波动率衍生品}
+
+\subsection{方差互换 (Variance Swap)}
+
+方差互换的收益取决于实现方差与执行方差的差额：
+
+\begin{equation}
+  \text{Payoff} = N \times (\sigma_{\text{realized}}^2 - K^2)
+\end{equation}
+
+复制公式（Carr-Madan）：
+
+\begin{equation}
+  \mathbb{E}^{\mathbb{Q}}[\sigma_{\text{realized}}^2] = \frac{2}{T}\left[\int_0^{F_0} \frac{P(K)}{K^2}dK + \int_{F_0}^{\infty} \frac{C(K)}{K^2}dK\right]
+\end{equation}
+
+即方差互换可用全部行权价的期权静态复制。
+
+\subsection{VIX 指数}
+
+VIX 是 S\&P 500 30 天预期波动率的度量，通过 OTM 期权价格加权计算，本质上是方差互换的离散化。
+
+\section{数值实现专题}
+
+\subsection{蒙特卡洛加速技术}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Longstaff-Schwartz 算法}（最小二乘蒙特卡洛，LSM）：用于美式/百慕大期权定价，通过回归继续持有价值来确定最优行权策略
+  \item \textbf{多级蒙特卡洛 (MLMC)}：分层模拟以减少计算量
+  \item \textbf{GPU 加速}：利用 CUDA 并行生成随机路径
+\end{itemize}
+
+\subsection{傅里叶变换方法}
+
+Carr-Madan 方法利用特征函数进行期权定价：
+
+\begin{equation}
+  C(K,T) = \frac{e^{-\alpha k}}{\pi} \int_0^{\infty} e^{-ivk} \psi_T(v - i(\alpha+1)) dv
+\end{equation}
+
+其中 $\psi_T(u) = \mathbb{E}^{\mathbb{Q}}[e^{iu\log S_T}]$ 为对数价格的特征函数，$k = \log K$。
+
+该方法在 L\'evy 过程和仿射模型中特别高效（利用 FFT）。
+
+\section{小结}
+
+Q Quant 的工作围绕风险中性世界展开：构建等价鞅测度、校准利率和波动率模型、为奇异衍生品定价。这需要扎实的概率论、随机分析和数值方法基础——也是量化金融中最具数学深度的领域。

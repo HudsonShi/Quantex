@@ -1,0 +1,200 @@
+\chapter{P Quant：统计方法与量化策略}
+
+\section{P Quant 的哲学}
+
+P Quant 得名于真实世界测度 $\mathbb{P}$。其核心关注是：利用历史数据和统计模型来预测未来、发现 Alpha、管理风险。
+
+\begin{keybox}
+P Quant 问的是"实际会发生什么"，而非"在无套利世界应该值多少"。它对标的是买方量化研究员、量化交易员和风险管理师的需求。
+\end{keybox}
+
+\section{因子模型}
+
+\subsection{CAPM 与单因子模型}
+
+资本资产定价模型：
+
+\begin{equation}
+  \mathbb{E}[R_i] = R_f + \beta_i (\mathbb{E}[R_m] - R_f)
+\end{equation}
+
+其中 $\beta_i = \text{Cov}(R_i, R_m) / \text{Var}(R_m)$。
+
+\subsection{Fama-French 三因子模型}
+
+\begin{equation}
+  R_i - R_f = \alpha_i + \beta_{i,M} (R_m - R_f) + \beta_{i,SMB} \cdot SMB + \beta_{i,HML} \cdot HML + \varepsilon_i
+\end{equation}
+
+其中：
+\begin{itemize}[leftmargin=*]
+  \item SMB（Small Minus Big）：小市值组合收益 - 大市值组合收益
+  \item HML（High Minus Low）：高账面市值比组合 - 低账面市值比组合
+\end{itemize}
+
+\subsection{扩展因子模型}
+
+Fama-French 五因子：三因子 + RMW（盈利因子）+ CMA（投资因子）
+
+Carhart 四因子：三因子 + MOM（动量因子）
+
+\begin{equation}
+  \text{MOM} = \text{Winners} - \text{Losers}
+\end{equation}
+
+\subsection{Barra 多因子风险模型}
+
+Barra 模型将资产收益分解为因子暴露和特质收益：
+
+\begin{equation}
+  r = X \cdot f + u
+\end{equation}
+
+其中 $X$ 为因子暴露矩阵（$n \times k$），$f$ 为因子收益向量（$k \times 1$），$u$ 为特质收益。协方差矩阵分解为：
+
+\begin{equation}
+  \Sigma = X \Sigma_f X^T + \Delta
+\end{equation}
+
+其中 $\Sigma_f$ 为因子协方差矩阵，$\Delta$ 为对角特质风险矩阵。
+
+常见 Barra 因子：Value、Growth、Momentum、Size、Volatility、Liquidity、Leverage。
+
+\section{Alpha 研究框架}
+
+\subsection{Alpha 信号的生命周期}
+
+数据 $\to$ 信号（Signal）$\to$ 因子（Factor）$\to$ Alpha 模型 $\to$ 组合构建 $\to$ 执行
+
+\subsection{信息系数 (IC) 和信息比率 (IR)}
+
+信息系数度量因子与未来收益的相关性：
+
+\begin{equation}
+  IC = \text{Corr}(\text{Rank}(S_t), \text{Rank}(R_{t+1}))
+\end{equation}
+
+信息比率是衡量风险调整后超额收益的核心指标：
+
+\begin{equation}
+  IR = \frac{\mathbb{E}[R - R_b]}{\sigma(R - R_b)}
+\end{equation}
+
+\begin{keybox}
+基本定律 (Fundamental Law of Active Management):
+\begin{equation}
+  IR \approx IC \cdot \sqrt{\text{Breadth}}
+\end{equation}
+高 $IC$（信号质量）和高广度（独立下注次数）共同决定主动收益的质量。
+\end{keybox}
+
+\subsection{因子评估体系}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{IC} 和 \textbf{Rank IC}：横截面预测能力
+  \item \textbf{分位数收益}：Top/Bottom 分位数组合的表现差异
+  \item \textbf{因子换手率}（Turnover）：信号稳定性
+  \item \textbf{因子拥挤度}（Crowding）：同质化风险
+  \item \textbf{最大回撤}（Max Drawdown）：极端情况评估
+\end{itemize}
+
+\section{量化交易策略类型}
+
+\subsection{趋势跟踪 (Trend Following)}
+
+移动平均交叉、通道突破（Donchian Channel）、时间序列动量（Moskowitz et al., 2012）：
+
+\begin{itemize}[leftmargin=*]
+  \item 信号：过去 $L$ 个月收益为正 $\implies$ 做多；为负 $\implies$ 做空
+  \item 广泛应用于 CTA 策略，横跨股票、债券、商品、外汇
+\end{itemize}
+
+\subsection{统计套利 (Statistical Arbitrage)}
+
+配对交易（Pairs Trading）：寻找协整的资产对，在价差偏离均值时交易。若 $y_t$ 和 $x_t$ 协整：
+
+\begin{equation}
+  \text{Spread}_t = y_t - \hat{\beta}x_t \sim \text{mean-reverting}
+\end{equation}
+
+当 $\text{Spread}_t$ 偏离均值超过 $k$ 个标准差时开仓，回归时平仓。
+
+\subsection{事件驱动 (Event-Driven)}
+
+并购套利（Merger Arbitrage）：$P_{\text{target}}$ vs $P_{\text{offer}}$ 的差价反映市场对交易成功概率的定价。
+
+\subsection{高频交易 (HFT)}
+
+做市策略、延迟套利、订单流预测。关键在于：
+\begin{itemize}[leftmargin=*]
+  \item 市场微观结构（订单簿动态、价差模式）
+  \item 低延迟基础设施（FPGA、微波传输）
+  \item 存货风险管理
+\end{itemize}
+
+\section{回测方法论}
+
+\subsection{回测陷阱}
+
+\begin{warningbox}
+回测是量化策略开发中最危险的阶段——几乎所有看起来太好的回测结果都是错误的。
+\end{warningbox}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{幸存者偏差 (Survivorship Bias)}：当前存在的股票不代表历史全貌
+  \item \textbf{前视偏差 (Look-Ahead Bias)}：使用了未来信息
+  \item \textbf{过拟合 (Overfitting)}：参数过多、样本外测试不足
+  \item \textbf{数据挖掘偏差 (Data Snooping)}：多次测试同一数据集的统计显著性失效
+  \item \textbf{交易成本忽视}：滑点、佣金、市场冲击
+\end{itemize}
+
+\subsection{交叉验证}
+
+时间序列数据下，标准 $k$-折交叉验证失效（时间依赖）。正确方法：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{样本外 (OOS)}：训练集 $\to$ 验证集 $\to$ 测试集 按时间顺序划分
+  \item \textbf{前向滚动 (Walk-Forward)}：增量扩展训练窗口
+  \item \textbf{Purged $k$-Fold}：在每折间留出间隔以消除信息泄漏
+\end{itemize}
+
+\subsection{显著性检验}
+
+多重测试下的显著性调整：
+
+\begin{equation}
+  p_{\text{Bonferroni}} = \min(m \cdot p_i, 1)
+\end{equation}
+
+更好的方法：Benjamini-Hochberg FDR 控制（False Discovery Rate）。
+
+Deflated Sharpe Ratio (DSR) 公式：
+\begin{equation}
+  \text{DSR} = \Phi\left(\frac{\widehat{SR} - \mathbb{E}[\max SR]}{\sqrt{\text{Var}[\max SR]}}\right)
+\end{equation}
+
+\section{市场微观结构}
+
+\subsection{订单簿 (LOB)}
+
+限价订单簿是市场微观结构的核心数据结构：
+
+\begin{itemize}[leftmargin=*]
+  \item Bid/Ask 队列：价格、数量、订单优先级
+  \item 订单流不平衡 (OFI)：$\text{OFI} = \Delta \text{Bid} - \Delta \text{Ask}$
+  \item 信息不对称模型：Glosten-Milgrom、Kyle (1985)
+\end{itemize}
+
+\subsection{Kyle 模型}
+
+Kyle (1985) 框架下，知情交易者（Insider）、噪声交易者（Noise Trader）和做市商（Market Maker）三方博弈。均衡价格影响函数：
+
+\begin{equation}
+  \lambda = \frac{2\sigma_v}{\sigma_u} \sqrt{\frac{\Sigma_0}{\rho}}
+\end{equation}
+
+其中 $\lambda$ 为 Kyle's Lambda（价格对订单流的敏感度），是衡量市场深度和逆向选择风险的关键参数。
+
+\section{小结}
+
+P Quant 是数据驱动、注重实证的量化范式。从因子构建到回测验证，从统计套利到市场微观结构分析，P Quant 的工作将统计推断和机器学习方法与金融市场的现实约束结合起来。与 Q Quant 互补，两者共同构成现代量化金融的完整图景。

@@ -1,0 +1,189 @@
+\chapter{Web3 与加密金融}
+
+\section{Web3 的哲学与技术基础}
+
+Web3 代表互联网的第三代范式：从 Web1（只读）到 Web2（读写）再到 Web3（读写+拥有）。核心特征是去中心化、用户数据主权和价值互联网。
+
+\begin{keybox}
+Web3 = 区块链（共识层）+ 智能合约（执行层）+ 代币经济（激励层）+ 去中心化存储（数据层）
+\end{keybox}
+
+\section{区块链技术深度}
+
+\subsection{数据结构}
+
+区块链本质上是哈希指针链接的分布式账本：
+
+\begin{itemize}[leftmargin=*]
+  \item 每个区块包含：区块头（前驱哈希、Merkle 根、时间戳、Nonce）+ 交易列表
+  \item Merkle 树实现高效的交易验证（$O(\log n)$ 复杂度）
+\end{itemize}
+
+\subsection{共识机制}
+
+\begin{table}[h]
+\centering
+\caption{主流共识机制对比}
+\begin{tabular}{@{}lll@{}}
+\toprule
+机制 & 代表链 & 特点 \\
+\midrule
+PoW（工作量证明） & Bitcoin & 安全但高能耗 \\
+PoS（权益证明） & Ethereum 2.0 & 节能、资本效率 \\
+DPoS & EOS, TRON & 高性能、弱去中心化 \\
+PBFT & Hyperledger & 许可链、确定终局性 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{以太坊虚拟机 (EVM)}
+
+EVM 是图灵完备的全球状态机。Gas 机制防止无限循环：
+
+\begin{equation}
+  \text{Transaction Fee} = \text{Gas Used} \times \text{Gas Price}
+\end{equation}
+
+EIP-1559 后引入 base fee（燃烧）+ priority fee（矿工小费）的双层费率结构。
+
+\section{智能合约编程}
+
+\subsection{Solidity 核心概念}
+
+Solidity 是以太坊生态的主流智能合约语言，合约关键要素：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{状态变量}：存储在区块链上，消耗 Gas
+  \item \textbf{函数修饰符}：view（只读）、pure（无状态）、payable（接收 ETH）
+  \item \textbf{事件 (Events)}：低成本日志，前端可订阅
+  \item \textbf{继承}：is 关键字实现多重继承
+\end{itemize}
+
+\subsection{常见漏洞与安全}
+
+\begin{warningbox}
+智能合约安全是 DeFi 的生命线。2022 年 DeFi 协议因漏洞损失超 30 亿美元。
+\end{warningbox}
+
+主要漏洞类型：
+\begin{itemize}[leftmargin=*]
+  \item \textbf{重入攻击 (Reentrancy)}：The DAO 事件（2016）—— 调用外部合约时状态未更新
+  \item \textbf{整数溢出/下溢}：Solidity 0.8+ 已内置检查
+  \item \textbf{闪电贷攻击}：无抵押借入巨量资金操纵预言机价格
+  \item \textbf{访问控制缺陷}：Ownable 模式、多签钱包
+  \item \textbf{预言机操纵}：利用 AMM 池中瞬时价格偏差
+\end{itemize}
+
+\section{代币经济学 (Tokenomics)}
+
+\subsection{代币分类}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{支付代币}：BTC、LTC（价值存储/交易媒介）
+  \item \textbf{功能代币}：ETH（Gas 费）、FIL（存储支付）
+  \item \textbf{治理代币}：UNI、AAVE（协议治理投票权）
+  \item \textbf{证券代币}：代表传统资产（股权、房地产）的代币化
+  \item \textbf{NFT}：非同质化代币（艺术品、游戏资产）
+\end{itemize}
+
+\subsection{代币估值模型}
+
+\textbf{交换方程 (Equation of Exchange)}：
+\begin{equation}
+  MV = PQ
+\end{equation}
+
+其中 $M$ 为代币市值，$V$ 为流通速度，$P$ 为商品/服务价格水平，$Q$ 为交易量。由此得到：
+
+\begin{equation}
+  \text{Token Price} = \frac{PQ}{MV}
+\end{equation}
+
+\textbf{贴现现金流 (DCF) 适应}：对产生费用的协议（如 Uniswap、MakerDAO），可将协议收入按比例分配至代币进行估值。
+
+\subsection{代币发行机制}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{ICO}（首次代币发行）：2017 年热潮
+  \item \textbf{IEO}（交易所首次发行）：通过中心化交易所发行
+  \item \textbf{IDO}（去中心化发行）：通过 DEX 流动性池发行
+  \item \textbf{空投 (Airdrop)}：免费分发代币以激励早期用户
+  \item \textbf{流动性挖矿 (Yield Farming)}：提供流动性以获取代币奖励
+\end{itemize}
+
+\section{DeFi 协议数学}
+
+\subsection{自动做市商 (AMM)}
+
+恒定乘积做市商（Constant Product Market Maker, CPMM）：
+
+\begin{equation}
+  x \cdot y = k
+\end{equation}
+
+其中 $x$ 和 $y$ 分别为池中两种代币的数量。由此得到边际价格：
+
+\begin{equation}
+  P = -\frac{dy}{dx} = \frac{y}{x}
+\end{equation}
+
+交易滑点（Slippage）：
+
+\begin{equation}
+  \text{Slippage} = \frac{\Delta x}{x + \Delta x}
+\end{equation}
+
+\textbf{恒定和做市商 (CSMM)}：
+\begin{equation}
+  x + y = k
+\end{equation}
+零滑点但流动性无限消耗，适合稳定币（如 Curve 的 Stableswap 使用 CPMM+CSMM 混合）。
+
+\subsection{无常损失 (Impermanent Loss)}
+
+当池中资产价格比率偏离存入时的比率，LP 相对于简单持有的损失：
+
+\begin{equation}
+  IL(\rho) = \frac{2\sqrt{\rho}}{1+\rho} - 1
+\end{equation}
+
+其中 $\rho = P_t / P_0$ 是相对价格变化。当价格变动 5 倍时，IL 约为 25.5\%。
+
+\subsection{超额抵押借贷}
+
+健康因子（Health Factor）：
+
+\begin{equation}
+  HF = \frac{\sum \text{Collateral}_i \times \text{Liquidation Threshold}_i}{\text{Total Borrowed}}
+\end{equation}
+
+当 $HF < 1$ 时触发清算。清算者以折扣价购买抵押品获利。
+
+\section{NFT 与数字资产}
+
+\subsection{NFT 定价挑战}
+
+NFT 的非同质性和低流动性使传统估值方法（DCF、可比法）难以直接应用。新兴方法包括：
+
+\begin{itemize}[leftmargin=*]
+  \item 特征定价模型（Hedonic Pricing）：按稀有度、创作者声誉等特征回归
+  \item 基于做市的定价：如 Sudoswap 的流动性池
+  \item 碎片化（Fractionalization）：将 NFT 拆分为可交易代币
+\end{itemize}
+
+\section{DAO 与去中心化治理}
+
+去中心化自治组织（DAO）通过智能合约编码治理规则，代币持有者投票决定协议升级、国库分配。治理攻击（Governance Attack）——如通过借贷协议借入大量治理代币进行恶意投票——是 DAO 面临的关键安全风险。
+
+\section{监管格局}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{美国}：SEC vs CFTC 监管权之争；Howey Test 判定证券
+  \item \textbf{欧盟}：MiCA（加密资产市场监管法案，2024 年全面实施）
+  \item \textbf{中国香港}：虚拟资产服务提供商（VASP）发牌制度
+  \item \textbf{新加坡}：Payment Services Act 监管框架
+\end{itemize}
+
+\section{小结}
+
+Web3 代表了金融基础设施的范式转变。对量化金融从业者而言，理解智能合约的数学原理、AMM 定价机制和代币经济模型，是在这个新兴领域建立竞争力的关键。

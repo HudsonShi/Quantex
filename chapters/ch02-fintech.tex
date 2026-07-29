@@ -1,0 +1,156 @@
+\chapter{金融科技 (FinTech)}
+
+\section{金融科技的定义与演进}
+
+金融科技（FinTech）是技术驱动的金融创新，通过大数据、人工智能、区块链、云计算等技术重塑金融服务的交付方式、产品设计和风险管理。
+
+\begin{keybox}
+FinTech 不是金融的替代品，而是金融的"操作系统"——它改变了执行层面，但金融的本质逻辑（风险定价、资源配置、信息中介）保持不变。
+\end{keybox}
+
+\subsection{发展历程}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{FinTech 1.0 (1866--1967)}：电报、跨洋电缆，金融通信基础设施
+  \item \textbf{FinTech 2.0 (1967--2008)}：ATM、电子交易、SWIFT，金融的数字化
+  \item \textbf{FinTech 3.0 (2008--至今)}：移动支付、P2P借贷、机器人投顾、区块链
+  \item \textbf{FinTech 4.0 (新兴)}：嵌入式金融、开放银行、生成式AI在金融中的应用
+\end{enumerate}
+
+\section{核心技术栈}
+
+\subsection{大数据与云计算}
+
+金融机构每天产生 PB 级别的数据。大数据技术栈包括：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{数据采集}：API 网关、消息队列（Kafka）
+  \item \textbf{数据存储}：Hadoop HDFS、Amazon S3、数据湖
+  \item \textbf{数据计算}：Spark、Flink（流处理）
+  \item \textbf{数据分析}：SQL 引擎、Python/R 生态
+\end{itemize}
+
+\subsection{人工智能与机器学习}
+
+AI 在金融中的核心应用场景：
+
+\begin{table}[h]
+\centering
+\caption{AI 在金融领域的应用矩阵}
+\begin{tabular}{@{}ll@{}}
+\toprule
+领域 & 技术/应用 \\
+\midrule
+信用评分 & GBDT、XGBoost、深度学习评分卡 \\
+欺诈检测 & 图神经网络、异常检测、实时规则引擎 \\
+算法交易 & 强化学习、多因子 Alpha 模型 \\
+智能投顾 & 均值-方差优化 + NLP 对话 \\
+NLP & 情感分析、财报自动解读、合规审查 \\
+风险管理 & VaR 预测、压力测试、情景分析 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{API 与开放银行 (Open Banking)}
+
+开放银行通过标准化 API 使第三方开发者能够构建围绕银行数据的应用和服务。关键标准包括：
+
+\begin{itemize}[leftmargin=*]
+  \item PSD2（欧盟支付服务指令第二版）
+  \item UK Open Banking Standard
+  \item FDX（美国金融数据交换标准）
+\end{itemize}
+
+\section{支付科技 (Payment Technology)}
+
+\subsection{支付系统的四边模型}
+
+现代支付系统涉及四方：持卡人、商户、发卡行（Issuer）、收单行（Acquirer），以及卡组织（Visa、Mastercard、银联）作为清算网络。
+
+\subsection{实时支付}
+
+\begin{itemize}[leftmargin=*]
+  \item 中国：网联 + 支付宝/微信支付，TPS 峰值超 50 万笔/秒
+  \item 美国：FedNow（2023 年上线）、RTP
+  \item 跨境：SWIFT GPI、Ripple、稳定币方案
+\end{itemize}
+
+\section{量化信贷 (Quantitative Credit)}
+
+\subsection{信用评分模型}
+
+传统 FICO 评分的局限性催生了替代数据评分（Alternative Credit Scoring），利用手机使用行为、社交网络、电商数据等。
+
+逻辑回归评分卡模型：
+
+\begin{equation}
+  \log\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1 x_1 + \cdots + \beta_k x_k
+\end{equation}
+
+WOE（Weight of Evidence）转换：
+
+\begin{equation}
+  \text{WOE}_i = \ln\left(\frac{\text{Good Distribution}_i}{\text{Bad Distribution}_i}\right)
+\end{equation}
+
+\subsection{预期损失模型}
+
+巴塞尔协议下的预期损失（Expected Loss）：
+
+\begin{equation}
+  EL = PD \times LGD \times EAD
+\end{equation}
+
+其中 PD（违约概率）、LGD（违约损失率）、EAD（违约敞口）构成信用风险的三大参数。
+
+\section{监管科技 (RegTech)}
+
+RegTech 利用技术降低合规成本、提高监管效率：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{身份验证 (KYC)}：生物识别、电子身份验证（eKYC）
+  \item \textbf{反洗钱 (AML)}：交易监控、可疑行为模式识别
+  \item \textbf{监管报告}：自动化报表生成（XBRL 格式）
+  \item \textbf{合规监控}：自然语言处理合同审查
+\end{itemize}
+
+\section{去中心化金融 (DeFi) 概述}
+
+DeFi 利用区块链和智能合约构建无中介的金融服务。核心组件：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{去中心化交易所 (DEX)}：Uniswap（AMM 模型）、Curve（稳定币交易）
+  \item \textbf{借贷协议}：Aave、Compound（超额抵押借贷）
+  \item \textbf{稳定币}：USDC/USDT（法币抵押）、DAI（加密资产超额抵押）
+  \item \textbf{收益聚合}：Yearn Finance
+  \item \textbf{衍生品}：dYdX、GMX（永续合约）
+\end{itemize}
+
+\begin{warningbox}
+DeFi 面临智能合约风险（代码漏洞）、预言机操纵风险、监管不确定性等重大挑战。2022 年 Terra/UST 崩盘和 FTX 事件深刻揭示了加密金融的系统性风险。
+\end{warningbox}
+
+\section{量化 FinTech 的技术基础}
+
+\subsection{金融数据库}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{市场数据}：Bloomberg Terminal、Refinitiv、Wind（万得）
+  \item \textbf{基本面数据}：Compustat、Capital IQ、Choice
+  \item \textbf{另类数据}：卫星图像、信用卡消费数据、社交媒体情绪、供应链数据
+\end{itemize}
+
+\subsection{回测框架}
+
+量化策略的生命周期：数据清洗 $\to$ 因子构建 $\to$ 组合构建 $\to$ 回测 $\to$ 绩效分析 $\to$ 实盘执行
+
+常用回测框架：
+\begin{itemize}[leftmargin=*]
+  \item Python: Backtrader, Zipline, VectorBT
+  \item R: quantstrat, PerformanceAnalytics
+  \item C++: 自研低延迟回测引擎
+\end{itemize}
+
+\section{小结}
+
+FinTech 是金融与技术的融合地带。对量化金融从业者而言，掌握数据工程、机器学习、API 集成和 DeFi 协议的能力正在成为核心竞争力。理解技术栈的同时，保持对金融逻辑和监管框架的尊重，是 FinTech 从业者的基本素养。
