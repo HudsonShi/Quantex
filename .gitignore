@@ -12,7 +12,6 @@
 *.fls
 
 # Output PDF (optional — comment out if you want to track PDF)
-main.pdf
 
 # macOS
 .DS_Store
