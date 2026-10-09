@@ -1,0 +1,136 @@
+% ============================================================================
+%  阅读指南与全书地图
+% ============================================================================
+\chapter*{阅读指南与全书地图}
+\addcontentsline{toc}{chapter}{阅读指南与全书地图}
+\markboth{阅读指南与全书地图}{阅读指南与全书地图}
+\thispagestyle{frontstyle}
+
+\section*{三条推荐阅读路径}
+
+本书 12 章并非必须线性阅读。根据目标不同，推荐三条路径：
+
+\vspace{0.4em}
+\begin{center}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}Y@{}}
+\toprule
+\textbf{目标} & \textbf{推荐路径} \\
+\midrule
+衍生品定价 / 卖方 Quant &
+第 4 章（产品与 BSM）$\to$ 第 10 章（随机过程：伊藤引理、Girsanov）$\to$ 第 6 章（测度变换、HJM/LMM、傅里叶定价）$\to$ 第 5 章（蒙特卡洛与有限差分）\\
+\midrule
+因子投资 / 买方 Quant &
+第 1 章（市场与工具）$\to$ 第 8 章（统计推断与回归）$\to$ 第 7 章（因子模型与 Alpha 研究）$\to$ 第 9 章（时间序列与波动率）$\to$ 第 11 章（组合优化）\\
+\midrule
+金融科技 / 加密金融 &
+第 2 章（FinTech 技术栈）$\to$ 第 3 章（Web3、AMM 数学、Tokenomics）$\to$ 第 2 章的风险与合规部分 $\to$ 附录 B（工具链）\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section*{全书地图}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=5.5mm,
+  part/.style={
+    rounded corners=2mm, draw=quantblue!50, line width=0.8pt,
+    fill=quantblue!5, align=left, inner sep=6pt, text width=11.1cm
+  },
+  side/.style={
+    rounded corners=2mm, draw=quantgold!70, line width=0.8pt, dashed,
+    fill=intubg, align=left, inner sep=6pt, text width=3.1cm,
+    font=\sffamily\scriptsize, text=inkgray
+  },
+  arr/.style={-{Stealth[length=2.4mm,width=2mm]}, quantblue!55, line width=1pt},
+  link/.style={-{Stealth[length=2mm,width=1.6mm]}, quantgold!80, line width=0.7pt, dashed}
+]
+
+\node[part] (p1) {%
+  {\sffamily\bfseries\small\color{quantblue}第一篇\quad 金融与科技基础}\\[1pt]
+  {\sffamily\scriptsize\color{inkgray}第 1 章 金融入门 · 第 2 章 金融科技 · 第 3 章 Web3 与加密金融}};
+
+\node[part, below=of p1] (p2) {%
+  {\sffamily\bfseries\small\color{quantblue}第二篇\quad 金融工程与金融数学}\\[1pt]
+  {\sffamily\scriptsize\color{inkgray}第 4 章 金融工程（BSM、Greeks、波动率建模）· 第 5 章 金融数学（利息理论、蒙特卡洛、有限差分）}};
+
+\node[part, below=of p2] (p3) {%
+  {\sffamily\bfseries\small\color{quantblue}第三篇\quad Q Quant：风险中性定价与随机分析}\\[1pt]
+  {\sffamily\scriptsize\color{inkgray}第 6 章 Q Quant（等价鞅测度、利率模型、信用与波动率衍生品）· 第 10 章 随机过程（布朗运动、伊藤引理、L\'evy 过程）}};
+
+\node[part, below=of p3] (p4) {%
+  {\sffamily\bfseries\small\color{quantblue}第四篇\quad P Quant：统计方法与机器学习}\\[1pt]
+  {\sffamily\scriptsize\color{inkgray}第 7 章 P Quant（因子模型、Alpha 研究、回测方法论）· 第 8 章 概率统计 · 第 9 章 时间序列（GARCH、状态空间、深度学习）}};
+
+\node[part, below=of p4] (p5) {%
+  {\sffamily\bfseries\small\color{quantblue}第五篇\quad 组合管理与职业路径}\\[1pt]
+  {\sffamily\scriptsize\color{inkgray}第 11 章 组合优化（Markowitz、收缩估计、风险平价、归因）· 第 12 章 美国证券从业资格（SIE / Series 7 / 57 / 65 / 24）}};
+
+% 主线箭头
+\draw[arr] (p1) -- (p2);
+\draw[arr] (p2) -- (p3);
+\draw[arr] (p3) -- (p4);
+\draw[arr] (p4) -- (p5);
+
+% 右侧：数学与工具支撑
+\node[side, right=6mm of p2.north east, anchor=north west] (math) {%
+  {\sffamily\bfseries\footnotesize\color{quantgold!80}数学基础层}\\[2pt]
+  概率论与统计推断（第 8 章）\\
+  随机微积分与测度论（第 10 章）\\
+  数值方法：MC / 有限差分（第 5 章）\\[3pt]
+  贯穿全书，是第三、四篇的共同底座。};
+\node[side, right=6mm of p4.north east, anchor=north west] (eng) {%
+  {\sffamily\bfseries\footnotesize\color{quantgold!80}工程实现层}\\[2pt]
+  Python 量化工具链（附录 B）\\
+  波动率 / 因子 / 优化代码片段\\
+  术语中英对照（附录 C）};
+\draw[link] (math.west) -- (p3.east);
+\draw[link] (eng.west) -- (p4.east);
+
+\end{tikzpicture}
+\end{center}
+
+\section*{每章的核心问题}
+
+\vspace{0.4em}
+\begin{center}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}C{1.1cm}L{2.7cm}Y L{3.1cm}@{}}
+\toprule
+\textbf{章} & \textbf{主题} & \textbf{要回答的核心问题} & \textbf{关键工具} \\
+\midrule
+1 & 金融入门 & 金融体系如何运转？资产价格由什么决定？ & 现值、久期与凸性、EMH \\
+2 & 金融科技 & 大数据与 AI 如何重塑金融服务的交付？ & 评分卡、WOE、EL 模型、开放银行 \\
+3 & Web3 & 去中心化金融的定价与风险逻辑是什么？ & 恒定乘积 AMM、无常损失、Tokenomics \\
+4 & 金融工程 & 期权「应该」值多少钱？如何管理其风险？ & 无套利复制、BSM、Greeks、Heston \\
+5 & 金融数学 & 定价与风险管理需要哪些计算工具？ & 年金、Nelson--Siegel、MC、Crank--Nicolson \\
+6 & Q Quant & 如何在等价鞅测度下一致地为衍生品定价？ & Girsanov、计价单位变换、HJM/LMM、FFT \\
+7 & P Quant & 如何在真实测度下寻找可持续的 Alpha？ & 因子模型、IC/IR、回测与多重检验 \\
+8 & 概率统计 & 如何从含噪、肥尾、异方差的数据中做推断？ & MLE/GMM、贝叶斯、EVT、Fama--MacBeth \\
+9 & 时间序列 & 如何刻画并预测收益与波动率的动态？ & ARIMA、GARCH 族、协整、LSTM/Transformer \\
+10 & 随机过程 & 连续时间不确定性的数学语言是什么？ & 布朗运动、伊藤引理、L\'evy、Feynman--Kac \\
+11 & 组合优化 & 如何把预测转化为可承受风险的仓位？ & Markowitz、收缩估计、风险平价、Kelly \\
+12 & 从业资格 & 美国证券行业的知识体系与合规要求是什么？ & SIE / Series 7 / 57 / 65 / 24 考点 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section*{如何使用书中的盒式环境}
+
+为便于快速定位信息，全书统一使用以下彩色盒子（见下页示例）：
+
+\begin{itemize}[leftmargin=1.8em]
+  \item \textbf{核心要点}：每节最重要的一句话结论，按章编号，可用交叉引用指向；
+  \item \textbf{定义 / 例 / 定理}：数学与金融概念的规范表述；
+  \item \textbf{实务应用}：理论与真实市场实践之间的桥梁；
+  \item \textbf{风险警示}：模型失效条件、历史教训与常见误用；
+  \item \textbf{直觉理解}：用非技术语言解释公式背后的含义；
+  \item \textbf{考试要点}：与从业资格考试相关的考点（主要见于第 12 章）。
+\end{itemize}
+
+\begin{keybox}
+本书的写作原则是\textbf{「公式—直觉—应用—风险」四件套}：每个重要公式都尽量给出直观解释、实际用途与失效条件。只背公式而不理解适用边界，是量化工作与面试中最常见的失败模式。
+\end{keybox}
+
+\clearpage

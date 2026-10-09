@@ -1,0 +1,140 @@
+% ============================================================================
+%  符号表
+% ============================================================================
+\chapter*{符号表}
+\addcontentsline{toc}{chapter}{符号表}
+\markboth{符号表}{符号表}
+\thispagestyle{frontstyle}
+
+本书尽量保持全书符号一致。下表列出最常用的记号；个别章节沿用经典文献的记号时，会在该处给出对照说明。
+
+\section*{一、数学与概率记号}
+
+\vspace{0.3em}
+{\tablefont
+\begin{longtable}{@{}L{2.9cm}L{8.6cm}L{3.2cm}@{}}
+\toprule
+\textbf{记号} & \textbf{含义} & \textbf{首次出现} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{记号} & \textbf{含义} & \textbf{首次出现} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+$X, Y, Z$ & 随机变量（大写）；实现值用小写 $x,y,z$ & 第 8 章 \\
+$\{X_t\}_{t\in T}$, $S_t$ & 随机过程；$S_t$ 通常指资产价格 & 第 10 章 \\
+$(\Omega,\Fm,\Prob)$ & 概率空间：样本空间、$\sigma$-代数、概率测度 & 第 6 章 \\
+$\{\Fm_t\}$ & 信息流（filtration），$\Fm_t$ 表示 $t$ 时刻可得的信息 & 第 6、10 章 \\
+$\E^{\Prob}[\cdot]$, $\E^{\Qm}[\cdot]$ & 真实测度 / 风险中性测度下的期望 & 第 6 章 \\
+$\Prob$, $\Qm$ & 真实世界测度 / 风险中性（等价鞅）测度 & 第 6 章 \\
+$\N(\mu,\sigma^2)$ & 正态分布；$\N(0,1)$ 为标准正态 & 第 8 章 \\
+$\Phi(\cdot)$, $\phi(\cdot)$ & 标准正态的累积分布函数 / 密度函数 & 第 4 章 \\
+$W_t$（或 $B_t$） & 标准布朗运动（维纳过程） & 第 10 章 \\
+$N_t$ & 泊松过程（强度 $\lambda$） & 第 10 章 \\
+$\inner{X}{Y}_t$ & 二次变差（quadratic variation） & 第 10 章 \\
+$\mathcal{E}(\cdot)$ & 随机指数（Dol\'eans-Dade exponential） & 第 6 章 \\
+$\ind{A}$ & 事件 $A$ 的示性函数 & 第 6 章 \\
+$\abs{x}$, $\norm{\vect{w}}$ & 绝对值 / 向量范数（默认 $\ell_2$，$\ell_1$ 会下标标注） & 第 11 章 \\
+$\dd t$, $\pd{f}{x}$ & 微分与偏导数 & 第 5 章 \\
+$\mu$, $\sigma$ & 漂移率（期望收益）与波动率 & 第 4 章 \\
+$\lambda$ & 风险的市场价格；在组合优化中亦作风险厌恶系数（以章内说明为准） & 第 6、11 章 \\
+$\theta$ & 模型参数向量；在利率模型中为长期均值 & 第 8、6 章 \\
+$\Sigma$, $\rho$ & 协方差矩阵与相关系数 & 第 11 章 \\
+$\vect{w}$, $\bm{\mu}$ & 组合权重向量与期望收益向量 & 第 11 章 \\
+$O(\cdot)$, $o(\cdot)$ & 渐近阶记号 & 第 5 章 \\
+\end{longtable}
+}
+
+\section*{二、金融与市场记号}
+
+\vspace{0.3em}
+{\tablefont
+\begin{longtable}{@{}L{2.9cm}L{8.6cm}L{3.2cm}@{}}
+\toprule
+\textbf{记号} & \textbf{含义} & \textbf{首次出现} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{记号} & \textbf{含义} & \textbf{首次出现} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+$S_0, S_t, S_T$ & 标的资产当前价格、$t$ 时刻价格、到期价格 & 第 1 章 \\
+$K$, $T$, $\tau$ & 行权价、到期时间、剩余期限（$\tau = T-t$） & 第 4 章 \\
+$C, P$ & 看涨（Call）与看跌（Put）期权价格 & 第 4 章 \\
+$F_0$, $f(t,T)$ & 远期价格；$t$ 时刻的瞬时远期利率 & 第 4、6 章 \\
+$r$, $q$, $y$ & 无风险利率、股息率、到期收益率 & 第 1、4 章 \\
+$B(0,T)$, $P(t,T)$ & 零息债券（贴现因子）价格 & 第 4、6 章 \\
+$D$, $D^*$, $C_{\text{conv}}$ & 麦考利久期、修正久期、凸性 & 第 1 章 \\
+$L_k(t)$ & 第 $k$ 期远期 LIBOR/SOFR 利率 & 第 6 章 \\
+$\Delta,\Gamma,\Theta,\nu,\rho$ & 期权希腊字母：Delta、Gamma、Theta、Vega、Rho & 第 4 章 \\
+$\sigma_{\text{impl}}$, $\sigma_{\text{loc}}$ & 隐含波动率、局部波动率 & 第 4 章 \\
+$\text{PD},\text{LGD},\text{EAD}$ & 违约概率、违约损失率、违约敞口 & 第 2 章 \\
+$R$, $Q(t)$, $\lambda_t$ & 回收率、生存概率、违约强度 & 第 4、6 章 \\
+$\VaR_\alpha$, $\ES_\alpha$ & 置信水平 $\alpha$ 下的在险价值 / 预期亏空 & 第 4 章 \\
+$IC$, $IR$, $SR$ & 信息系数、信息比率、夏普比率 & 第 7、11 章 \\
+$w_i$, $b_i$ & 资产权重、风险预算 & 第 11 章 \\
+$x, y, k$ & 自动做市商池中两种代币的数量与恒定乘积 & 第 3 章 \\
+$IL(\rho)$ & 无常损失（关于价格比 $\rho$） & 第 3 章 \\
+$HF$ & 借贷协议健康因子 & 第 3 章 \\
+\end{longtable}
+}
+
+\section*{三、常用英文缩写}
+
+\vspace{0.3em}
+{\tablefont
+\begin{longtable}{@{}L{2.75cm}L{9.05cm}L{2.9cm}@{}}
+\toprule
+\textbf{缩写} & \textbf{英文全称 / 中文} & \textbf{首次出现} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{缩写} & \textbf{英文全称 / 中文} & \textbf{首次出现} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+BSM & Black--Scholes--Merton 期权定价模型 & 第 4 章 \\
+GBM & Geometric Brownian Motion，几何布朗运动 & 第 4 章 \\
+SDE / PDE & Stochastic / Partial Differential Equation，随机 / 偏微分方程 & 第 5、10 章 \\
+EMH & Efficient Market Hypothesis，有效市场假说 & 第 1 章 \\
+CAPM & Capital Asset Pricing Model，资本资产定价模型 & 第 7 章 \\
+FF3 / FF5 & Fama--French 三因子 / 五因子模型 & 第 7 章 \\
+HJM & Heath--Jarrow--Morton 远期利率模型 & 第 6 章 \\
+LMM & LIBOR Market Model，LIBOR 市场模型 & 第 6 章 \\
+IRS / CDS & Interest Rate Swap / Credit Default Swap & 第 4 章 \\
+CDO & Collateralized Debt Obligation，担保债务凭证 & 第 4 章 \\
+CVA / DVA / FVA & 信用 / 债务 / 资金估值调整 & 第 4 章 \\
+XVA & 各类估值调整的统称 & 第 4 章 \\
+MC / QMC & Monte Carlo / Quasi-Monte Carlo，蒙特卡洛 / 拟蒙特卡洛 & 第 5 章 \\
+LSM & Least-Squares Monte Carlo（Longstaff--Schwartz） & 第 6 章 \\
+FFT & Fast Fourier Transform，快速傅里叶变换 & 第 6 章 \\
+EVT / POT & Extreme Value Theory / Peaks Over Threshold & 第 8 章 \\
+GARCH & Generalized ARCH，广义自回归条件异方差 & 第 9 章 \\
+ARIMA & 自回归积分滑动平均模型 & 第 9 章 \\
+VECM & Vector Error Correction Model，向量误差修正模型 & 第 9 章 \\
+MLE / GMM & 极大似然估计 / 广义矩方法 & 第 8 章 \\
+OLS / BLUE & 普通最小二乘 / 最佳线性无偏估计 & 第 8 章 \\
+MCMC & Markov Chain Monte Carlo & 第 8 章 \\
+HRP & Hierarchical Risk Parity，层次风险平价 & 第 11 章 \\
+ERC & Equal Risk Contribution，等风险贡献 & 第 11 章 \\
+OOS & Out-of-Sample，样本外 & 第 7 章 \\
+DSR & Deflated Sharpe Ratio，通缩夏普比率 & 第 7 章 \\
+HFT & High-Frequency Trading，高频交易 & 第 7 章 \\
+LOB / OFI & Limit Order Book / Order Flow Imbalance & 第 7 章 \\
+AMM / CPMM & Automated Market Maker / Constant Product MM & 第 3 章 \\
+TVL & Total Value Locked，总锁仓价值 & 第 3 章 \\
+MEV & Maximal Extractable Value，最大可提取价值 & 第 3 章 \\
+DAO & Decentralized Autonomous Organization & 第 3 章 \\
+RegTech & Regulatory Technology，监管科技 & 第 2 章 \\
+KYC / AML & 了解你的客户 / 反洗钱 & 第 2 章 \\
+SIE / GS / RR & 证券行业基础考试 / 通用证券代表 / 注册代表 & 第 12 章 \\
+FINRA / SEC & 美国金融业监管局 / 证券交易委员会 & 第 12 章 \\
+\end{longtable}
+}
+
+\clearpage

@@ -1,213 +1,922 @@
 \chapter{组合优化}
 
-\section{马科维茨均值-方差优化}
+前面几章分别解决了「预测什么」和「风险多大」的问题：因子模型给出预期收益与风险结构的估计，随机过程给出衍生品的定价与对冲。本章处理投资流程的最后一环——\term{组合优化}（portfolio optimization）：把预测信号、风险模型与各类现实约束，翻译成一组可执行的持仓权重 $\wvec$。这一步之所以困难，不在于最优化算法，而在于输入参数几乎总是估计值：一个被低估的协方差逆矩阵会把 1\% 的收益预测放大成 30\% 的极端权重。本章既给出经典模型的完整推导，也给出让模型在样本外存活下来的工程手段。
 
-\subsection{问题表述}
+\section{记号、问题设定与目标}
 
-经典均值-方差优化（Markowitz, 1952）：
+\subsection{从信号到权重}
 
-\begin{align}
-  \max_{w} \quad & w^T\mu - \frac{\lambda}{2} w^T\Sigma w \\
-  \text{s.t.} \quad & w^T\mathbf{1} = 1
+量化流程通常分三层：第一层是\term{信号}（signal），即对未来收益的预测，例如因子的 IC 加权合成值；第二层是\term{风险模型}（risk model），即协方差矩阵 $\Sigmamat$ 的估计；第三层才是\term{组合构建}（portfolio construction），把二者与约束一起转成权重。同一套信号配上不同的组合构建方法，样本外信息比率可以相差 0.3 以上，因此这一层绝非「把信号除以波动率」这么简单。
+
+\begin{definition}[均值-方差组合问题]\label{def:11-mvo}
+设有 $N$ 个风险资产，权重向量为 $\wvec \in \R^{N}$，预期收益向量为 $\muvec \in \R^{N}$，协方差矩阵为 $\Sigmamat \in \R^{N \times N}$ 且正定。投资者在预算约束下最大化「期望收益减去风险惩罚」：
+\begin{equation}\label{eq:11-mvo}
+  \max_{\wvec} \quad \wvec^{\top}\muvec - \frac{\lambda}{2}\,\wvec^{\top}\Sigmamat\wvec
+  \qquad \text{s.t.} \quad \mathbf{1}^{\top}\wvec = 1
+\end{equation}
+其中 $\lambda > 0$ 为\term{风险厌恶系数}，数值越大表示单位方差的边际收益要求越高；$\mathbf{1}$ 为全 1 向量。若允许持有现金，预算约束改为 $\mathbf{1}^{\top}\wvec \le 1$；若允许做空，则去掉 $\wvec \ge \mathbf{0}$。
+\end{definition}
+
+组合的期望收益与方差分别为 $\mu_p = \wvec^{\top}\muvec$ 与 $\sigma_p^2 = \wvec^{\top}\Sigmamat\wvec$，因此 \cref{eq:11-mvo} 等价于「在给定方差下最大化收益」的原始马科维茨表述。把 \cref{eq:11-mvo} 写成拉格朗日函数并利用 $\Sigmamat$ 的对称性求导：
+
+\begin{align}\label{eq:11-lagr}
+  \mathcal{L}(\wvec,\gamma) &= \wvec^{\top}\muvec - \frac{\lambda}{2}\wvec^{\top}\Sigmamat\wvec - \gamma\left(\mathbf{1}^{\top}\wvec - 1\right) \\
+  \pd{\mathcal{L}}{\wvec} &= \muvec - \lambda \Sigmamat \wvec - \gamma \mathbf{1} = \mathbf{0}
+  \quad \Longrightarrow \quad
+  \wvec = \frac{1}{\lambda}\Sigmamat^{-1}\left(\muvec - \gamma \mathbf{1}\right)
 \end{align}
 
-其中 $w$ 为权重向量，$\mu$ 为期望收益向量，$\Sigma$ 为协方差矩阵，$\lambda$ 为风险厌恶系数。
+把上式代入约束 $\mathbf{1}^{\top}\wvec = 1$，记 $A = \mathbf{1}^{\top}\Sigmamat^{-1}\mathbf{1}$、$B = \mathbf{1}^{\top}\Sigmamat^{-1}\muvec$，得到 $B - \gamma A = \lambda$，即 $\gamma = (B-\lambda)/A$。整理后得到与风险厌恶无关的分解：
 
-\subsection{解析解（无约束 + 全额投资）}
-
-\begin{equation}
-  w^* = \frac{\Sigma^{-1}\mathbf{1}}{\mathbf{1}^T\Sigma^{-1}\mathbf{1}} + \frac{1}{\lambda}\Sigma^{-1}\left(\mu - \frac{\mathbf{1}^T\Sigma^{-1}\mu}{\mathbf{1}^T\Sigma^{-1}\mathbf{1}}\mathbf{1}\right)
+\begin{equation}\label{eq:11-gmvp}
+  \wvec^{*} = \underbrace{\frac{\Sigmamat^{-1}\mathbf{1}}{\mathbf{1}^{\top}\Sigmamat^{-1}\mathbf{1}}}_{\wvec_{\text{gmvp}}}
+  + \frac{1}{\lambda}\Sigmamat^{-1}\left(\muvec - \frac{B}{A}\mathbf{1}\right)
 \end{equation}
 
-解释：第一项为最小方差组合（GMVP），第二项为基于期望收益的倾斜。
+第一项是\term{全局最小方差组合}（global minimum variance portfolio，GMVP），只依赖 $\Sigmamat$，与预期收益完全无关；第二项是「基于预期收益的投机性倾斜」，其幅度与 $1/\lambda$ 成正比。当 $\lambda \to \infty$ 时权重收敛到 GMVP，当 $\lambda \to 0$ 时权重发散（需要无限杠杆），这就是\cref{eq:11-gmvp} 的失效边界。
 
-\subsection{有效前沿}
+\subsection{有效前沿的解析式}
 
-有效前沿是给定方差下期望收益最大的组合集合。两个基金分离定理：任意有效组合 = GMVP + 切点组合的线性组合。
+记 $C = \muvec^{\top}\Sigmamat^{-1}\muvec$、$D = AC - B^{2} > 0$（$\Sigmamat$ 正定且 $\muvec$ 不与 $\mathbf{1}$ 共线时成立）。对任意目标收益 $\mu_p$，最小方差组合为 $\wvec(\mu_p) = \wvec_g + \mu_p \wvec_h$，其中
 
-\begin{keybox}
-均值-方差优化最大的问题是"错误放大"：$\Sigma$ 的微小估计误差会在 $\Sigma^{-1}$ 中被剧烈放大，导致极端权重和糟糕的样本外表现。这被称为 Markowitz 优化困境。
+\begin{equation}\label{eq:11-twofund-weights}
+  \wvec_g = \frac{1}{D}\left(C\,\Sigmamat^{-1}\mathbf{1} - B\,\Sigmamat^{-1}\muvec\right), \qquad
+  \wvec_h = \frac{1}{D}\left(A\,\Sigmamat^{-1}\muvec - B\,\Sigmamat^{-1}\mathbf{1}\right)
+\end{equation}
+
+对应的方差为 $\sigma_p^{2}(\mu_p) = \left(A\mu_p^{2} - 2B\mu_p + C\right)/D$，解出 $\mu_p$ 即得\term{有效前沿}（efficient frontier）的双曲线形式：
+
+\begin{equation}\label{eq:11-frontier}
+  \mu_p = \frac{B}{A} \pm \sqrt{\frac{D}{A}}\;\sqrt{\sigma_p^{2} - \frac{1}{A}},
+  \qquad \sigma_p^{2} \ge \frac{1}{A}
+\end{equation}
+
+其中 $\pm$ 的上支（取正号）为有效前沿，下支为「无效边界」——同样方差下收益更低的组合。由 \cref{eq:11-frontier} 可直接读出三个几何事实：顶点在 $(\sigma_p, \mu_p) = (1/\sqrt{A},\, B/A)$，即 GMVP；双曲线的渐近线斜率为 $\sqrt{D/A}$，代表高收益端每增加一单位风险的收益补偿；$\sigma_p$ 关于 $\mu_p$ 是凸函数，这正是「分散化免费午餐」的数学表达。
+
+\begin{intuitionbox}[为什么前沿是双曲线]
+协方差矩阵的二次型在权重空间中是一个椭球。预算约束 $\mathbf{1}^{\top}\wvec = 1$ 是一个超平面，它与椭球相切的位置就是最小方差组合；随着目标收益平移这个超平面，切点扫出的轨迹在 $(\sigma_p,\mu_p)$ 平面上必然是双曲线的一支。直觉上，椭圆—双曲线的对偶关系说明：约束是线性的，而目标含二次项，因此前沿永远不会是直线（除非只有一个资产）。
+\end{intuitionbox}
+
+\subsection{无风险资产、切点组合与两基金分离}
+
+引入无风险资产（收益 $r_f$）后，投资者的可行集变成从点 $(0, r_f)$ 出发、与双曲线相切的直线，称为\term{资本市场线}（capital allocation line）。切点对应的风险组合称为\term{切点组合}（tangency portfolio），它最大化夏普比率：
+
+\begin{equation}\label{eq:11-tangent}
+  \wvec_{\text{tan}} = \frac{\Sigmamat^{-1}\left(\muvec - r_f\mathbf{1}\right)}
+  {\mathbf{1}^{\top}\Sigmamat^{-1}\left(\muvec - r_f\mathbf{1}\right)},
+  \qquad
+  \max_{\wvec}\ \frac{\mu_p - r_f}{\sigma_p} = \sqrt{\left(\muvec - r_f\mathbf{1}\right)^{\top}\Sigmamat^{-1}\left(\muvec - r_f\mathbf{1}\right)}
+\end{equation}
+
+其中 $\muvec - r_f\mathbf{1}$ 为超额收益向量，分母为超额收益的归一化因子。\cref{eq:11-tangent} 右侧的平方根常记为 $\text{SR}_{\max}$，它同时是 \cref{eq:11-frontier} 中双曲线渐近线在「每单位风险收益」意义上的最优值。
+
+\begin{theorem}[两基金分离定理]\label{thm:11-twofund}
+设 $\Sigmamat$ 正定、$\muvec$ 与 $\mathbf{1}$ 不共线。
+\begin{enumerate}[leftmargin=2em, itemsep=2pt]
+  \item 任意两个不同的前沿组合 $\wvec_a$、$\wvec_b$ 可以生成整条前沿：$\wvec(\theta) = (1-\theta)\wvec_a + \theta\wvec_b$，$\theta \in \R$。
+  \item 存在无风险资产时，任何有效组合均可写成现金与切点组合的线性组合 $\wvec(\theta) = (1-\theta)\wvec_{\text{tan}}$，$\theta$ 由风险偏好 $\lambda$ 决定，且 $\theta = \text{SR}_{\max}/(\lambda\sigma_{\text{tan}})$。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+第一部分的思路：由 \cref{eq:11-twofund-weights} 知任意前沿组合是 $\wvec_g$ 与 $\wvec_h$ 的仿射组合，而 $\wvec_g,\wvec_h$ 张成二维仿射空间；两个不同前沿组合的差与 $\wvec_g,\wvec_h$ 的差平行，因此可以互相线性表出。第二部分的思路：切点组合与现金的组合在 $(\sigma_p,\mu_p)$ 平面上扫过资本市场线，而对给定 $\lambda$ 的最优解必然落在资本市场线上（否则沿该直线移动可在同方差下提高收益），故其风险部分只能正比于 $\wvec_{\text{tan}}$。
+\end{proof}
+
+\begin{keybox}[核心要点：有效前沿与切点组合]\label{key:11-frontier}
+有效前沿由 $(\muvec,\Sigmamat)$ 完全决定，其解析式为 $\sigma_p^{2}(\mu_p) = (A\mu_p^{2} - 2B\mu_p + C)/D$；引入无风险资产后，所有理性投资者持有同一个风险组合 $\wvec_{\text{tan}} \propto \Sigmamat^{-1}(\muvec - r_f\mathbf{1})$，差异只体现在现金比例上。这一结论对 $\muvec$ 的估计误差极其敏感：$\muvec$ 的一个标准差噪声会在 $\Sigmamat^{-1}$ 的作用下被放大为成倍的权重误差（见 \cref{ex:11-error}）。
 \end{keybox}
 
-\section{协方差矩阵估计}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=7cm, grid=major,
+  xlabel={组合波动率 $\sigma_p$}, ylabel={期望收益率 $\mu_p$},
+  xmin=0, xmax=0.34, ymin=0.02, ymax=0.16,
+  legend pos=south east, legend style={font=\scriptsize, fill=white, fill opacity=0.85, text opacity=1},
+  declare function={aa=109.375; bb=7.1875; cc=0.510417; dd=4.1667;},
+  tick label style={font=\scriptsize}, label style={font=\small}
+]
+% upper (efficient) branch
+\addplot[quantblue, very thick, variable=\t, domain=0.0658:0.126, samples=120]
+  ({sqrt((aa*\t*\t-2*bb*\t+cc)/dd)}, {\t});
+\addlegendentry{有效前沿（上半支）}
+% lower (inefficient) branch
+\addplot[inkgray, thick, dashed, variable=\t, domain=0.02:0.0654, samples=80]
+  ({sqrt((aa*\t*\t-2*bb*\t+cc)/dd)}, {\t});
+\addlegendentry{无效边界（下半支）}
+% capital allocation line
+\addplot[quantred, thick, domain=0:0.30, samples=2] {0.03+0.42144*x};
+\addlegendentry{资本市场线}
+\addplot[only marks, mark=*, mark size=1.8pt, quantgreen] coordinates {(0.10788,0.075467) (0.09562,0.065714)};
+\addlegendentry{切点组合 / GMVP}
+\node[quantgreen, font=\scriptsize, anchor=west] at (axis cs:0.113,0.079) {切点组合};
+\node[quantgreen, font=\scriptsize, anchor=east] at (axis cs:0.092,0.058) {GMVP};
+\node[quantred, font=\scriptsize, anchor=south west] at (axis cs:0.0,0.0305) {$r_f$};
+\end{axis}
+\end{tikzpicture}
+\caption{有效前沿、资本市场线与切点组合（两资产算例：$\sigma=(0.20,0.10)$，$\rho=0.2$，$\mu=(0.10,0.06)$，$r_f=0.03$）。切点组合位于 $(0.1079,0.0755)$，其夏普比率为 $0.4214$，即资本市场线的斜率}\label{fig:11-frontier}
+\end{figure}
 
-\subsection{样本协方差}
+\Cref{fig:11-frontier} 用两资产算例画出全部几何要素。注意无效边界（虚线）在图形上是实曲线的一部分，但它永远不该被持有：相同波动率下，上半支的收益严格更高。实务中「最小方差组合」这一品牌产品的持仓恰好是图中的 GMVP 点，即 $(\sigma_p,\mu_p) = (9.56\%, 6.57\%)$，完全不需要任何收益预测。
 
-\begin{equation}
-  S = \frac{1}{T-1}\sum_{t=1}^{T}(R_t - \bar{R})(R_t - \bar{R})^T
+\section{估计误差与错误放大}\label{sec:11-estimation-error}
+
+\subsection{样本估计的噪声}
+
+设真实收益服从 $\ret_t \sim \N(\muvec, \Sigmamat)$，用 $T$ 期样本估计：
+
+\begin{equation}\label{eq:11-sample}
+  \hat{\muvec} = \frac{1}{T}\sum_{t=1}^{T}\ret_t, \qquad
+  \hat{\Sigmamat} = \frac{1}{T-1}\sum_{t=1}^{T}\left(\ret_t - \hat{\muvec}\right)\left(\ret_t - \hat{\muvec}\right)^{\top}
 \end{equation}
 
-当 $N \gg T$（资产数量远大于时间跨度）时，$S$ 奇异，不可逆。
+其中 $\ret_t$ 为第 $t$ 期的 $N$ 维收益向量。$\hat{\muvec}$ 的标准误为 $\sigma_i/\sqrt{T}$：以年化波动率 20\% 的股票为例，用 5 年（60 个月）月度数据估计年化期望收益，其标准误约为 $20\%/\sqrt{5} \approx 8.9\%$，与股票本身的长期超额收益同量级。换言之，\textbf{预期收益的估计信噪比通常小于 1}，而波动率与协方差的估计信噪比要高一个量级（协方差的标准误大致按 $\sqrt{2/T}$ 衰减）。
 
-\subsection{收缩估计 (Shrinkage)}
+\subsection{错误放大机制}
 
-Ledoit-Wolf 收缩：
-\begin{equation}
-  \hat{\Sigma}_{\text{LW}} = \delta F + (1-\delta)S
+考虑无约束版本 $\wvec^{*} = \Sigmamat^{-1}\muvec/\lambda$。用 $\hat{\muvec} = \muvec + \varepsilon$ 代入，权重误差为 $\Delta\wvec = \Sigmamat^{-1}\varepsilon/\lambda$，其协方差为 $\Sigmamat^{-1}\mathrm{Var}(\varepsilon)\Sigmamat^{-1}/\lambda^{2}$。在 $\varepsilon \sim \N(\mathbf{0}, \Sigmamat/T)$ 下，$\mathrm{Var}(\Delta\wvec) = \Sigmamat^{-1}/(\lambda^{2}T)$，故组合层面的方差误差为
+
+\begin{equation}\label{eq:11-amplify}
+  \E\left[\Delta\wvec^{\top}\Sigmamat\,\Delta\wvec\right]
+  = \frac{1}{\lambda^{2}T}\,\tr\left(\Sigmamat^{-1}\Sigmamat\right) = \frac{N}{\lambda^{2}T}
 \end{equation}
 
-其中 $F$ 为目标矩阵（如等相关系数矩阵或常数相关矩阵），$\delta$ 为收缩强度。这大幅改善了样本外表现。
+其中 $N$ 为资产数，$T$ 为样本期数，$\lambda$ 为风险厌恶系数。\cref{eq:11-amplify} 表明：\textbf{资产池扩大一倍，权重误差的能量也扩大一倍，与资产之间的相关性无关}。这就是「错误放大」（error maximization）的最简洁表达。
 
-\subsection{因子结构协方差}
+更有意义的是它对效用的影响。在无约束问题中，真最优组合的确定性等价为
+\[
+  \text{CE}^{*} = \frac{\muvec^{\top}\Sigmamat^{-1}\muvec}{2\lambda},
+\]
+而使用估计值 $\hat{\muvec}$ 所得组合的真实确定性等价为
 
-基于因子模型的协方差矩阵：
-\begin{equation}
-  \Sigma = B\Sigma_f B^T + D
+\begin{equation}\label{eq:11-ce-loss}
+  \E\left[\text{CE}(\hat{\wvec})\right] = \text{CE}^{*} - \frac{N}{2\lambda T}
 \end{equation}
 
-其中 $B$ 为因子载荷，$\Sigma_f$ 为因子协方差，$D$ 为对角特质方差。这将 $O(N^2)$ 参数缩减为 $O(NK)$。
+即\textbf{期望效用损失恰为 $N/(2\lambda T)$}。这个式子是本章最实用的数量级直觉：$N = 500$、$T = 60$（月）、$\lambda = 5$ 时，年化意义上的效用损失相当于白白损失约 $500/(2\times 5\times 60) = 0.83$，即接近 83\% 的风险惩罚单位；把 $T$ 提高到 240（20 年月度数据）则降到 0.21。降低 $N$（用因子或聚类压缩资产空间）、提高 $T$（更长的历史或用高频数据）、提高 $\lambda$（更保守）是三条并行有效的路径。
 
-\subsection{指数加权移动平均 (EWMA)}
+\begin{example}[错误放大的数值演示]\label{ex:11-error}
+设两个资产：真实 $\muvec = (0.06, 0.06)$、$\sigma = (0.20, 0.20)$、$\rho = 0.9$，$\lambda = 4$，$T = 60$。此时 $\Sigmamat^{-1}$ 的条件数为
+\[
+  \kappa(\Sigmamat) = \frac{1+\rho}{1-\rho} = \frac{1.9}{0.1} = 19
+\]
+由于真实均值相同，$\Sigmamat^{-1}\muvec$ 恰为等权方向，理论上不应有任何「倾斜」。若估计误差使 $\hat{\muvec} = (0.06 + 0.02,\ 0.06)$，则 $\Delta\muvec = (0.02, 0)$，倾斜权重为
+\[
+  \Delta\wvec = \frac{1}{\lambda}\Sigmamat^{-1}\Delta\muvec
+  = \frac{1}{4}\cdot\frac{1}{0.04^{2}(1-0.9^{2})}
+  \begin{pmatrix} 0.04 & -0.036 \\ -0.036 & 0.04 \end{pmatrix}
+  \begin{pmatrix} 0.02 \\ 0 \end{pmatrix}
+  \approx \begin{pmatrix} 0.263 \\ -0.237 \end{pmatrix}
+\]
+一个 2\% 的均值估计误差（约为真实收益的 1/3）就制造了 26\% 的超配与 24\% 的低配。若 $\rho$ 升到 0.99，同样误差会放大到 $\pm 65\%$ ——\textbf{相关性越高，$\Sigmamat^{-1}$ 的条件数越大，同样的预测误差造成的持仓越极端}。
+\end{example}
 
-\begin{equation}
-  \Sigma_t = (1-\lambda)R_{t-1}R_{t-1}^T + \lambda \Sigma_{t-1}
+\begin{warningbox}[均值-方差优化的失效条件]
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item \textbf{$\muvec$ 不可靠}：当 $N$ 与 $T$ 同阶或 $N > T$ 时，样本均值几乎全是噪声，优化器会系统性做多「被高估」的资产、做空「被低估」的资产，样本外表现常劣于等权。
+  \item \textbf{$\Sigmamat$ 奇异或病态}：$N > T$ 时 $\hat{\Sigmamat}$ 秩亏，$\Sigmamat^{-1}$ 不存在；即使 $N < T$，样本特征值的离散度也被 Marchenko--Pastur 律高估——当 $N/T = q$ 时，纯噪声矩阵的特征值张成区间 $[\sigma^{2}(1-\sqrt{q})^{2}, \sigma^{2}(1+\sqrt{q})^{2}]$，$q = 0.2$ 时上下界之比已达 6.9 倍，而真实的条件数可能是 1。
+  \item \textbf{正态假设}：前沿公式依赖二次型，厚尾与跳跃会使真实极端损失远超 $\sigma_p$ 所隐含的水平。
+  \item \textbf{单期假设}：\cref{eq:11-mvo} 是一次性决策，忽略再平衡成本、路径依赖与流动性约束。
+\end{itemize}
+\end{warningbox}
+
+\begin{notebox}[样本夏普比率的偏误]
+在真实夏普比率为 0 的零假设下，$N$ 个独立策略、$T$ 期样本内最大夏普比率的期望约为 $\sqrt{2\ln N/T}$。取 $N = 100$、$T = 120$，该值约为 0.28。这意味着「回测夏普 0.28」完全可能来自纯噪声，评估因子时必须扣除这一多重检验偏差（详见第 7 章回测方法论）。
+\end{notebox}
+
+\section{收缩估计与结构化协方差}
+
+\subsection{Ledoit--Wolf 收缩}
+
+既然样本协方差在 $N/T$ 不可忽略时系统性失真，最直接的补救是把它向一个结构简单、稳定但可能有偏的目标矩阵 $F$ 收缩：
+
+\begin{equation}\label{eq:11-shrink}
+  \hat{\Sigmamat}_{\text{LW}} = \delta F + (1-\delta)\hat{\Sigmamat},
+  \qquad \delta \in [0,1]
 \end{equation}
 
-RiskMetrics 采用 $\lambda = 0.94$（日频）或 $0.97$（月频）。EWMA 赋予近期观测更高权重，捕捉时变协方差结构。
+其中 $F$ 为\term{目标矩阵}（target），$\delta$ 为\term{收缩强度}（shrinkage intensity）。$\delta = 0$ 退化为样本估计，$\delta = 1$ 完全采用先验结构。常用目标为常数相关矩阵 $F_{ii} = \hat{\sigma}_i^{2}$、$F_{ij} = \hat{\rho}\,\hat{\sigma}_i\hat{\sigma}_j$（$\hat{\rho}$ 为样本相关系数均值），或单因子目标 $F = \hat{\sigma}^{2}\left[\beta\beta^{\top}\right] + \text{对角项}$。
+
+Ledoit--Wolf（2004）给出的最优收缩强度为最小化 $\E\norm{\delta F + (1-\delta)\hat{\Sigmamat} - \Sigmamat}_F^{2}$ 的解：
+
+\begin{equation}\label{eq:11-lw-delta}
+  \delta^{*} = \frac{\pi - \rho}{\gamma},
+  \qquad
+  \pi = \sum_{i,j}\Var\!\left(\hat{\Sigma}_{ij}\right),\quad
+  \rho = \sum_{i,j}\Cov\!\left(\hat{\Sigma}_{ij}, F_{ij}\right),\quad
+  \gamma = \sum_{i,j}\left(F_{ij} - \hat{\Sigma}_{ij}\right)^{2}
+\end{equation}
+
+其中 $\pi$ 度量样本协方差本身的噪声总量，$\rho$ 度量噪声与目标之间的协方差，$\gamma$ 是目标与样本之间的「结构距离」。直觉上，当样本噪声 $\pi$ 相对结构距离 $\gamma$ 很大时，$\delta^{*}$ 趋近 1，即完全信任结构。$\pi$ 与 $\rho$ 可用样本四阶矩一致估计，故 \cref{eq:11-lw-delta} 是数据驱动的，不含主观参数。
+
+\begin{appbox}[实务中的用法]
+主流风险模型（如 Barra/Axioma 一类）并不直接收缩整个矩阵，而是「结构化 $+$ 收缩」并用：先用因子结构把协方差分解为低秩因子部分与对角特质部分，再对特质方差按行业与市值分组收缩（贝叶斯收缩到组内中位数），最后对相关系数矩阵做特征值修正（将小于阈值的特征值拉平）。这样做的效果与等价的 Ledoit--Wolf 收缩相近，但保留了因子暴露的可解释性，便于施加因子约束。
+\end{appbox}
+
+\subsection{因子协方差}
+
+若收益由 $K$ 个因子解释（$K \ll N$），则 $\ret = B f + u$，其中 $B$ 为 $N\times K$ 因子载荷矩阵，$f$ 为因子收益，$u$ 为特质收益（$\Cov(f,u)=0$，$\Var(u)=D$ 对角）。协方差为
+
+\begin{equation}\label{eq:11-factor}
+  \Sigmamat = B\,\Sigmamat_f\,B^{\top} + D
+\end{equation}
+
+参数个数由 $O(N^{2})$ 降到 $O(NK + N)$。取逆可由 Woodbury 公式高效完成：
+
+\begin{equation}\label{eq:11-woodbury}
+  \Sigmamat^{-1} = D^{-1} - D^{-1}B\left(\Sigmamat_f^{-1} + B^{\top}D^{-1}B\right)^{-1}B^{\top}D^{-1}
+\end{equation}
+
+括号内是 $K\times K$ 小矩阵，因此 $N = 3000$、$K = 60$ 时求逆代价从 $O(N^{3})$ 降到 $O(NK^{2})$ 量级。因子模型的另一个好处是把组合风险分解为因子风险 $B^{\top}\wvec$ 与特质风险，使「风格暴露约束」可以直接写成对 $B^{\top}\wvec$ 的线性约束。
+
+\subsection{EWMA 与 DCC}
+
+等权历史协方差对所有观测一视同仁，但波动率具有聚集性与长记忆性。指数加权移动平均（EWMA）用衰减因子 $\lambda$ 给近期观测更高权重：
+
+\begin{equation}\label{eq:11-ewma}
+  \Sigmamat_t = (1-\lambda)\,\ret_{t-1}\ret_{t-1}^{\top} + \lambda\,\Sigmamat_{t-1},
+  \qquad
+  \Sigmamat_t = (1-\lambda)\sum_{k=1}^{\infty}\lambda^{k-1}\ret_{t-k}\ret_{t-k}^{\top}
+\end{equation}
+
+其中 $\lambda \in (0,1)$ 为衰减因子。RiskMetrics 取 $\lambda = 0.94$（日频）、$0.97$（月频），对应波动的半衰期 $\ln 0.5/\ln\lambda$ 分别为约 11 天与 23 个月。EWMA 的局限是把相关系数也一并平滑，且不保证正定（在高维下需强制修正）。
+
+动态条件相关（DCC，Engle 2002）采用两步法：先对每个资产用 GARCH 拟合条件方差，得到标准化残差 $z_t$；再对 $z_t$ 的「伪相关矩阵」施加同一标量 EWMA/GARCH 动态：
+
+\begin{equation}\label{eq:11-dcc}
+  Q_t = (1-a-b)\bar{Q} + a\,z_{t-1}z_{t-1}^{\top} + b\,Q_{t-1},
+  \qquad
+  R_t = \diag(Q_t)^{-1/2}\,Q_t\,\diag(Q_t)^{-1/2}
+\end{equation}
+
+其中 $\bar{Q}$ 为 $z_t$ 的无条件相关矩阵，$a,b \ge 0$ 且 $a+b<1$ 保证平稳性。$R_t$ 的对角线被强制为 1，条件协方差为 $\Sigmamat_t = D_t R_t D_t$（$D_t = \diag(\sigma_{i,t})$）。DCC 的核心直觉是「波动率与相关性同向变动」：危机期间 $a$ 主导，相关性整体抬升，组合分散化效果同时衰减——2008 年与 2020 年 3 月的数据都反复验证了这一点。
+
+\begin{table}[htbp]
+\centering
+\caption{协方差矩阵估计方法对比}\label{tab:11-cov}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.4cm}L{2.0cm}YL{3.2cm}@{}}
+\toprule
+方法 & 参数个数 & 优点 & 失效条件 \\
+\midrule
+样本协方差 & $O(N^{2})$ & 无偏、计算简单 & $N/T$ 大时病态、噪声大、不可逆 \\
+常数相关收缩 & $O(1)$ 收缩 \newline $+O(N^{2})$ & 大幅降低条件数、几乎无主观参数 & 真实相关结构异质（如危机相关性）时目标失真 \\
+单因子收缩 & $O(N)$ & 与 CAPM 一致、易解释 & 多因子结构下特质部分被过度收缩 \\
+因子协方差 & $O(NK)$ & 参数少、可施加因子约束、可解释 & 因子遗漏或载荷不稳定导致风险低估 \\
+EWMA & $O(1)$ & 捕捉时变波动、响应快 & 无均值回复、高维下不保证正定 \\
+DCC & $O(N)+2$ & 波动与相关联合建模 & 两步估计的效率损失、$N$ 大时估计不稳 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{鲁棒组合优化}
 
-\subsection{不确定性集}
+既然 $\muvec$ 与 $\Sigmamat$ 都有误差，把不确定性显式写入模型比「先估计再优化」更诚实。鲁棒优化求解最坏情形下的最优：
 
-鲁棒优化将参数不确定性纳入建模，在最坏情况下优化：
-
-\begin{equation}
-  \max_{w} \min_{\mu \in \mathcal{U}_\mu,\;\Sigma \in \mathcal{U}_\Sigma} \left[w^T\mu - \frac{\lambda}{2} w^T\Sigma w\right]
+\begin{equation}\label{eq:11-robust}
+  \max_{\wvec}\ \min_{\muvec \in \mathcal{U}_\mu}\ \left[\wvec^{\top}\muvec - \frac{\lambda}{2}\wvec^{\top}\Sigmamat\wvec\right],
+  \qquad \text{s.t.}\ \mathbf{1}^{\top}\wvec = 1,\ \wvec \in \mathcal{W}
 \end{equation}
 
-常见不确定性集：
-\begin{itemize}[leftmargin=*]
-  \item 盒约束：$\mathcal{U}_\mu = \{\mu : |\mu_i - \hat{\mu}_i| \leq \varepsilon_i\}$
-  \item 椭球约束：$\mathcal{U}_\mu = \{\mu : (\mu - \hat{\mu})^T \Omega^{-1}(\mu - \hat{\mu}) \leq \kappa^2\}$
+其中 $\mathcal{U}_\mu$ 是均值的不确定性集，$\mathcal{W}$ 为权重约束集。两类常用集合及其等价形式：
+
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item \textbf{盒式不确定性}：$\mathcal{U}_\mu = \{\muvec: \abs{\mu_i - \hat{\mu}_i} \le \varepsilon_i\}$。此时内层最小化逐分量取 $\hat{\mu}_i - \varepsilon_i\sign(w_i)$，问题退化为「用收缩后的均值 $\hat{\mu}_i - \varepsilon_i$ 做普通 MVO」。这提供了一个极其实用的解释：\textbf{把每个资产的预期收益统一减去 $\varepsilon$，等价于对该资产做鲁棒处理}。
+  \item \textbf{椭球不确定性}：$\mathcal{U}_\mu = \{\muvec: (\muvec - \hat{\muvec})^{\top}\Omega^{-1}(\muvec - \hat{\muvec}) \le \kappa^{2}\}$，其中 $\Omega$ 为估计误差的协方差、$\kappa$ 为置信半径。此时内层最小值为 $\wvec^{\top}\hat{\muvec} - \kappa\norm{\Omega^{1/2}\wvec}$，问题化为
 \end{itemize}
 
-\subsection{Black-Litterman 再探}
-
-BL 是一种贝叶斯收缩方法，将主观观点与市场均衡融合，解决了均值估计不可靠的问题。（详见第八章贝叶斯方法部分）
-
-\section{风险平价 (Risk Parity)}
-
-\subsection{等风险贡献 (ERC)}
-
-ERC 组合要求每个资产对组合风险的边际贡献相等：
-
-\begin{equation}
-  w_i \cdot \frac{\partial \sigma_p}{\partial w_i} = w_j \cdot \frac{\partial \sigma_p}{\partial w_j}, \quad \forall i,j
+\begin{equation}\label{eq:11-socp}
+  \max_{\wvec,\,t}\ \ \wvec^{\top}\hat{\muvec} - \frac{\lambda}{2}\wvec^{\top}\Sigmamat\wvec - \kappa\,t
+  \qquad \text{s.t.}\ \ \norm{\Omega^{1/2}\wvec} \le t,\ \ \mathbf{1}^{\top}\wvec = 1,\ \ \wvec \in \mathcal{W}
 \end{equation}
 
-即：
-\begin{equation}
-  \frac{(\Sigma w)_i}{w_i} = \text{常数}
+\Cref{eq:11-socp} 是标准的\term{二阶锥规划}（second-order cone program，SOCP），可用内点法在多项式时间内求解。它与 \cref{eq:11-mvo} 的唯一区别是增加了范数项 $-\kappa t$：不确定性集越大（$\kappa$ 越大），优化器越倾向于把风险预算分散到多个资产上，因为集中持仓在椭球的最坏方向上风险最高。
+
+\begin{intuitionbox}[鲁棒性就是惩罚集中度]
+把 \cref{eq:11-socp} 的 $-\kappa\norm{\Omega^{1/2}\wvec}$ 看作一项「集中度惩罚」：$\kappa = 0$ 时退化为经典 MVO，$\kappa \to \infty$ 时最优解趋向最小方差或等风险贡献等「不依赖均值」的组合。因此 $\kappa$ 实际上是一个可校准的旋钮，把「相信预测」连续地调成「不信任预测」。实务中常按「$\kappa$ 等于多少倍的标准误」来设定，并用滚动窗口选择样本外信息比率最高的 $\kappa$。
+\end{intuitionbox}
+
+\section{Black--Litterman 模型}
+
+Black--Litterman（BL）用贝叶斯方法解决 $\muvec$ 不可靠的问题：以市场均衡隐含收益为先验，以主观观点为似然，输出后验均值。
+
+\textbf{第一步：反向优化得到先验。} 若市场组合 $\wvec_{\text{mkt}}$ 是均值-方差最优的，则由 \cref{eq:11-lagr} 解出隐含收益
+
+\begin{equation}\label{eq:11-bl-prior}
+  \Pi = \delta\,\Sigmamat\,\wvec_{\text{mkt}}
 \end{equation}
 
-ERC 是介于等权重和最小方差之间的方案，在市场下行时表现优于均值-方差优化（因为它不依赖不可靠的 $\mu$ 估计）。
+其中 $\delta$ 为市场风险厌恶系数（由市场夏普比率反推，$\delta = (\mu_{\text{mkt}} - r_f)/\sigma_{\text{mkt}}^{2}$，历史估计通常在 2--4 之间）。这一步的意义是：\textbf{市场价格本身已经包含了所有公开信息}，因此 $\Pi$ 是「没有人有私有观点时」最合理的均值假设，且与市场组合自洽。
 
-\subsection{风险预算 (Risk Budgeting)}
+\textbf{第二步：观点与不确定性。} 用 $K$ 个观点表示 $P\muvec = Q + \varepsilon$，$\varepsilon \sim \N(\mathbf{0}, \Omega)$，其中 $P$ 为 $K\times N$ 观点矩阵（每行是一个组合）、$Q$ 为观点收益、$\Omega$ 为观点不确定性（对角时表示观点相互独立）。先验取 $\muvec \sim \N(\Pi, \tau\Sigmamat)$，$\tau$ 通常取 $0.01$--$0.05$，反映「先验比样本更可信」的先验强度。
 
-推广版：
-\begin{equation}
-  w_i \cdot \frac{(\Sigma w)_i}{\sigma_p} = b_i \cdot \sigma_p
+\textbf{第三步：后验。} 正态共轭给出
+
+\begin{equation}\label{eq:11-bl-post}
+  \muvec_{\text{BL}} = \Pi + \tau\Sigmamat P^{\top}\left(P\,\tau\Sigmamat\,P^{\top} + \Omega\right)^{-1}\left(Q - P\Pi\right)
 \end{equation}
 
-其中 $b_i$ 为资产 $i$ 的风险预算，$\sum b_i = 1$。
+其中 $(Q - P\Pi)$ 是观点与均衡的偏离，括号项是「偏离的置信度权重」。若采用 He--Litterman 设定 $\Omega = \tau P\Sigmamat P^{\top}$，则后验对任一观点的预测值为 $P\muvec_{\text{BL}} = \frac{1}{2}(P\Pi + Q)$，即\textbf{后验恰好是先验与观点的等权平均}——这是一个易于记忆且便于检查编码正确性的性质。
 
-\section{约束优化与交易成本}
+\begin{example}[两资产 BL 后验计算]\label{ex:11-bl}
+设 $\wvec_{\text{mkt}} = (0.6, 0.4)$，$\Sigmamat = \bigl(\begin{smallmatrix} 0.04 & 0.004 \\ 0.004 & 0.01 \end{smallmatrix}\bigr)$，$\delta = 2.5$，$\tau = 0.05$。
+先验：$\Pi = 2.5\,\Sigmamat\wvec_{\text{mkt}} = (0.064,\ 0.016)$，即市场隐含的收益差为 4.8\%。
+观点：资产 1 未来一年的收益将比资产 2 高 3\%，故 $P = (1,-1)$、$Q = 0.03$，取 $\Omega = \tau P\Sigmamat P^{\top} = 0.0021$。
+由 \cref{eq:11-bl-post}：$Q - P\Pi = 0.03 - 0.048 = -0.018$，$\tau\Sigmamat P^{\top} = (0.0018,\ -0.0003)^{\top}$，于是
+\[
+  \muvec_{\text{BL}} = (0.064,\ 0.016) + \frac{(0.0018,\,-0.0003)^{\top}}{2\times 0.0021}\times(-0.018)
+  = (0.0563,\ 0.0173)
+\]
+后验收益差为 $3.9\%$，正是 4.8\% 与 3.0\% 的等权平均，与理论一致。观点的信息量体现在「把市场隐含的 4.8\% 拉低到 3.9\%」，从而降低资产 1 的配置诱惑；观点与市场偏离越大、$\Omega$ 越小，后验移动越多。
+\end{example}
 
-\subsection{带约束的组合优化}
+\begin{warningbox}[BL 的失效条件]
+BL 的稳健性来自先验，但它并非无懈可击：（1）$\tau$ 的选择没有客观标准，$\tau$ 越大观点权重越高，实务中不同机构取值从 $1/T$ 到 $0.05$ 不等，结果差异可观；（2）$\Omega$ 若取对角但观点实际高度相关（例如「看多科技」与「看多成长」），会被重复计入，导致后验过度自信；（3）\cref{eq:11-bl-prior} 假设市场组合是均值-方差有效的，在存在非交易资产、杠杆约束与噪声交易者的市场中并不成立；（4）BL 只修正均值，完全不处理 $\Sigmamat$ 的估计误差，因此仍需与收缩估计配合使用。
+\end{warningbox}
 
-实际组合优化涉及大量约束：
+\section{风险平价与等风险贡献}
 
-\begin{itemize}[leftmargin=*]
-  \item 权重上下限：$l_i \leq w_i \leq u_i$
-  \item 行业暴露约束：$\sum_{i \in \text{Sector}} w_i \leq c_{\text{sector}}$
-  \item 因子暴露约束：$|w^T B_k| \leq e_k$
-  \item 换手率约束：$\|w - w_0\|_1 \leq \tau$
-  \item 做空约束（中国 A 股常见）
+\subsection{风险贡献的定义与分解}
+
+\begin{definition}[风险贡献与风险预算]\label{def:11-rc}
+组合波动率 $\sigma_p(\wvec) = \sqrt{\wvec^{\top}\Sigmamat\wvec}$ 对权重的偏导为边际风险 $\partial\sigma_p/\partial w_i = (\Sigmamat\wvec)_i/\sigma_p$。定义资产 $i$ 的\term{风险贡献}（risk contribution）为
+\begin{equation}\label{eq:11-rc}
+  \text{RC}_i = w_i\,\pd{\sigma_p}{w_i} = \frac{w_i\,(\Sigmamat\wvec)_i}{\sigma_p},
+  \qquad \sum_{i=1}^{N}\text{RC}_i = \frac{\wvec^{\top}\Sigmamat\wvec}{\sigma_p} = \sigma_p
+\end{equation}
+给定风险预算向量 $\mathbf{b} = (b_1,\dots,b_N)$（$b_i>0$，$\sum b_i = 1$），\term{风险预算组合}满足 $\text{RC}_i = b_i\sigma_p$。当 $b_i = 1/N$ 时称为\term{等风险贡献}（equal risk contribution，ERC）组合。
+\end{definition}
+
+\Cref{eq:11-rc} 的第二个等式（欧拉定理）说明风险贡献之和恰为组合波动率，因此 $\text{RC}_i/\sigma_p$ 是一个合法的「风险份额」。注意风险贡献可以为负：做空一个与组合正相关的资产会降低风险，其 $\text{RC}_i < 0$。
+
+\subsection{ERC 的拉格朗日推导}
+
+直接对 $\sigma_p$ 施加等风险贡献约束是非凸的，但可以化为一个凸问题。考虑
+
+\begin{equation}\label{eq:11-erc-prog}
+  \min_{\wvec > \mathbf{0}}\ \ \frac{1}{2}\wvec^{\top}\Sigmamat\wvec - \sum_{i=1}^{N} b_i \ln w_i
+\end{equation}
+
+\begin{proposition}[风险预算解的 KKT 条件]\label{prop:11-erc}
+设 $\Sigmamat$ 正定、$b_i > 0$。问题 \cref{eq:11-erc-prog} 有唯一解 $\wvec^{*} > \mathbf{0}$，且其归一化权重 $\tilde{\wvec} = \wvec^{*}/\mathbf{1}^{\top}\wvec^{*}$ 满足风险预算条件
+\begin{equation}\label{eq:11-erc-kkt}
+  \tilde{w}_i\left(\Sigmamat\tilde{\wvec}\right)_i = b_i\,\tilde{\sigma}_p^{2},
+  \qquad \text{即}\quad \text{RC}_i = b_i\,\tilde{\sigma}_p
+\end{equation}
+其中 $\tilde{\sigma}_p^{2} = \tilde{\wvec}^{\top}\Sigmamat\tilde{\wvec}$。特别地，$b_i = 1/N$ 时得到 ERC 组合。
+\end{proposition}
+
+\begin{proof}
+目标函数在 $\wvec > \mathbf{0}$ 上严格凸（二次项正定，$-\ln$ 项凸），故驻点即全局最优。对 $w_i$ 求偏导并令其为零：
+\[
+  \left(\Sigmamat\wvec^{*}\right)_i - \frac{b_i}{w_i^{*}} = 0
+  \quad\Longrightarrow\quad
+  w_i^{*}\left(\Sigmamat\wvec^{*}\right)_i = b_i
+\]
+两边对 $i$ 求和，左边为 $\wvec^{*\top}\Sigmamat\wvec^{*} = s^{2}$（记 $s = \mathbf{1}^{\top}\wvec^{*}$），右边为 1，故 $s^{2} = 1$，即原始解已自动满足「风险归一化」（若改用 $\sum w_i = 1$ 的显式约束则需另行缩放，二者等价）。令 $\tilde{\wvec} = \wvec^{*}/s$，则 $\tilde{\sigma}_p^{2} = s^{2}/s^{2}\cdot\ldots$ 直接代入得 $\tilde{w}_i(\Sigmamat\tilde{\wvec})_i = w_i^{*}(\Sigmamat\wvec^{*})_i/s^{2} = b_i$，两边乘以 $\tilde{\sigma}_p^{-1}$ 并用 $\tilde{\sigma}_p = s$ 即得 $\text{RC}_i = b_i\tilde{\sigma}_p$。
+\end{proof}
+
+\begin{example}[四资产类别的 ERC 与 MVO 对比]\label{ex:11-erc}
+取四个资产类别：股票（$\sigma = 18\%$，$\mu = 9\%$）、债券（$6\%$，$3\%$）、黄金（$15\%$，$5\%$）、商品（$20\%$，$6\%$），相关系数矩阵取
+\[
+  \begin{pmatrix}
+  1 & 0.10 & 0.05 & 0.20\\
+  0.10 & 1 & 0.05 & -0.10\\
+  0.05 & 0.05 & 1 & 0.25\\
+  0.20 & -0.10 & 0.25 & 1
+  \end{pmatrix}
+\]
+求解 \cref{eq:11-erc-prog}（等风险预算）得 $\tilde{\wvec}_{\text{ERC}} = (15.3\%,\,52.4\%,\,18.4\%,\,13.9\%)$，四个资产的风险贡献均为 $1.61\%$，之和等于组合波动率 $6.43\%$。取 $\lambda = 3$ 求解 \cref{eq:11-mvo} 得 $\wvec_{\text{MVO}} = (60.3\%,\,2.9\%,\,25.5\%,\,11.3\%)$，其波动率为 $12.5\%$；GMVP 为 $(4.3\%,\,80.0\%,\,8.5\%,\,7.2\%)$，波动率 $5.36\%$。四组权重详见 \cref{tab:11-weights}。
+\end{example}
+
+\begin{table}[htbp]
+\centering
+\caption{四种组合构建方法的权重与风险（\cref{ex:11-erc} 的算例）}\label{tab:11-weights}
+\tablefont
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+方法 & 股票 & 债券 & 黄金 & 商品 & 组合波动率 & 组合收益 \\
+\midrule
+等权 & 25.0\% & 25.0\% & 25.0\% & 25.0\% & 9.83\% & 5.75\% \\
+GMVP & 4.3\% & 80.0\% & 8.5\% & 7.2\% & 5.36\% & 3.64\% \\
+ERC & 15.3\% & 52.4\% & 18.4\% & 13.9\% & 6.43\% & 4.51\% \\
+MVO（$\lambda=3$） & 60.3\% & 2.9\% & 25.5\% & 11.3\% & 12.50\% & 7.47\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=5.5pt, width=12cm, height=6.5cm,
+  symbolic x coords={股票,债券,黄金,商品}, xtick=data,
+  ymin=0, ymax=0.92, ylabel={权重}, xlabel={资产类别},
+  legend pos=north east, legend style={font=\scriptsize},
+  ytick={0,0.2,0.4,0.6,0.8}, yticklabel={\pgfmathparse{\tick*100}\pgfmathprintnumber{\pgfmathresult}\%},
+  tick label style={font=\scriptsize}, label style={font=\small},
+  enlarge x limits=0.18
+]
+\addplot[fill=quantblue!75, draw=quantblue] coordinates {(股票,0.603)(债券,0.029)(黄金,0.255)(商品,0.113)};
+\addlegendentry{MVO（$\lambda=3$）}
+\addplot[fill=quantgreen!70, draw=quantgreen] coordinates {(股票,0.153)(债券,0.524)(黄金,0.184)(商品,0.139)};
+\addlegendentry{ERC}
+\addplot[fill=inkgray!45, draw=inkgray] coordinates {(股票,0.043)(债券,0.800)(黄金,0.085)(商品,0.072)};
+\addlegendentry{GMVP}
+\end{axis}
+\end{tikzpicture}
+\caption{同一协方差矩阵下 MVO、ERC 与 GMVP 的权重对比。MVO 把 60\% 押在夏普比率最高的股票上，ERC 把一半权重给债券以平衡风险贡献，GMVP 则几乎完全由债券构成}\label{fig:11-weights}
+\end{figure}
+
+\Cref{fig:11-weights} 直观展示了三种方法的风险哲学差异：MVO 回答「哪里的收益风险比最高」，ERC 回答「如何让每一份风险预算各司其职」，GMVP 回答「如何在完全不预测收益的前提下最小化波动」。ERC 的权重与 $\muvec$ 无关，这是它在下行市场更稳健的根本原因，也是它在 $\muvec$ 不可靠时优于 MVO 的根本原因。
+
+\begin{appbox}[风险平价的实践变体]
+教科书 ERC 假设资产可以自由加杠杆，但真实世界的最低风险资产（短期国债）波动率只有 1\%--2\%，直接做 ERC 会得到「99\% 现金」的荒谬结果。实务中的桥水式「全天候」做法是：先用债券期货、股指期货把各资产类别的\emph{风险}调整到同一水平（risk parity at target volatility），再等权配置。其代价是引入杠杆与保证金风险——2020 年 3 月的美元流动性冲击中，风险平价策略因杠杆被迫去化而出现显著回撤。
+\end{appbox}
+
+\section{分层风险平价与最大分散度}
+
+\subsection{HRP 算法}
+
+分层风险平价（hierarchical risk parity，HRP，López de Prado 2016）完全绕开 $\Sigmamat^{-1}$，分三步构造组合：树聚类、准对角化、递归二分。第一步把相关系数转成距离：
+
+\begin{equation}\label{eq:11-hrp-dist}
+  d_{ij} = \sqrt{\frac{1-\rho_{ij}}{2}},
+  \qquad \rho_{ij} = \frac{\Sigma_{ij}}{\sqrt{\Sigma_{ii}\Sigma_{jj}}}
+\end{equation}
+
+其中 $\rho_{ij}$ 为相关系数，$d_{ij}\in[0,1]$。该距离是欧氏距离的一个合法变换，满足三角不等式，因此可以送入层次聚类（单链接、平均链接或 Ward 链接）。聚类结果形成一棵二叉树；把叶子按树的中序遍历重排，可得到一个\term{准对角}矩阵——高度相关的资产彼此相邻，因此「逆方差权重」在相邻块内分配即可避免跨块的伪分散化。
+
+\begin{algorithm}[htbp]
+\caption{分层风险平价（HRP）}\label{alg:11-hrp}
+\begin{algorithmic}[1]
+\Require 协方差矩阵 $\Sigmamat$（或相关矩阵与波动率），资产集合 $\{1,\dots,N\}$
+\Ensure 组合权重 $\wvec$
+\State 由 \cref{eq:11-hrp-dist} 计算距离矩阵 $d_{ij}$，并做层次聚类得到二叉树
+\State 按树的中序遍历重排资产，得到准对角化的 $\Sigmamat$ 与对应的聚类列表
+\For{每一对相邻的簇对 $(C_1, C_2)$，自底向上}
+  \State 计算簇方差 $V_k = \wvec_k^{\top}\Sigmamat_{k}\wvec_k$，其中簇内权重 $\wvec_k$ 取逆方差权重 $1/\diag(\Sigmamat_k)$
+  \State 计算簇间平分因子 $\alpha = 1 - \dfrac{V_1}{V_1 + V_2}$
+  \State 把 $C_1$ 的总权重乘以 $\alpha$，把 $C_2$ 的总权重乘以 $1-\alpha$
+\EndFor
+\State \Return 每个资产的累积权重 $\wvec$
+\end{algorithmic}
+\end{algorithm}
+
+\Cref{alg:11-hrp} 的关键是第 5 行：簇内用逆方差权重（不涉及求逆），簇间按「簇方差的反比」分配。整个算法只使用 $\Sigmamat$ 的对角元与簇内二次型，因此对 $\Sigmamat$ 的非对角噪声极不敏感。文献报告在标准数据集上 HRP 的样本外波动率常低于 GMVP，而换手率与回撤更小。
+
+\subsection{最大分散度与最大去相关}
+
+\term{最大分散度}（maximum diversification，Choueifaty--Coignard 2008）最大化「加权平均波动率」与「组合波动率」之比：
+
+\begin{equation}\label{eq:11-mdp}
+  \max_{\wvec}\ \text{DR}(\wvec) = \frac{\wvec^{\top}\volvec}{\sqrt{\wvec^{\top}\Sigmamat\wvec}},
+  \qquad \text{s.t.}\ \mathbf{1}^{\top}\wvec = 1,\ \wvec \ge \mathbf{0}
+\end{equation}
+
+其中 $\volvec = (\sigma_1,\dots,\sigma_N)^{\top}$ 为各资产波动率。$\text{DR}$ 的倒数就是组合的「分散化比率」，$\text{DR} = 1$ 表示组合等价于单一资产，$\text{DR} = \sqrt{N}$ 表示 $N$ 个不相关且等波动资产。该问题是拟凸的，可通过变量替换化为二阶锥规划。若用相关矩阵替代协方差矩阵（即先做波动率标准化），则得到\term{最大去相关组合}：
+
+\begin{equation}\label{eq:11-mdc}
+  \min_{\wvec}\ \frac{\wvec^{\top} R \wvec}{\left(\wvec^{\top}\wvec\right)} \quad\Longleftrightarrow\quad \text{取 } R \text{ 最小特征值对应的特征向量}
+\end{equation}
+
+其中 $R$ 为相关矩阵。这等价于对标准化收益做\term{主成分分析}并取最小方差的主成分方向——一个常被忽视的事实是：\textbf{最小特征值方向在样本内看起来是「最分散」的，但它恰恰是最容易被估计误差污染的方向}，因此纯 MDP/MDC 组合仍需收缩或约束保护。
+
+\section{Kelly 准则与分数 Kelly}
+
+\subsection{离散赌局的最优下注}
+
+设每次下注以概率 $p$ 赢、概率 $q = 1-p$ 输，赔率 $b:1$（即下注 1 元赢时净得 $b$ 元，输时损失 1 元），下注比例为 $f$。长期增长率等于对数财富的期望：
+
+\begin{equation}\label{eq:11-kelly-g}
+  g(f) = p\ln(1+bf) + q\ln(1-f)
+\end{equation}
+
+令 $g'(f) = \dfrac{pb}{1+bf} - \dfrac{q}{1-f} = 0$，解得\term{Kelly 比例}
+
+\begin{equation}\label{eq:11-kelly}
+  f^{*} = \frac{pb - q}{b} = p - \frac{q}{b} = \frac{\text{期望净收益}}{\text{赔率}}
+\end{equation}
+
+当 $pb \le q$ 时期望净收益非正，$f^{*} \le 0$，即不应下注。$g$ 在 $f^{*}$ 处取最大值，且 $g$ 关于 $f$ 在 $f^{*}$ 附近二阶可微，因此\emph{过度下注的惩罚是不对称的}：下注 $2f^{*}$ 的增长率通常远低于下注 $f^{*}$ 的一半。
+
+\subsection{连续情形与 Merton 解的关系}
+
+设风险资产超额收益 $\mu - r$、波动率 $\sigma$，组合以恒定比例 $f$ 投资于风险资产，则财富服从几何布朗运动，$T$ 期的对数增长率期望为
+
+\begin{equation}\label{eq:11-kelly-cont}
+  g(f) = r + f(\mu - r) - \frac{f^{2}\sigma^{2}}{2}
+  \quad\Longrightarrow\quad
+  f^{*} = \frac{\mu - r}{\sigma^{2}},
+  \qquad
+  g(f^{*}) = r + \frac{1}{2}\left(\frac{\mu-r}{\sigma}\right)^{2}
+\end{equation}
+
+第二个等式极为重要：\textbf{最大对数增长率等于无风险利率加上夏普比率平方的一半}。取 $\text{SR} = 0.3$，超额增长率约 $4.5\%$；取 $\text{SR} = 0.5$，约 $12.5\%$。这解释了为什么机构愿意为 0.1 的夏普改进投入巨额成本。
+
+\begin{example}[Kelly 比例与过度下注的代价]\label{ex:11-kelly}
+设 $\mu - r = 6\%$、$\sigma = 20\%$，则 $f^{*} = 0.06/0.04 = 1.5$，即需要 150\% 的杠杆才能达到最大增长率，最大超额增长率 $= 0.3^{2}/2 = 4.5\%$。
+若下注 $f = 0.75$（半 Kelly），增长率损失为
+\[
+  g(f^{*}) - g(f) = \frac{\sigma^{2}}{2}\left(f^{*} - f\right)^{2}
+  = \frac{0.04}{2}\times 0.75^{2} = 1.125\%
+\]
+即保留 $4.5\% - 1.125\% = 3.375\%$，为最优值的 75\%，而组合波动率从 30\% 降到 15\%。
+若下注 $f = 2f^{*} = 3.0$，增长率 $= 0.06\times 3 - 0.04\times 9/2 = 0.18 - 0.18 = 0$——\textbf{两倍 Kelly 下注把长期增长率归零}。这就是「过度下注必然破产」的精确含义。
+\end{example}
+
+\begin{warningbox}[Kelly 准则的失效条件]
+Kelly 的最优性依赖三个假设，实务中一个都难以完全满足：
+（1）\textbf{参数已知}。$f^{*} = (\mu - r)/\sigma^{2}$ 对 $\mu$ 的敏感性是线性的，而 $\mu$ 的估计误差通常大于 $\mu$ 本身；若真实 $\mu - r = 3\%$ 而被估成 $6\%$，实际下注已是两倍 Kelly，增长率归零。
+（2）\textbf{赔率与概率稳定}。真实收益的分布是时变的，牛市末期的「历史 Kelly」会给出最大杠杆。
+（3）\textbf{效用函数为对数}。Kelly 最大化长期增长率，但代价是沿途的回撤可以任意深；对数效用对回撤的容忍度远高于多数机构投资者的风险预算。
+因此实务几乎全部采用\term{分数 Kelly}（fractional Kelly，通常 1/4 到 1/2），其代价是增长率损失 $\left(1-c^{2}\right)\text{SR}^{2}/2$，收益是波动率线性下降。
+\end{warningbox}
+
+\section{CVaR 组合优化与 Rockafellar--Uryasev 线性化}
+
+\subsection{从方差到尾部风险}
+
+方差把上行与下行同等对待，且不区分「小概率大损失」与「大概率小损失」。条件在险价值（CVaR）只关心尾部：
+
+\begin{definition}[VaR 与 CVaR]\label{def:11-cvar}
+设组合损失 $L(\wvec) = -\wvec^{\top}\ret$，置信水平 $\beta \in (0,1)$。在险价值为 $\VaR_\beta = \min\{\nu: \Prob(L \le \nu) \ge \beta\}$，条件在险价值为
+\begin{equation}\label{eq:11-cvar}
+  \CVaR_\beta = \frac{1}{1-\beta}\int_{\beta}^{1}\VaR_u\,\dd u
+  = \min_{\nu\in\R}\ \left\{\nu + \frac{1}{1-\beta}\,\E\left[\left(L(\wvec)-\nu\right)^{+}\right]\right\}
+\end{equation}
+其中 $(x)^{+} = \max(x,0)$。对连续分布，$\CVaR_\beta = \E\left[L \mid L \ge \VaR_\beta\right]$，即超出 VaR 的平均损失。
+\end{definition}
+
+对离散分布（情景模拟的常态），\cref{eq:11-cvar} 中的积分形式与条件期望不再等价：若情景等概率且尾部正好落在两个情景之间，则「超过 VaR 的平均损失」会高估 CVaR。必须使用右侧的最小化形式，这也正是它可以线性化的原因。
+
+\subsection{Rockafellar--Uryasev 线性化}
+
+设情景集合为 $\{\ret_1,\dots,\ret_S\}$，每个情景等概率 $1/S$。由 \cref{eq:11-cvar} 引入辅助变量 $\nu$（$\nu$ 的最优值就是 VaR）与非负变量 $u_s$，得到线性规划：
+
+\begin{equation}\label{eq:11-ru-lp}
+  \min_{\wvec,\nu,\mathbf{u}}\ \ \nu + \frac{1}{(1-\beta)S}\sum_{s=1}^{S}u_s
+  \qquad
+  \text{s.t.}\quad
+  \begin{cases}
+    u_s \ge -\ret_s^{\top}\wvec - \nu, & s = 1,\dots,S\\
+    u_s \ge 0, & s = 1,\dots,S\\
+    \mathbf{1}^{\top}\wvec = 1,\ \ \wvec \in \mathcal{W}
+  \end{cases}
+\end{equation}
+
+由于目标函数关于 $(\wvec,\nu,\mathbf{u})$ 是凸的（分片线性），且约束全部线性，\cref{eq:11-ru-lp} 是一个标准 LP，规模为 $S$ 个约束加 $\abs{\mathcal{W}}$ 个组合约束。可以证明 $\nu$ 的最优值等于 $\VaR_\beta$，目标值等于 $\CVaR_\beta$。更进一步，CVaR 是\term{一致性风险度量}（次可加、单调、正齐次、平移不变），而 VaR 不满足次可加性——这是机构选择 CVaR 作为优化目标而非约束的理论依据。
+
+\begin{example}[三情景的 CVaR 线性化]\label{ex:11-cvar}
+某组合在四个等概率情景下的收益为 $(9\%,3\%,-2\%,-10\%)$，取 $\beta = 0.5$。损失为 $(-9\%,-3\%,2\%,10\%)$，按降序排列为 $10\%,2\%,-3\%,-9\%$。
+$\VaR_{0.5} = 2\%$（因为 $\Prob(L\le 2\%) = 0.5$）。由 \cref{eq:11-cvar} 的积分定义：$\CVaR_{0.5} = 2\times\left[\frac{1}{4}\times 2\% + \frac{1}{4}\times 10\%\right] = 6\%$，即最差一半情景的平均损失。
+用 \cref{eq:11-ru-lp} 验证：取 $\nu = 2\%$，则 $u = (8\%,0,0,0)$，目标值 $= 2\% + \frac{1}{0.5\times 4}\times 8\% = 2\% + 4\% = 6\%$，与积分定义一致。注意目标函数在 $\nu\in[2\%,10\%]$ 上是常数，说明离散情景下最优 $\nu$ 不唯一——编码时不应假定 $\nu$ 唯一，而应直接使用目标值作为 CVaR。
+\end{example}
+
+\begin{notebox}[Rockafellar--Uryasev 的历史与影响]
+CVaR 的凸表示由 Rockafellar 与 Uryasev 在 2000 年前后系统化，其意义在于把「尾部风险约束」从非凸的 VaR 约束变成了可被内点法高效求解的 LP/SOCP。今天主流的均值-CVaR 组合优化、CVaR 风险预算、甚至深度学习中带尾部惩罚的损失函数，都建立在这个线性化技巧之上。
+\end{notebox}
+
+\section{交易成本、换手约束与多期优化}
+
+\subsection{成本建模}
+
+记当前持仓 $\wvec_0$，目标持仓 $\wvec$，交易向量 $\Delta\wvec = \wvec - \wvec_0$。常用成本函数
+
+\begin{equation}\label{eq:11-tc}
+  \text{TC}(\wvec) = \kappa\norm{\Delta\wvec}_1 + \eta\,\Delta\wvec^{\top}\Sigmamat_{\text{illiq}}\Delta\wvec
+  + \frac{1}{2}\,\Delta\wvec^{\top}\Lambda\Delta\wvec
+\end{equation}
+
+其中 $\kappa$ 为线性成本（买卖价差与佣金，按双边每单位计），$\eta$ 为二次冲击系数（对应平方根或线性冲击模型的一阶近似），$\Lambda$ 为交叉冲击矩阵，用于刻画「同时卖出高度相关资产会加剧冲击」。\textbf{除非 $\kappa = 0$，最优解永远是稀疏的}（许多 $w_i$ 恰好等于 $w_{0,i}$），因为线性成本在原点不可微，会产生「不交易区间」的次梯度条件。这一性质在实践中极为有用：它天然抑制了由微小信号波动引起的过度换手。
+
+\begin{keybox}[核心要点：交易成本与有效前沿]\label{key:11-tc}
+计入线性成本后，最优解的次梯度条件为
+\begin{equation}\label{eq:11-tc-opt}
+  \muvec - \lambda\Sigmamat\wvec - \gamma\mathbf{1} \in \kappa\,\partial\norm{\Delta\wvec}_1
+\end{equation}
+即当边际收益的偏离小于 $\kappa$ 时，该资产保持原仓位不动。因此\textbf{交易成本把「连续有效前沿」变成了「带状有效前沿」}：落在带内的持仓不受小幅参数变化影响，这正是低换手策略估值更稳定的数学原因。
+\end{keybox}
+
+\subsection{多期与动态规划}
+
+单期优化忽略了一个事实：今天的持仓会影响明天的成本。多期问题为
+
+\begin{equation}\label{eq:11-multi}
+  \max_{\{\wvec_t\}}\ \E\left[\sum_{t=0}^{T-1}\beta^{t}\left(\wvec_t^{\top}\muvec_t - \frac{\lambda}{2}\wvec_t^{\top}\Sigmamat_t\wvec_t\right) - \sum_{t=0}^{T-1}\beta^{t+1}\text{TC}\left(\wvec_{t+1} - \wvec_t\right)\right]
+\end{equation}
+
+其中 $\beta$ 为贴现因子，$\muvec_t$ 为时变预测。这类问题的解析解只在特殊情形下存在（例如成本为二次型时退化为「目标追踪」形式 $\wvec_t$ 向无摩擦最优解 $\wvec_t^{*}$ 平滑靠拢）。实务中普遍采用近似：把多期问题化为带惩罚项的单期问题，或使用 Gârleanu--Pedersen 型的「部分调整」规则——\textbf{每期只走完误差的一部分，且成本越高步长越小}。在没有能力估计时变 $\muvec$ 的情况下，用「持有期与换手惩罚」代替真正的动态规划，通常是性价比最高的选择。
+
+\section{动态组合管理：CPPI 与 Merton 解}
+
+\subsection{买卖持有、常数混合与 CPPI}
+
+三种动态策略在同样的标的下产生截然不同的收益形状：
+
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item \textbf{买入持有}（buy and hold）：不调仓，期末价值 $V_T = V_0\,S_T/S_0$，关于标的收益是线性的。
+  \item \textbf{常数混合}（constant mix）：恒定把比例 $c$ 放在风险资产上并连续再平衡。可以证明（详见 \cref{ex:11-cppi}）期末价值为 $V_T = V_0\left(S_T/S_0\right)^{c}\ee^{\left[(1-c)r + \frac{1}{2}c(1-c)\sigma^{2}\right]T}$，指数 $c<1$ 意味着\emph{凹}的收益曲线：市场下跌时它跌得少，上涨时也涨得少，但在震荡市中靠「低买高卖」获得\term{波动率收割}（volatility harvesting）。
+  \item \textbf{CPPI}（constant proportion portfolio insurance，固定比例组合保险）：设最低可接受价值（floor）为 $F$，安全垫（cushion）为 $A_t - F$，则风险资产暴露为
 \end{itemize}
 
-二次规划 (QP) 是求解带约束均值-方差问题的标准工具（cvxopt、OSQP、Gurobi）。
-
-\subsection{交易成本建模}
-
-交易成本是组合再平衡的实际约束：
-
-\begin{equation}
-  TC(w, w_0) = \kappa \cdot \|w - w_0\|_1 + \eta \cdot \|w - w_0\|_2^2
+\begin{equation}\label{eq:11-cppi}
+  E_t = \min\left\{m\left(A_t - F\right),\ A_t\right\},
+  \qquad F = F_0\,\ee^{rT}
 \end{equation}
 
-第一项为线性市场冲击（价差），第二项为二次冲击（大单冲击）。将 $TC$ 纳入目标函数可避免过度交易。
+其中 $m > 1$ 为乘数，$A_t$ 为组合总价值。连续再平衡下，安全垫的变化满足 $\dd(A_t - F) = m(A_t-F)\,\dd S_t/S_t$，故 $A_T - F = (A_0 - F)(S_T/S_0)^{m}$，即
 
-\section{绩效归因 (Performance Attribution)}
+\begin{equation}\label{eq:11-cppi-payoff}
+  A_T = F + \left(A_0 - F\right)\left(\frac{S_T}{S_0}\right)^{m}
+\end{equation}
 
-\subsection{Brinson 归因}
+\Cref{eq:11-cppi-payoff} 是\emph{凸}的（$m>1$），形象地说 CPPI 买了一份隐含的看涨期权：上涨时加速参与，下跌时自动降低暴露以保护本金。
 
-Brinson 模型将组合超额收益分解为：
+\begin{example}[常数混合的指数形式推导]\label{ex:11-cppi}
+设组合价值 $A_t$，恒把比例 $c$ 投于价格 $S_t$ 的风险资产（$S$ 服从几何布朗运动，漂移 $\mu$、波动 $\sigma$），其余投于无风险资产。则
+\[
+  \frac{\dd A}{A} = c\,\frac{\dd S}{S} + (1-c)\,r\,\dd t
+  = \left[c\mu + (1-c)r\right]\dd t + c\sigma\,\dd W_t
+\]
+即 $A$ 也是几何布朗运动，波动率为 $c\sigma$。用 $W_T = \left[\ln(S_T/S_0) - (\mu - \sigma^{2}/2)T\right]/\sigma$ 消去，得到
+\[
+  A_T = A_0\left(\frac{S_T}{S_0}\right)^{c}\exp\left\{\left[(1-c)r + \frac{c(1-c)\sigma^{2}}{2}\right]T\right\}
+\]
+取 $r = 0$、$\sigma = 20\%$、$c = 0.3$、$T = 1$，则乘数因子为 $\exp(0.3\times 0.7\times 0.04/2) = 1.0042$，即震荡市中的超额收益约占 0.42\%。这一项 $\frac{1}{2}c(1-c)\sigma^{2}T$ 就是波动率收割的全部来源。
+\end{example}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{配置效应}（Allocation Effect）：行业/资产类别的超配/低配贡献
-  \item \textbf{选股效应}（Selection Effect）：在行业内的选股能力贡献
-  \item \textbf{交互效应}（Interaction Effect）：配置与选股的交叉影响
-\end{itemize}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm, grid=major,
+  xlabel={标的资产相对价格 $S_T/S_0$}, ylabel={组合期末价值（初始为 1）},
+  xmin=0.4, xmax=1.6, ymin=0.2, ymax=1.8,
+  legend pos=north west, legend style={font=\scriptsize, fill=white, fill opacity=0.85, text opacity=1},
+  tick label style={font=\scriptsize}, label style={font=\small}
+]
+\addplot[quantblue, very thick, domain=0.4:1.6, samples=90] {0.9+0.1*x^3};
+\addlegendentry{CPPI（$m=3$，$F=0.9$）}
+\addplot[quantgreen, very thick, domain=0.4:1.6, samples=90] {1.0042*x^0.3};
+\addlegendentry{常数混合（$c=0.3$）}
+\addplot[inkgray, thick, domain=0.4:1.6, samples=2] {x};
+\addlegendentry{买入持有}
+\addplot[quantred, dashed, thick, domain=0.4:1.6, samples=2] {0.9};
+\addlegendentry{保本底线 $F$}
+\node[quantred, font=\scriptsize, anchor=south east] at (axis cs:0.44,0.9) {保本底线};
+\node[quantblue, font=\scriptsize, anchor=west] at (axis cs:1.18,1.55) {凸：上涨加速};
+\node[quantgreen, font=\scriptsize, anchor=west] at (axis cs:0.42,0.60) {凹：波动率收割};
+\end{axis}
+\end{tikzpicture}
+\caption{CPPI、常数混合与买入持有三种动态策略的期末价值曲线（估值日 $T=1$ 年，$r=0$，$\sigma=20\%$）。CPPI 的曲线位于保本底线之上且向上凸，常数混合的曲线向下凹，买入持有为直线}\label{fig:11-cppi}
+\end{figure}
+
+\subsection{Merton 解}
+
+Merton（1969，1971）在连续时间下求解消费-投资问题：
+
+\begin{equation}\label{eq:11-merton-prob}
+  \max_{c_t,\ \wvec_t}\ \E\left[\int_0^{T}\ee^{-\rho t}U(c_t)\,\dd t\right],
+  \qquad
+  U(c) = \frac{c^{1-\gamma}}{1-\gamma},\ \gamma > 0
+\end{equation}
+
+其中 $\rho$ 为主观贴现率，$\gamma$ 为相对风险厌恶系数（CRRA），$\wvec_t$ 为风险资产权重。财富动态为 $\dd W_t = W_t\left[r + \wvec_t^{\top}(\muvec - r\mathbf{1}) - c_t/W_t\right]\dd t + W_t\wvec_t^{\top}\Sigmamat^{1/2}\dd\vect{W}_t$。猜测值函数 $J(W) = K\,W^{1-\gamma}/(1-\gamma)$，代入 HJB 方程并对 $\wvec$ 求一阶条件：
+
+\begin{equation}\label{eq:11-merton}
+  \wvec^{*} = \frac{1}{\gamma}\Sigmamat^{-1}\left(\muvec - r\mathbf{1}\right)
+  = \frac{1}{\gamma}\,\frac{\Sigmamat^{-1}\left(\muvec - r\mathbf{1}\right)}{\mathbf{1}^{\top}\Sigmamat^{-1}\left(\muvec - r\mathbf{1}\right)}\cdot\text{SR}_{\max}
+\end{equation}
+
+即最优风险组合仍是切点组合 $\wvec_{\text{tan}}$（两基金分离在连续时间下的再现），而杠杆由 $1/\gamma$ 决定。单风险资产情形退化为 \cref{eq:11-kelly-cont} 的一般化：
+
+\begin{equation}\label{eq:11-merton-crra}
+  w^{*} = \frac{\mu - r}{\gamma\sigma^{2}},
+  \qquad
+  c^{*} = \left[\frac{\rho - (1-\gamma)\left(r + \frac{(\mu-r)^{2}}{2\gamma\sigma^{2}}\right)}{\gamma}\right]W
+\end{equation}
+
+当 $\gamma = 1$（对数效用）时，\cref{eq:11-merton-crra} 的第一个式子即 Kelly 比例 $(\mu-r)/\sigma^{2}$，这给出了 Kelly 与 Merton 的统一图景：\textbf{Kelly 就是 CRRA 效用 $\gamma = 1$ 的特例}，$\gamma = 5$ 时最优杠杆降到 Kelly 的 1/5。
+
+\begin{warningbox}[CPPI 与 Merton 解的失效条件]
+\textbf{CPPI}：（1）\emph{跳空风险}。\cref{eq:11-cppi-payoff} 假定连续再平衡；若标的单日跳空下跌超过 $1/m$，安全垫会被一次性击穿。取 $m = 3$，跌幅超过 33\% 即突破底线；2008 年 10 月与 2020 年 3 月都有个股单周跌幅超过该阈值。（2）\emph{波动率上升}。$m$ 固定时，标的波动率上升会显著提高触底概率，实务中需按波动率动态调整 $m$。（3）\emph{流动性}。危机中风险资产流动性枯竭，减仓无法按模型价格成交，保本承诺形同虚设。
+\textbf{Merton 解}：假定投资机会集恒定（$\muvec$、$\Sigmamat$、$r$ 均为常数）。若参数时变（可预测的收益或波动率），最优权重不再是常数，需解含状态变量的 HJB 方程（Merton 1971 的可预测收益版本）。此外 CRRA 效用对极端回撤的容忍度与机构负债结构无关，实际配置需叠加负债约束与监管资本约束。
+\end{warningbox}
+
+\section{绩效归因}
+
+\subsection{Brinson 三效应分解}
+
+归因回答「超额收益从哪里来」。把组合写成基准的行业（或资产类别）加权，记 $w_{p,i}$、$w_{b,i}$ 为组合与基准在各行业的权重（$\sum_i w_{p,i} = \sum_i w_{b,i} = 1$），$r_{p,i}$、$r_{b,i}$ 为行业内收益，$r_b = \sum_i w_{b,i}r_{b,i}$ 为基准总收益，则 Brinson--Hood--Beebower（BHB，1986）三效应为
+
+\begin{align}\label{eq:11-brinson}
+  A &= \sum_{i}\left(w_{p,i} - w_{b,i}\right)r_{b,i}
+  && \text{（配置效应）}\\
+  S &= \sum_{i} w_{b,i}\left(r_{p,i} - r_{b,i}\right)
+  && \text{（选股效应）}\\
+  I &= \sum_{i}\left(w_{p,i} - w_{b,i}\right)\left(r_{p,i} - r_{b,i}\right)
+  && \text{（交互效应）}
+\end{align}
+
+三效应之和恰为超额收益 $r_p - r_b$（以 $r_p = \sum_i w_{p,i}r_{p,i}$ 代入即可验证）。\term{Brinson--Fachler}（BF，1985）把配置效应改为相对于基准总收益的偏离：
+
+\begin{equation}\label{eq:11-brinson-bf}
+  A^{\text{BF}} = \sum_{i}\left(w_{p,i} - w_{b,i}\right)\left(r_{b,i} - r_b\right)
+\end{equation}
+
+由 $\sum_i(w_{p,i} - w_{b,i}) = 0$ 立得 $A^{\text{BF}} = A - r_b\cdot 0 = A$：\textbf{两种方法的配置效应总量相同，但行业层面的数值不同}。BF 的重心修正给出更合理的行业评价：在基准整体下跌 5\% 的市场中，超配一个只跌 2\% 的防御性行业应当在 BF 下记为正贡献，而在 BHB 下该行业贡献为负（因为 $r_{b,i} < 0$）。实务中大多数绩效系统默认使用 BF 的行业级配置效应。
+
+\begin{example}[Brinson 归因数值算例]\label{ex:11-attrib}
+设三个行业，权重与收益如下表。基准总收益 $r_b = 0.40\times 10\% + 0.35\times 6\% + 0.25\times 4\% = 7.1\%$，组合总收益 $r_p = 0.50\times 12\% + 0.30\times 5\% + 0.20\times 8\% = 9.1\%$，超额收益 2.0\%。
+\begin{center}
+\tablefont
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+行业 & 组合权重 & 基准权重 & 组合收益 & 基准收益 \\
+\midrule
+科技 & 50\% & 40\% & 12\% & 10\% \\
+医疗 & 30\% & 35\% & 5\% & 6\% \\
+能源 & 20\% & 25\% & 8\% & 4\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+由 \cref{eq:11-brinson}：$A = (0.10)(0.10) + (-0.05)(0.06) + (-0.05)(0.04) = 0.50\%$，$S = 0.40(0.02) + 0.35(-0.01) + 0.25(0.04) = 1.45\%$，$I = 0.10(0.02) + (-0.05)(-0.01) + (-0.05)(0.04) = 0.05\%$，合计 $2.00\%$，与超额收益一致。
+改用 BF：科技 $(0.10)(0.10-0.071) = 0.29\%$，医疗 $(-0.05)(0.06-0.071) = 0.055\%$，能源 $(-0.05)(0.04-0.071) = 0.155\%$，合计仍为 $0.50\%$。可见行业内排名被重新解释：BHB 认为「低配医疗」是负贡献（$-0.30\%$），BF 则认为在一个基准收益 7.1\% 的环境里低配一个只涨 6\% 的行业是正贡献（$+0.055\%$），后者显然更符合直觉。
+\end{example}
 
 \subsection{因子归因}
 
-\begin{equation}
-  R_p - R_b = \sum_{k} (w_{p,k} - w_{b,k}) \cdot f_k + \varepsilon
+行业归因无法回答「超额收益是选股能力还是风格暴露」。\term{因子归因}把主动收益投影到因子暴露变化上：
+
+\begin{equation}\label{eq:11-factor-attr}
+  r_p - r_b = \sum_{k}\left(\beta_{p,k} - \beta_{b,k}\right)f_k + \sum_{k}\beta_{b,k}f_k + \alpha,
+  \qquad \alpha = \text{无法被因子解释的残差}
 \end{equation}
 
-将收益差异按因子分解，识别 Alpha 来源是选股能力还是因子暴露。
+其中 $\beta_{p,k}$、$\beta_{b,k}$ 为组合与基准对因子 $k$ 的暴露，$f_k$ 为因子收益。实务做法是同时对主动权重做风险模型归因（\term{风险归因}）与对主动收益做因子回归（\term{收益归因}），并把二者对齐：如果 $\alpha$ 的 $t$ 值低于 2 而因子暴露变化的贡献占主动收益的 80\%，那么「选股能力」的说法就不成立。
 
-\subsection{Brinson-Fachler 归因}
+\begin{table}[htbp]
+\centering
+\caption{绩效归因方法对比}\label{tab:11-attrib}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}L{3.4cm}YL{3.4cm}@{}}
+\toprule
+方法 & 分解维度 & 优点 & 局限 \\
+\midrule
+BHB 三效应 & 配置 / 选股 / 交互 & 恒等成立、易实现 & 行业级配置效应对基准方向敏感 \\
+Brinson--Fachler & 配置（相对基准）/ 选股 / 交互 & 行业级解释更符合直觉 & 总量与 BHB 相同、不解决拟合问题 \\
+因子归因 & 风格暴露变化 / 特质 & 可区分 Beta 与 Alpha & 依赖风险模型、因子共线时分解不唯一 \\
+多期归因（Carino） & 几何链接的行业效应 & 多期可加、与累计收益一致 & 需要平滑因子、单期解释性下降 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-改进的 Brinson 归因使用基准权重归一化选股效应，避免了经典 Brinson 方法中选股效应与配置效应的混淆。
+\section{绩效指标}
 
-\section{动态组合管理}
+\subsection{核心指标与失效条件}
 
-\subsection{常数混合 vs 买入持有 vs CPPI}
+把绩效压缩成一个数字总要付出代价。下表列出最常用的六个指标及其隐含假设。
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{买入持有}：不调整权重，收益曲线是标的的线性函数
-  \item \textbf{常数混合}：定期再平衡到固定权重，收益曲线是凹函数（波动率收割）
-  \item \textbf{CPPI}（固定比例组合保险）：$E_t = \max(0, m(A_t - F_t))$，收益曲线是凸函数（下行保护）
+\begin{table}[htbp]
+\centering
+\caption{绩效指标速查与失效条件}\label{tab:11-perf}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.4cm}L{4.0cm}YL{3.0cm}@{}}
+\toprule
+指标 & 定义 & 解读 & 失效条件 \\
+\midrule
+夏普比率 & $(\bar r_p - r_f)/\sd(r_p)$ & 每单位总风险的超额收益 & 收益自相关时年化偏误；对非正态收益失灵 \\
+索提诺比率 & $(\bar r_p - T)/\sd_{\text{down}}$ & 只惩罚下行波动 & 目标收益 $T$ 可被操纵；样本少时尾部不稳 \\
+卡玛比率 & 年化收益 / 最大回撤 & 单位回撤的收益效率 & 回撤是单一路径统计量，对样本区间极敏感 \\
+信息比率 & $(\bar r_p - \bar r_b)/\sd(r_p - r_b)$ & 单位跟踪误差的主动收益 & 基准选择决定数值；跟踪误差小时爆炸 \\
+$M^{2}$ & $r_f + \text{SR}_p\,\sigma_b$ & 风险调整到基准水平后的收益 & 与夏普比率单调等价，无新增信息 \\
+上行捕获 & 上行月收益均值 / 基准上行月收益均值 & 牛市中跟涨能力 & 需与下行捕获配对解读 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{equation}\label{eq:11-sharpe}
+  \text{SR} = \frac{\bar r_p - r_f}{\sd(r_p)},\qquad
+  \text{IR} = \frac{\bar r_p - \bar r_b}{\sd(r_p - r_b)},\qquad
+  \text{Calmar} = \frac{\bar r_p^{\text{ann}}}{\text{MDD}}
+\end{equation}
+
+其中 $\sd_{\text{down}} = \sqrt{\frac{1}{T}\sum_{t=1}^{T}\min(r_t - T,0)^{2}}$ 为下行偏差，$\text{MDD}$ 为最大回撤。最大回撤的严格定义为
+
+\begin{equation}\label{eq:11-mdd}
+  \text{MDD} = \max_{0\le s\le t\le T}\ \frac{V_s - V_t}{V_s},
+  \qquad V_t = \prod_{k=1}^{t}\left(1 + r_k\right)
+\end{equation}
+
+即历史最高净值到其后的最低净值的最大跌幅，是路径依赖指标：它不能由收益率分布单独决定。
+
+\subsection{年化与自相关修正}
+
+月频夏普比率乘以 $\sqrt{12}$ 是默认做法，但当收益存在自相关时该换算会系统性高估。Lo（2002）给出的修正为
+
+\begin{equation}\label{eq:11-lo}
+  \text{SR}^{\text{ann}} = \text{SR}^{\text{monthly}}\times\frac{\sqrt{q}}
+  {\sqrt{1 + 2\sum_{k=1}^{q-1}\dfrac{q-k}{q}\rho_k}},
+  \qquad q = 12
+\end{equation}
+
+其中 $\rho_k$ 为收益的 $k$ 阶自相关系数。若一阶自相关为 0.2，其余为零，则分母因子为 $\sqrt{1 + 2\times\frac{11}{12}\times 0.2} = \sqrt{1.367} = 1.169$，年化夏普被高估约 17\%。私募股权、房地产与低流动性信用策略的收益常呈现 0.3 以上的正自相关，其上报的夏普比率因此普遍偏高——估值平滑而非真实业绩是主要原因。
+
+\begin{appbox}[指标使用的工程建议]
+（1）\textbf{永远报告区间}：用 block bootstrap 或滚动窗口给出夏普比率的置信区间，而不是单点。（2）\textbf{配对比较}：比较两个策略时用 Jobson--Korkie 检验（或 Memmel 修正）检验夏普比率之差的显著性，而不是比较两个点估计。（3）\textbf{路径指标单独看}：最大回撤与回撤持续期无法从夏普比率推出，必须单列。（4）\textbf{口径披露}：无风险利率、基准、复利方式、是否扣费必须写清楚，否则数值不可比。
+\end{appbox}
+
+\section{代码实现：cvxpy 求解 MVO 与 ERC}
+
+下面两段代码给出本章两个最容易踩坑的模型的可运行实现。第一段是带权重上下限与做空约束的 MVO，第二段是用对数障碍凸化后的 ERC 求解，并验证风险贡献确实相等。
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={用 cvxpy 求解带约束的均值-方差优化（MVO）},
+                   label={lst:11-mvo}]
+import numpy as np
+import cvxpy as cp
+
+np.random.seed(0)
+n = 8
+mu = np.random.uniform(0.04, 0.12, n)
+A = np.random.randn(n, n)
+Sigma = A @ A.T / n + np.diag(np.random.uniform(0.01, 0.04, n))
+lam = 5.0
+
+w = cp.Variable(n)
+objective = cp.Maximize(mu @ w - 0.5 * lam * cp.quad_form(w, Sigma))
+constraints = [cp.sum(w) == 1, w >= 0, w <= 0.35]
+prob = cp.Problem(objective, constraints)
+prob.solve()
+
+print("status:", prob.status)
+print("weights:", np.round(w.value, 4))
+print("expected return:", round(float(mu @ w.value), 4))
+print("ex-ante volatility:", round(float(np.sqrt(w.value @ Sigma @ w.value)), 4))
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={用凸对数障碍形式求解等风险贡献（ERC）组合},
+                   label={lst:11-erc}]
+import numpy as np
+import cvxpy as cp
+
+np.random.seed(0)
+n = 8
+A = np.random.randn(n, n)
+Sigma = A @ A.T / n + np.diag(np.random.uniform(0.01, 0.04, n))
+budget = np.ones(n) / n
+
+y = cp.Variable(n, pos=True)
+objective = cp.Minimize(0.5 * cp.quad_form(y, Sigma) - budget @ cp.log(y))
+prob = cp.Problem(objective, [cp.sum(y) == 1])
+prob.solve()
+
+w = y.value / y.value.sum()
+vol = float(np.sqrt(w @ Sigma @ w))
+rc = w * (Sigma @ w) / vol
+
+print("status:", prob.status)
+print("weights:", np.round(w, 4))
+print("risk contributions:", np.round(rc, 4))
+print("portfolio volatility:", round(vol, 4))
+\end{lstlisting}
+
+\Cref{lst:11-mvo} 中若把 `lam` 设得极小（例如 0.01），优化器会把权重顶到上下限边界，这正是 \cref{sec:11-estimation-error} 所述错误放大的工程表现；\cref{lst:11-erc} 的关键是承认 ERC 不是「最小方差」问题，而是对数障碍下的风险预算问题，因此代码里没有出现 $\Sigmamat^{-1}$。
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item 均值-方差问题的解可分解为 GMVP 与投机性倾斜（\cref{eq:11-gmvp}），有效前沿为双曲线（\cref{eq:11-frontier}）；引入无风险资产后所有投资者持有同一 \cref{eq:11-tangent} 的切点组合。
+  \item 预期收益的估计误差经 $\Sigmamat^{-1}$ 放大，期望效用损失为 $N/(2\lambda T)$（\cref{eq:11-ce-loss}）；样本相关矩阵的病态程度随 $N/T$ 上升。
+  \item 收缩（\cref{eq:11-shrink}）、因子结构（\cref{eq:11-factor}）、EWMA 与 DCC（\cref{eq:11-dcc}）分别从「降低噪声」「降低维度」「引入时变」三个方向补救协方差估计。
+  \item 鲁棒优化把不确定性集写成范数惩罚（\cref{eq:11-socp}），Black--Litterman 用均衡先验加观点得到后验均值（\cref{eq:11-bl-post}）。
+  \item ERC 与风险预算的 KKT 条件为 $w_i(\Sigmamat\wvec)_i = b_i\sigma_p^{2}$（\cref{prop:11-erc}），其凸形式不含矩阵求逆；HRP 用聚类替代求逆（\cref{alg:11-hrp}）。
+  \item Kelly 比例 $f^{*} = (\mu-r)/\sigma^{2}$ 使对数增长率最大，最大值为 $r + \text{SR}^{2}/2$；分数 Kelly 以 $(1-c^{2})\text{SR}^{2}/2$ 的增长率换取波动率的线性下降。
+  \item CVaR 的 Rockafellar--Uryasev 形式把尾部风险优化变成线性规划（\cref{eq:11-ru-lp}），且 CVaR 是满足次可加性的一致性风险度量。
+  \item 交易成本带来稀疏解与「带状前沿」（\cref{eq:11-tc-opt}）；绩效归因应给出 BHB/BF 配置效应与因子归因两套结果（\cref{tab:11-attrib}）。
 \end{itemize}
+\end{summarybox}
 
-\subsection{动态规划与 Merton 问题}
+\begin{exercises}
+  \item 两资产情形下 $\Sigmamat = \bigl(\begin{smallmatrix}\sigma_1^{2} & \rho\sigma_1\sigma_2\\ \rho\sigma_1\sigma_2 & \sigma_2^{2}\end{smallmatrix}\bigr)$。证明 GMVP 权重为 $w_1 = \dfrac{\sigma_2^{2} - \rho\sigma_1\sigma_2}{\sigma_1^{2}+\sigma_2^{2}-2\rho\sigma_1\sigma_2}$，并说明当 $\rho \to 1$ 时该权重为何不收敛（提示：$\Sigmamat$ 趋于奇异）。
+  \item 用 \cref{eq:11-ce-loss} 计算：若 $\lambda = 4$、$T = 120$、$N$ 从 50 增加到 500，期望效用损失增加多少？若改为把 500 个资产压缩成 25 个因子，损失如何变化？
+  \item 验证 \cref{eq:11-hrp-dist} 中的 $d_{ij}$ 满足三角不等式，并说明为什么必须做 $\sqrt{(1-\rho)/2}$ 而不是直接使用 $1-\rho$。
+  \item 在 \cref{ex:11-erc} 的设定下，用 \cref{eq:11-erc-prog} 写出 KKT 方程组，并解释为什么 $b_i = 1/N$ 时解与 $\Sigmamat$ 的对角元成反比（提示：考虑对角矩阵的特殊情形）。
+  \item 设某策略月均超额收益 0.6\%，月波动 3\%，一阶自相关 0.25。分别用朴素年化与 \cref{eq:11-lo} 的修正计算年化夏普比率，并解释差异来源。
+  \item 把 \cref{eq:11-ru-lp} 改写为「在 $\CVaR_\beta \le c$ 约束下最大化期望收益」的形式，并说明该问题仍是线性规划。
+  \item 在 \cref{ex:11-kelly} 的设定下，求使长期增长率为零的临界下注比例（答案：$f = 2f^{*}$），并画出 $g(f)$ 随 $f$ 变化的曲线，标出 $f^{*}$ 与临界点。
+  \item 用 \cref{eq:11-cppi} 说明：若乘数 $m = 4$、安全垫占组合的 10\%，标的单日下跌多少会使 CPPI 跌破保本底线？并讨论为什么杠杆型 CPPI 在跳空市场中会失效。
+\end{exercises}
 
-Merton (1969, 1971) 的连续时间消费-投资问题：
-
-\begin{equation}
-  \max_{c_t, w_t} \mathbb{E}\left[\int_0^T U(c_t)dt + U(W_T)\right]
-\end{equation}
-
-CRRA 效用下的最优解：
-\begin{equation}
-  w^* = \frac{\mu - r}{\gamma \sigma^2}
-\end{equation}
-
-即 Merton 比率：最优股票配置 = 夏普比率 /（风险厌恶 $\times$ 方差）。在连续时间下，这是常数（投资机会恒定）。
-
-\section{另类组合构建方法}
-
-\subsection{风险贡献平价 (RCP) 的扩展}
-
-Hierarchical Risk Parity (HRP, Lopez de Prado, 2016)：通过层次聚类和递归二分法构建组合，避免协方差矩阵求逆，对样本外表现更鲁棒。
-
-\subsection{最大分散度组合}
-
-\begin{equation}
-  \max_w \frac{w^T\sigma}{w^T\Sigma w}
-\end{equation}
-
-最大化组合波动率加权平均与组合波动率的比率。
-
-\subsection{最大去相关组合 (MDP)}
-
-\begin{equation}
-  \min_w w^T \Sigma_{\text{corr}} w
-\end{equation}
-
-用相关矩阵替代协方差矩阵，降低了规模效应的干扰。
-
-\section{小结}
-
-组合优化是投资管理的最后环节——在 Alpha 信号和风险模型之上，将预测转化为仓位。从 Markowitz 的经典框架到鲁棒优化和风险平价，从协方差收缩到交易成本纳入，实践中的组合优化需要同时驾驭数学优雅和工程务实。记住：最好的组合优化模型不是理论上最优的，而是样本外稳定的。
+\begin{furtherreading}
+  \refitem Markowitz, H., ``Portfolio Selection'', \emph{Journal of Finance}, 1952.（均值-方差框架的原始文献，读它的价值在于看清「收益-风险二维」这一抽象是如何被提出来的）
+  \refitem Ledoit, O., and Wolf, M., ``A Well-Conditioned Estimator for Large-Dimensional Covariance Matrices'', \emph{Journal of Multivariate Analysis}, 2004.（收缩强度的最优公式，第 2 节给出了可直接实现的估计量）
+  \refitem Black, F., and Litterman, R., ``Global Portfolio Optimization'', \emph{Financial Analysts Journal}, 1992.（BL 模型的原始阐述，重点读「反向优化」的动机部分）
+  \refitem Maillard, S., Roncalli, T., and Teïletche, J., ``The Properties of Equally Weighted Risk Contribution Portfolios'', \emph{Journal of Portfolio Management}, 2010.（ERC 的解析性质与凸化证明）
+  \refitem López de Prado, M., ``Building Diversified Portfolios that Outperform Out of Sample'', \emph{Journal of Portfolio Management}, 2016.（HRP 算法原文，附有可直接复现的伪代码）
+  \refitem Rockafellar, R. T., and Uryasev, S., ``Optimization of Conditional Value-at-Risk'', \emph{Journal of Risk}, 2000.（CVaR 线性化的经典论文，是本章 \cref{eq:11-ru-lp} 的出处）
+  \refitem Roncalli, T., \emph{Introduction to Risk Parity and Budgeting}, CRC Press, 2013.（风险平价的系统性教材，覆盖 ERC、风险预算与多资产实施细节）
+  \refitem Lo, A. W., ``The Statistics of Sharpe Ratios'', \emph{Financial Analysts Journal}, 2002.（夏普比率的统计性质与自相关修正，是 \cref{eq:11-lo} 的出处）
+\end{furtherreading}

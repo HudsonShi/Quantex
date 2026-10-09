@@ -20,3 +20,10 @@
 *.swp
 *.swo
 *~
+
+# 临时/草稿文件与构建目录
+_*.tex
+_*.pdf
+build/
+__pycache__/
+*.pyc

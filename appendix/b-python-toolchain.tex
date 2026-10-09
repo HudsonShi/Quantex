@@ -1,0 +1,296 @@
+% ============================================================================
+%  附录 B：Python 量化工具链
+% ============================================================================
+\chapter{Python 量化工具链}
+\label{app:python}
+
+本附录给出从数据到回测的最小可用工具链。代码全部为可直接运行的 Python 片段，
+变量与注释使用英文以保证跨平台可执行。
+
+\section{环境与依赖}
+
+\begin{lstlisting}[style=shellstyle,
+  caption={推荐的环境准备方式（uv 与 conda 二选一）},
+  label={lst:env}]
+# Option 1: uv (fast, modern)
+uv venv .venv && source .venv/bin/activate
+uv pip install numpy pandas scipy statsmodels arch scikit-learn cvxpy \
+               matplotlib pyarrow yfinance numba
+
+# Option 2: conda
+conda create -n quant python=3.11 -y
+conda activate quant
+pip install -r requirements.txt
+\end{lstlisting}
+
+\begin{table}[htbp]
+\centering
+\caption{量化金融常用 Python 库与分工}\label{tab:python-libs}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.2cm}Y L{4.6cm}@{}}
+\toprule
+\textbf{库} & \textbf{职责} & \textbf{典型用途} \\
+\midrule
+\texttt{numpy} & 向量化数值计算、随机数生成 & 蒙特卡洛路径、线性代数 \\
+\texttt{pandas} & 带标签的时间序列与表格运算 & 数据对齐、重采样、滚动窗口 \\
+\texttt{scipy} & 优化、插值、统计分布、求根 & 隐含波动率反解、曲线拟合 \\
+\texttt{statsmodels} & 计量经济学模型 & OLS/GLS、ARIMA、协整、面板 \\
+\texttt{arch} & 条件异方差模型 & GARCH/EGARCH/GJR、波动率预测 \\
+\texttt{scikit-learn} & 机器学习与预处理 & 因子非线性建模、交叉验证 \\
+\texttt{cvxpy} & 凸优化建模（DSL） & 均值--方差、风险平价、CVaR 优化 \\
+\texttt{numba} & 即时编译加速 & 逐路径回测、期权定价循环 \\
+\texttt{pyarrow / parquet} & 列式存储 & 大规模行情与因子数据 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{数据读取与清洗}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={价格数据对齐、复权与缺失值处理},
+  label={lst:data}]
+import numpy as np
+import pandas as pd
+
+def load_prices(path: str, tickers: list[str]) -> pd.DataFrame:
+    """Load adjusted close prices and align them on a common calendar."""
+    px = pd.read_parquet(path)                 # MultiIndex or wide format
+    px = px.loc[:, tickers].sort_index()
+    px = px[~px.index.duplicated(keep="last")]
+    px = px.ffill(limit=5)                     # short gaps only
+    px = px.dropna(how="any")                  # keep the common history
+    return px
+
+def log_returns(px: pd.DataFrame) -> pd.DataFrame:
+    r = np.log(px / px.shift(1)).dropna(how="all")
+    return r.replace([np.inf, -np.inf], np.nan).dropna(how="any")
+\end{lstlisting}
+
+\begin{warningbox}[三个最常见的清洗错误]
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{用未复权价格计算收益}：除权除息日会出现虚假的巨额负收益，因子测试结果被彻底污染；
+  \item \textbf{用 \texttt{ffill()} 无长度限制地填补停牌与退市}：会把「无交易」伪装成「零波动」，
+        压低协方差估计并制造虚假的平稳性；
+  \item \textbf{只保留当前仍在交易的股票}：典型的幸存者偏差，对价值与困境反转类因子的影响尤其大。
+\end{enumerate}
+\end{warningbox}
+
+\section{描述统计与肥尾检验}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={收益率描述统计：年化、偏度、峰度、Jarque--Bera},
+  label={lst:desc}]
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+def summary_stats(r: pd.Series, periods: int = 252) -> pd.Series:
+    ann_ret = r.mean() * periods
+    ann_vol = r.std(ddof=1) * np.sqrt(periods)
+    downside = r[r < 0].std(ddof=1) * np.sqrt(periods)
+    return pd.Series({
+        "ann_return": ann_ret,
+        "ann_vol": ann_vol,
+        "sharpe": ann_ret / ann_vol if ann_vol > 0 else np.nan,
+        "sortino": ann_ret / downside if downside > 0 else np.nan,
+        "skew": stats.skew(r),
+        "excess_kurtosis": stats.kurtosis(r),
+        "jb_pvalue": stats.jarque_bera(r).pvalue,
+        "max_drawdown": (r.add(1).cumprod().cummax()
+                         - r.add(1).cumprod()).max(),
+    })
+\end{lstlisting}
+
+\begin{keybox}[判断「肥尾」的正确姿势]
+\texttt{excess\_kurtosis} 为正只说明样本呈现出厚尾，\textbf{并不证明总体四阶矩存在}。
+在 $t$ 分布且 $\nu\le 4$ 时，样本峰度的抽样分布极不稳定。更稳健的做法是：
+(1) 用 Hill 估计或 GPD 拟合尾指数；(2) 直接比较经验分位数与正态分位数在 1\%/0.1\% 分位上的差异。
+\end{keybox}
+
+\section{波动率建模}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={用 arch 拟合 GARCH(1,1)-t 并预测年化波动率},
+  label={lst:garch}]
+import numpy as np
+from arch import arch_model
+
+def garch_forecast(returns: np.ndarray, horizon: int = 5) -> dict:
+    """Fit GARCH(1,1) with Student-t errors and forecast volatility."""
+    r = 100.0 * returns                       # percentage scale is stabler
+    res = arch_model(r, mean="Constant", vol="Garch", p=1, q=1,
+                     dist="t").fit(disp="off")
+    fc = res.forecast(horizon=horizon, reindex=False)
+    var = fc.variance.values[-1]              # in (%)^2
+    ann_vol = np.sqrt(var * 252.0) / 100.0    # back to decimals
+    alpha, beta = res.params["alpha[1]"], res.params["beta[1]"]
+    half_life = np.log(0.5) / np.log(alpha + beta)
+    return {"params": res.params, "ann_vol": ann_vol,
+            "half_life_days": half_life, "loglik": res.loglikelihood}
+\end{lstlisting}
+
+\begin{notebox}[持久性与半衰期]
+GARCH(1,1) 的波动率冲击半衰期为 $-\ln 2/\ln(\alpha+\beta)$。当 $\alpha+\beta=0.95$ 时约 13.5 天，
+$0.99$ 时约 69 天。若估计出的 $\alpha+\beta$ 逼近甚至超过 1，说明模型认为波动率冲击永不衰减，
+此时点预测虽然可用，但长期方差 $\omega/(1-\alpha-\beta)$ 已无意义——这通常意味着样本中存在
+结构突变或长记忆，应考虑 FIGARCH 或加入机制转换。
+\end{notebox}
+
+\section{因子研究}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={因子中性化与信息系数（IC）计算},
+  label={lst:factor}]
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+
+def neutralize(factor: pd.Series, exposures: pd.DataFrame) -> pd.Series:
+    """Cross-sectional OLS: factor ~ industry dummies + style exposures."""
+    y = factor.dropna()
+    X = exposures.loc[y.index]
+    X = sm.add_constant(X)
+    resid = sm.OLS(y, X, hasconst=True).fit().resid
+    return resid
+
+def rank_ic(factor: pd.DataFrame, fwd_ret: pd.DataFrame) -> pd.Series:
+    """Cross-sectional Spearman correlation per date."""
+    ic = {}
+    for dt in factor.index.intersection(fwd_ret.index):
+        f, r = factor.loc[dt], fwd_ret.loc[dt]
+        mask = f.notna() & r.notna()
+        if mask.sum() > 30:
+            ic[dt] = f[mask].corr(r[mask], method="spearman")
+    return pd.Series(ic).sort_index()
+
+def ic_report(ic: pd.Series, periods: int = 252) -> dict:
+    return {"IC_mean": ic.mean(), "IC_std": ic.std(ddof=1),
+            "ICIR": ic.mean() / ic.std(ddof=1) * np.sqrt(periods),
+            "t_stat": ic.mean() / ic.std(ddof=1) * np.sqrt(len(ic)),
+            "positive_ratio": (ic > 0).mean()}
+\end{lstlisting}
+
+\begin{appbox}[IC 与 IR 的经验尺度]
+横截面 RankIC 的月频均值若能达到 $0.03$--$0.05$ 已属良好，$0.05$ 以上通常意味着
+较强的选股能力（或尚未被修正的前视偏差）。月频 ICIR 在 $0.5$ 左右是可用的水准。
+注意：\textbf{IC 的绝对值远小于直觉预期}，这正是「基本定律」中需要用广度 $\sqrt{\text{Breadth}}$
+去放大信号的原因。
+\end{appbox}
+
+\section{组合优化}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={用 cvxpy 求解带约束的均值--方差与等风险贡献组合},
+  label={lst:opt}]
+import numpy as np
+import cvxpy as cp
+
+def min_variance(mu: np.ndarray, cov: np.ndarray, w_max: float = 0.1):
+    n = len(mu)
+    w = cp.Variable(n)
+    cons = [cp.sum(w) == 1, w >= 0, w <= w_max]
+    prob = cp.Problem(cp.Minimize(cp.quad_form(w, cov)), cons)
+    prob.solve()
+    return w.value
+
+def max_utility(mu: np.ndarray, cov: np.ndarray, lam: float = 5.0):
+    n = len(mu)
+    w = cp.Variable(n)
+    cons = [cp.sum(w) == 1, w >= 0]
+    obj = cp.Maximize(mu @ w - 0.5 * lam * cp.quad_form(w, cov))
+    cp.Problem(obj, cons).solve()
+    return w.value
+
+def risk_parity(cov: np.ndarray, budget: np.ndarray | None = None):
+    """Solve for equal (or budgeted) risk contributions via convex program."""
+    n = cov.shape[0]
+    b = np.ones(n) / n if budget is None else budget / budget.sum()
+    y = cp.Variable(n, nonneg=True)
+    port_var = cp.quad_form(y, cov)
+    obj = cp.Minimize(port_var - b @ cp.log(y))
+    cp.Problem(obj).solve()
+    w = y.value / y.value.sum()
+    return w
+\end{lstlisting}
+
+\begin{intuitionbox}[风险平价的建模技巧]
+上面把「等风险贡献」写成了凸优化问题，而不是直接解非线性方程组。技巧在于：
+最小化 $y^T\Sigma y - \sum_i b_i\ln y_i$ 的一阶条件恰好是
+$2(\Sigma y)_i = b_i/y_i$，即 $y_i(\Sigma y)_i \propto b_i$，
+还原成权重后就是「风险贡献等于预算」。这类\textbf{把均衡条件写成优化目标}的思路，
+在组合管理中非常常用。
+\end{intuitionbox}
+
+\section{衍生品定价}
+
+\begin{lstlisting}[style=pythonstyle,
+  caption={Black--Scholes 定价、Newton 法反解隐含波动率与蒙特卡洛验证},
+  label={lst:bsm}]
+import numpy as np
+from scipy.stats import norm
+
+def bsm_price(S, K, r, sigma, T, kind="call"):
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if kind == "call":
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+def implied_vol(price, S, K, r, T, kind="call", tol=1e-8, max_iter=100):
+    sigma = 0.2
+    for _ in range(max_iter):
+        diff = bsm_price(S, K, r, sigma, T, kind) - price
+        vega = S * norm.pdf((np.log(S / K) + (r + 0.5 * sigma ** 2) * T)
+                            / (sigma * np.sqrt(T))) * np.sqrt(T)
+        if abs(diff) < tol:
+            break
+        sigma -= diff / vega
+    return sigma
+
+def bsm_mc(S, K, r, sigma, T, n=200_000, seed=42):
+    rng = np.random.default_rng(seed)
+    z = rng.standard_normal(n)
+    ST = S * np.exp((r - 0.5 * sigma ** 2) * T + sigma * np.sqrt(T) * z)
+    payoff = np.maximum(ST - K, 0.0)
+    return np.exp(-r * T) * payoff.mean(), payoff.std(ddof=1) / np.sqrt(n)
+\end{lstlisting}
+
+\begin{warningbox}[Newton 法反解隐含波动率的失效场景]
+当 Vega 趋于 0 时（深度虚值、临近到期），Newton 迭代会剧烈震荡或发散。
+实务中的处理方式是：(1) 先做无套利检查（价格是否落在内在价值与标的价之间）；
+(2) 用二分法或 Brent 法作为兜底；(3) 对波动率曲面做 SVI/SABR 参数化后再插值，
+而不是逐点反解。对全期限、全行权价的逐点反解很容易产生「日历套利」与「蝶式套利」的假象。
+\end{warningbox}
+
+\section{工程实践要点}
+
+\begin{table}[htbp]
+\centering
+\caption{从研究到生产的常见工程陷阱}\label{tab:eng-pitfalls}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.4cm}Y@{}}
+\toprule
+\textbf{陷阱} & \textbf{症状与对策} \\
+\midrule
+随机数不可复现 &
+回测结果无法重现。对策：统一使用 \texttt{np.random.default\_rng(seed)}，并把种子写入配置。\\
+浮点比较 &
+用 \texttt{==} 比较价格或权重导致误判。对策：用 \texttt{np.isclose} 与绝对/相对容差。\\
+循环写得太慢 &
+Python 逐行循环处理数百万行行情。对策：向量化，或对嵌套路径循环使用 \texttt{numba.njit}。\\
+内存爆炸 &
+一次性加载十年全市场逐笔数据。对策：Parquet + 按日期分区、分块处理、\texttt{dtype} 降位。\\
+时间对齐错误 &
+把不同时区的收盘价直接相减，或用未来公布的财报。对策：统一时区与交易日历，严格使用
+「公告日 + 1」作为可用日。\\
+参数硬编码 &
+换一个市场就全盘失效。对策：把交易成本、涨跌停、停牌规则做成显式参数并记录版本。\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keybox}[可复现性是量化研究的第一生产力]
+一份研究结果如果不能被别人（包括三个月后的你自己）用同一份数据与代码复现出来，
+它的价值为零。最小要求是：\textbf{数据快照 + 代码版本 + 随机种子 + 参数配置}四件套齐全，
+并且把「研究环境」与「生产环境」的差异显式记录在案。
+\end{keybox}

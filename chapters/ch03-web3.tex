@@ -2,188 +2,743 @@
 
 \section{Web3 的哲学与技术基础}
 
-Web3 代表互联网的第三代范式：从 Web1（只读）到 Web2（读写）再到 Web3（读写+拥有）。核心特征是去中心化、用户数据主权和价值互联网。
+Web3 的叙事起点并不是技术，而是一次所有权结构的重新分配。Web1 时代用户可以读取网页但无法写回内容；Web2 时代用户可以生产内容，但账户、身份与数据沉淀在平台公司的服务器上，价值捕获权归平台；Web3 的诉求是让用户在读取、写入之外额外获得\textbf{拥有权}——账户由私钥控制，资产由链上状态定义，协议规则由智能合约强制执行而非由公司政策决定。
 
-\begin{keybox}
-Web3 = 区块链（共识层）+ 智能合约（执行层）+ 代币经济（激励层）+ 去中心化存储（数据层）
+这一诉求是否在经济学上成立，是量化从业者真正关心的问题。去中心化不是免费的：它用冗余计算、冗余存储和冗长的共识过程，换取了「无需信任第三方」这一属性。因此 Web3 系统的成本结构与传统金融科技有着本质差别——后者的边际成本主要来自服务器与人力，前者的边际成本主要由共识开销与状态存储开销构成。理解这一点，才能理解为什么链上交易的费率会随拥堵剧烈波动，也才能理解为什么大量所谓「上链」的业务在成本上根本不成立。
+
+\begin{keybox}[Web3 的四层结构]
+Web3 系统可以分解为四层，任一层失效都会导致上层业务不可用：
+
+\textbf{共识层}（区块链：PoW、PoS 等）决定「谁有权追加账本」，提供抗审查与最终一致性；
+\textbf{执行层}（智能合约、EVM）决定「状态如何被修改」，提供可组合性；
+\textbf{激励层}（代币经济）决定「谁来维护系统、维护者得到什么」，提供安全性预算；
+\textbf{数据层}（链上状态与去中心化存储）决定「状态在哪里、以什么成本被读取」。
 \end{keybox}
+
+\begin{notebox}[本节的记号约定]
+本章涉及大量与第 4 章共通的符号，为保持一致，统一约定：$S$ 表示资产价格或标的资产，$x,y$ 表示流动性池中两种代币的存量，$k$ 表示不变量，$\rho$ 表示价格比例，$r$ 表示利率（在 DeFi 语境下为借贷年化利率）。链上金额一律以代币最小单位的整数表示，因此本章的连续数学建模均隐含「单笔交易相对池深度足够小」的近似前提。
+\end{notebox}
 
 \section{区块链技术深度}
 
-\subsection{数据结构}
+\subsection{哈希链与 Merkle 证明}
 
-区块链本质上是哈希指针链接的分布式账本：
+区块链的本体是一串由哈希指针连接的区块。若记第 $n$ 个区块头的哈希为 $H_n$，则区块头的结构可写为
 
-\begin{itemize}[leftmargin=*]
-  \item 每个区块包含：区块头（前驱哈希、Merkle 根、时间戳、Nonce）+ 交易列表
-  \item Merkle 树实现高效的交易验证（$O(\log n)$ 复杂度）
-\end{itemize}
+\begin{equation}
+  H_n = \mathrm{Hash}\bigl(\text{prev}(H_{n-1}),\; \text{root},\; t_n,\; \text{nonce}\bigr)
+  \label{eq:03-blockhead}
+\end{equation}
 
-\subsection{共识机制}
+其中 $\text{prev}$ 为前驱哈希，$\text{root}$ 为该区块内交易的 Merkle 根，$t_n$ 为时间戳，$\text{nonce}$ 为工作量证明所需的随机数。改写任一历史区块中的一笔交易，会使该区块的 Merkle 根改变，进而改变其区块头哈希，并迫使攻击者重算其后所有区块——这就是「不可篡改」的技术含义，如\cref{eq:03-blockhead}所示。
 
-\begin{table}[h]
+Merkle 树的价值在于验证的\textbf{对数复杂度}。若有 $n$ 笔交易，验证「第 $i$ 笔交易确实被打包」只需要该交易到根路径上的 $\lceil \log_2 n\rceil$ 个兄弟哈希。比特币一个区块约 2000--4000 笔交易，因此一颗完整的 Merkle 证明只有 12 个左右的哈希（约 384 字节），一部手机即可验证一笔转账被链上确认，而无需下载数百 GB 的区块数据。
+
+\begin{intuitionbox}[为什么是「对数」而不是「线性」]
+线性验证要求验证者拥有全部数据，这在资源上等价于「成为全节点」。Merkle 证明把验证者的存储需求从 $O(n)$ 降到 $O(\log n)$，代价是验证者必须信任「链头是最长链」这一前提。因此轻节点的安全性弱于全节点：它验证的是「某笔交易在某个区块里」，而不是「该区块确实属于最重链」。
+\end{intuitionbox}
+
+\begin{figure}[htbp]
 \centering
-\caption{主流共识机制对比}
-\begin{tabular}{@{}lll@{}}
+\begin{tikzpicture}[scale=0.95, every node/.style={font=\small\sffamily}]
+  % 根
+  \node[draw, rounded corners=1mm, fill=boxbg, draw=quantblue, thick,
+        minimum width=2.5cm, minimum height=0.72cm] (root) at (0,3) {Merkle 根 $\mathrm{H}_{12}$};
+  % 第二层
+  \node[draw, rounded corners=1mm, fill=boxbg, draw=quantblue,
+        minimum width=2.2cm, minimum height=0.72cm] (h1) at (-3.4,1.7) {$\mathrm{H}_1$};
+  \node[draw, rounded corners=1mm, fill=boxbg, draw=quantblue,
+        minimum width=2.2cm, minimum height=0.72cm] (h2) at (3.4,1.7) {$\mathrm{H}_2$};
+  % 叶子
+  \node[draw, rounded corners=1mm, fill=quantgreen!12, draw=quantgreen, thick,
+        minimum width=2.1cm, minimum height=0.72cm] (t1) at (-5.3,0.35) {$\mathrm{H}(Tx_1)$};
+  \node[draw, rounded corners=1mm, fill=quantgreen!12, draw=quantgreen, thick,
+        minimum width=2.1cm, minimum height=0.72cm] (t2) at (-2.6,0.35) {$\mathrm{H}(Tx_2)$};
+  \node[draw, rounded corners=1mm, fill=white, draw=inkgray!60,
+        minimum width=2.1cm, minimum height=0.72cm] (t3) at (2.6,0.35) {$\mathrm{H}(Tx_3)$};
+  \node[draw, rounded corners=1mm, fill=white, draw=inkgray!60,
+        minimum width=2.1cm, minimum height=0.72cm] (t4) at (5.3,0.35) {$\mathrm{H}(Tx_4)$};
+  % 边
+  \draw[inkgray!70] (root) -- (h1);
+  \draw[inkgray!70] (root) -- (h2);
+  \draw[quantgreen, very thick] (h1) -- (t1);
+  \draw[quantgreen, very thick] (h1) -- (t2);
+  \draw[inkgray!45, dashed] (h2) -- (t3);
+  \draw[inkgray!45, dashed] (h2) -- (t4);
+  \draw[inkgray!45, dashed] (t2) -- (t3);
+  \draw[inkgray!45, dashed] (t1) -- (t2);
+  \draw[inkgray!45, dashed] (t3) -- (t4);
+  % 说明
+  \node[anchor=west, font=\scriptsize\sffamily, quantgreen!70!black]
+        at (-5.6,-0.65) {绿色路径 $=$ 验证 $Tx_1$ 所需的 2 个兄弟哈希};
+\end{tikzpicture}
+\caption{Merkle 树的验证路径}\label{fig:03-merkle}
+\end{figure}
+
+如\cref{fig:03-merkle}所示，验证 $Tx_1$ 只需 $\mathrm{H}(Tx_2)$ 与 $\mathrm{H}_2$ 两个哈希。攻击者若要伪造 $Tx_1$ 而不被发现，必须同时构造出与 $\mathrm{H}_2$ 相符的伪造数据，这在哈希函数的抗碰撞假设下不可行。
+
+\subsection{共识机制与终局性}
+
+「共识」解决的是分布式系统中最古老的问题：在存在恶意节点与网络分区的条件下，如何让所有诚实节点对同一份账本达成一致。不同机制的差别主要体现在三个维度：\textbf{安全性预算}（攻击成本来自算力、资本还是许可身份）、\textbf{终局性类型}（概率终局还是确定性终局）、\textbf{性能}（吞吐与延迟）。
+
+\begin{table}[htbp]
+\centering
+\caption{主流共识机制的对比}\label{tab:03-consensus}
+\tablefont
+\begin{tabular}{@{}p{1.7cm}p{2.9cm}p{2.4cm}p{2.3cm}L{4.6cm}@{}}
 \toprule
-机制 & 代表链 & 特点 \\
+机制 & 代表链 & 安全预算来源 & 终局性 & 主要代价 \\
 \midrule
-PoW（工作量证明） & Bitcoin & 安全但高能耗 \\
-PoS（权益证明） & Ethereum 2.0 & 节能、资本效率 \\
-DPoS & EOS, TRON & 高性能、弱去中心化 \\
-PBFT & Hyperledger & 许可链、确定终局性 \\
+PoW & Bitcoin & 算力（电力与硬件） & 概率终局（约 6 个区块） & 能耗极高，吞吐约 7 TPS \\
+PoS & Ethereum & 质押资本（罚没机制） & 确定性终局（约 2 个 epoch） & 富者愈富、质押集中化 \\
+DPoS & EOS、TRON & 选举出的少数验证人 & 确定性终局 & 验证人数量少，抗审查弱 \\
+PBFT 类 & Hyperledger & 许可身份 & 即时确定性终局 & 需已知成员，扩展性受限 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{以太坊虚拟机 (EVM)}
+\Cref{tab:03-consensus}中最容易被忽略的一列是「终局性」。概率终局意味着「交易被回滚的概率随时间指数衰减」，这对交易所的提现确认数有直接要求；确定性终局意味着「一旦最终确认，除非超过三分之一的质押被罚没，交易不可逆」，这对结算类业务更友好。
 
-EVM 是图灵完备的全球状态机。Gas 机制防止无限循环：
-
-\begin{equation}
-  \text{Transaction Fee} = \text{Gas Used} \times \text{Gas Price}
-\end{equation}
-
-EIP-1559 后引入 base fee（燃烧）+ priority fee（矿工小费）的双层费率结构。
-
-\section{智能合约编程}
-
-\subsection{Solidity 核心概念}
-
-Solidity 是以太坊生态的主流智能合约语言，合约关键要素：
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{状态变量}：存储在区块链上，消耗 Gas
-  \item \textbf{函数修饰符}：view（只读）、pure（无状态）、payable（接收 ETH）
-  \item \textbf{事件 (Events)}：低成本日志，前端可订阅
-  \item \textbf{继承}：is 关键字实现多重继承
-\end{itemize}
-
-\subsection{常见漏洞与安全}
-
-\begin{warningbox}
-智能合约安全是 DeFi 的生命线。2022 年 DeFi 协议因漏洞损失超 30 亿美元。
+\begin{warningbox}[终局性与经济安全预算]
+PoS 的安全性建立在「攻击成本大于收益」这一经济假设上。若某条链的总质押价值为 $V$，攻击者需要控制约三分之一（33\%）的质押即可实施某些分叉攻击，则安全预算可粗略量化为 $\tfrac13 V$。当链上锁定的资产规模远超原生代币的质押市值时，这条不等式会被打破——这正是「跨链桥持有资产多于共识层市值」时最危险的结构。2022 年多起桥攻击的共同点并非密码学被攻破，而是经济安全预算不足。
 \end{warningbox}
 
-主要漏洞类型：
-\begin{itemize}[leftmargin=*]
-  \item \textbf{重入攻击 (Reentrancy)}：The DAO 事件（2016）—— 调用外部合约时状态未更新
-  \item \textbf{整数溢出/下溢}：Solidity 0.8+ 已内置检查
-  \item \textbf{闪电贷攻击}：无抵押借入巨量资金操纵预言机价格
-  \item \textbf{访问控制缺陷}：Ownable 模式、多签钱包
-  \item \textbf{预言机操纵}：利用 AMM 池中瞬时价格偏差
-\end{itemize}
+\subsection{以太坊虚拟机与费率机制}
 
-\section{代币经济学 (Tokenomics)}
-
-\subsection{代币分类}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{支付代币}：BTC、LTC（价值存储/交易媒介）
-  \item \textbf{功能代币}：ETH（Gas 费）、FIL（存储支付）
-  \item \textbf{治理代币}：UNI、AAVE（协议治理投票权）
-  \item \textbf{证券代币}：代表传统资产（股权、房地产）的代币化
-  \item \textbf{NFT}：非同质化代币（艺术品、游戏资产）
-\end{itemize}
-
-\subsection{代币估值模型}
-
-\textbf{交换方程 (Equation of Exchange)}：
-\begin{equation}
-  MV = PQ
-\end{equation}
-
-其中 $M$ 为代币市值，$V$ 为流通速度，$P$ 为商品/服务价格水平，$Q$ 为交易量。由此得到：
+EVM 是一台基于栈的图灵完备状态机，其「图灵完备」带来的直接后果是停机问题不可判定，因此必须以显式计价的方式来限制执行开销，这就是 Gas。在一笔交易中，费用的基本关系为
 
 \begin{equation}
-  \text{Token Price} = \frac{PQ}{MV}
+  \text{费用} = \text{Gas 消耗量} \times \text{Gas 单价}
+  \label{eq:03-gasfee}
 \end{equation}
 
-\textbf{贴现现金流 (DCF) 适应}：对产生费用的协议（如 Uniswap、MakerDAO），可将协议收入按比例分配至代币进行估值。
+其中 Gas 消耗量由指令序列决定（存储写入远贵于算术运算），Gas 单价则由市场供需决定。EIP-1559 之后，单价被拆分为两部分：
 
-\subsection{代币发行机制}
+\begin{equation}
+  \text{Gas 单价} = \text{基础费} + \text{优先费},\qquad
+  \text{基础费} = b_{n-1}\Bigl(1 + \tfrac18\cdot\tfrac{u_{n-1}-u^{*}}{u^{*}}\Bigr)
+  \label{eq:03-eip1559}
+\end{equation}
+
+其中 $b_{n-1}$ 为上一区块的基础费，$u_{n-1}$ 为上一区块的实际用量，$u^{*}$ 为目标用量（约 1500 万 Gas）。基础费被销毁而非支付给验证者，优先费则作为小费归验证者。如\cref{eq:03-eip1559}所示，当区块用量超过目标时，基础费按每区块最多 12.5\% 的幅度上升，这一设计把「费用」从拍卖品变成了可预测的拥堵价格。
+
+\begin{appbox}[Gas 成本应从工程角度评估]
+链上业务的可行性判断标准非常朴素：单笔业务的链上成本是否小于该业务创造的毛利。以以太坊主网为例，一次 ERC-20 转账约消耗 5 万 Gas，一次 Uniswap V3 的复杂兑换可能消耗 15 万--20 万 Gas。当基础费为 10 gwei 时，前者成本约 0.0005 ETH；当基础费飙升至 200 gwei 时，同样一笔操作的成本提高 20 倍。因此大量高频、小额的支付类应用最终迁移到二层网络或专用链，其决策依据正是这一条成本不等式，而非技术偏好。
+\end{appbox}
+
+\section{智能合约与安全}
+
+\subsection{Solidity 的关键要素}
+
+Solidity 是以太坊生态最主流的合约语言。对量化从业者而言，真正需要掌握的并不是语法细节，而是三类与资金安全直接相关的问题：\textbf{状态变量的存储成本}（决定合约的经济可行性）、\textbf{外部调用的控制权转移}（决定重入风险的边界）、\textbf{整数与精度}（决定会计记账是否自洽）。
+
+\begin{definition}[重入攻击 Reentrancy]\label{def:03-reentrancy}
+重入攻击指合约在向外部地址转账或调用外部合约时，将控制权暂时交给该外部地址，而该地址在回调中再次进入原合约的同一函数。若原合约在外部调用之后才更新自身状态（例如把用户余额置零），则攻击者可在余额尚未清零时反复提取资金。防御的核心原则是\textbf{检查--生效--交互}（Checks-Effects-Interactions）：先校验前置条件，再更新自身状态，最后执行外部调用；并以互斥锁（\texttt{nonReentrant}）作为纵深防御。
+\end{definition}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.9, every node/.style={font=\small\sffamily}]
+  \node[draw, rounded corners=1mm, fill=boxbg, draw=quantblue, thick,
+        minimum width=3.6cm, minimum height=0.9cm] (user) at (0,0) {攻击者合约};
+  \node[draw, rounded corners=1mm, fill=appbg, draw=quantgreen, thick,
+        minimum width=4.2cm, minimum height=0.9cm] (vault) at (0,4.6) {金库合约 withdraw()};
+  \draw[-{Stealth[length=2.6mm]}, thick, quantblue]
+        (user.west) to[bend left=32] (vault.west);
+  \draw[-{Stealth[length=2.6mm]}, thick, quantred]
+        (vault.east) to[bend left=32] (user.east);
+  \draw[-{Stealth[length=2.6mm]}, thick, quantpurple, dashed]
+        (user.north) to[bend left=8] (vault.south);
+  \node[font=\scriptsize\sffamily, quantblue, anchor=east] at (-4.6,2.7) {1. 调用 withdraw};
+  \node[font=\scriptsize\sffamily, quantred, anchor=west] at (4.6,2.7) {2. 转账触发 receive()};
+  \node[font=\scriptsize\sffamily, quantpurple, anchor=west] at (0.35,2.45) {3. 重入 withdraw};
+  \node[font=\scriptsize\sffamily, quantred!80!black, anchor=north]
+        at (0,-1.1) {若余额在步骤 2 之后才清零，步骤 3 仍可通过检查};
+\end{tikzpicture}
+\caption{重入攻击的控制流与状态更新时序}\label{fig:03-reentrancy}
+\end{figure}
+
+\Cref{fig:03-reentrancy}给出了重入攻击的机制。修复方式是唯一的：把「扣减余额」放在「转账」之前，使第二次进入时余额已为零。
+
+\subsection{安全转账的实现}
+
+下面给出一个完整可读的最小提款合约，它同时使用了检查--生效--交互模式与互斥锁。
+
+\begin{lstlisting}[style=soliditystyle,
+                   caption={防重入的提款合约（检查--生效--交互 + 互斥锁）},
+                   label={lst:03-vault}]
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract SafeVault {
+    mapping(address => uint256) public balance;
+
+    bool private locked;
+
+    modifier nonReentrant() {
+        require(!locked, "reentrant call");
+        locked = true;
+        _;
+        locked = false;
+    }
+
+    function deposit() external payable {
+        require(msg.value > 0, "zero deposit");
+        balance[msg.sender] += msg.value;
+    }
+
+    function withdraw() external nonReentrant {
+        uint256 amount = balance[msg.sender];
+        require(amount > 0, "nothing to withdraw");
+
+        balance[msg.sender] = 0;            // effects first
+
+        (bool ok, ) = msg.sender.call{value: amount}("");   // interaction last
+        require(ok, "transfer failed");
+    }
+
+    function totalBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
+}
+\end{lstlisting}
+
+\Cref{lst:03-vault}中 \texttt{balance[msg.sender] = 0} 一行位于外部调用之前，这是与 The DAO 事件（2016 年 6 月，约 360 万 ETH 被转移）中受损代码的关键差别。
+
+\begin{warningbox}[代码清单之外的三类常见错误]
+其一，\textbf{价格来源单一}：直接使用 AMM 池的瞬时储备作为预言机，可被闪电贷在单笔交易内操纵，正确做法是使用时间加权平均价格并校验偏离幅度。其二，\textbf{授权额度无上限}：\texttt{approve} 设为最大值会把资产控制权长期交给第三方合约，一旦该合约被攻破，损失与用户余额同阶。其三，\textbf{升级权限集中}：代理模式下的管理员可在不通知用户的情况下替换实现逻辑，这使「代码即法律」的承诺退化为「管理员即法律」。
+\end{warningbox}
+
+\subsection{代币标准与实现细节}
+
+\begin{table}[htbp]
+\centering
+\caption{主流代币标准的适用范围与陷阱}\label{tab:03-tokenstd}
+\tablefont
+\begin{tabular}{@{}lL{4.2cm}L{5.6cm}@{}}
+\toprule
+标准 & 设计目标 & 使用中的典型陷阱 \\
+\midrule
+ERC-20 & 同质化代币（可分割、可互换） & \texttt{transfer} 无返回值；对非合约地址的转账可能静默失败，需用 \texttt{SafeERC20} 包装 \\
+ERC-721 & 非同质化代币（每个 tokenId 唯一） & 批量转移与授权逻辑复杂，\texttt{safeTransferFrom} 存在回调重入面 \\
+ERC-1155 & 同一合约内混合同质化与非同质化 & 余额以「id $\to$ 数量」映射表示，会计逻辑与 ERC-20 不通用 \\
+ERC-4626 & 收益金库的代币化份额 & 首笔存款存在份额价格操纵（通胀攻击）风险，需设置最小份额 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:03-tokenstd}中 ERC-4626 的通胀攻击值得单独说明：若金库在总份额极小时被攻击者用极少量资产抬高份额单价，后续存款者的份额会被向下取整为零。标准解法是在初始化时锁定一笔最小流动性（类似 Uniswap 的 \texttt{MINIMUM\_LIQUIDITY}）。
+
+\section{代币经济学与估值}
+
+\subsection{代币的分类}
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{ICO}（首次代币发行）：2017 年热潮
-  \item \textbf{IEO}（交易所首次发行）：通过中心化交易所发行
-  \item \textbf{IDO}（去中心化发行）：通过 DEX 流动性池发行
-  \item \textbf{空投 (Airdrop)}：免费分发代币以激励早期用户
-  \item \textbf{流动性挖矿 (Yield Farming)}：提供流动性以获取代币奖励
+  \item \textbf{支付类代币}：BTC、LTC，目标是承担价值储藏与交换媒介职能；
+  \item \textbf{功能类代币}：ETH（支付 Gas）、FIL（支付存储），需求与实际资源消耗挂钩；
+  \item \textbf{治理类代币}：UNI、AAVE，持有者获得修改协议参数的投票权；
+  \item \textbf{证券类代币}：代表传统资产（股权、债权、不动产）的链上凭证，受证券法约束；
+  \item \textbf{非同质化代币}：艺术品、游戏道具、身份凭证等唯一性资产。
 \end{itemize}
+
+分类的意义在于确定估值方法：功能类代币可以对应现金流，治理类代币对应控制权期权，支付类代币则更接近货币需求函数。
+
+\subsection{交换方程及其循环论证问题}
+
+最常被引用的代币估值起点是货币经济学中的交换方程：
+
+\begin{equation}
+  M\,V = P\,Q
+  \label{eq:03-exchange}
+\end{equation}
+
+其中 $M$ 为代币的货币供给（流通市值），$V$ 为流通速度（单位时间内同一单位货币被使用的次数），$P$ 为链上商品与服务的价格水平，$Q$ 为实际交易数量。若把 $M$ 解出，便得到所谓「代币价格」：
+
+\begin{equation}
+  M = \frac{PQ}{V}\quad\Longrightarrow\quad \text{单枚代币价格} = \frac{PQ}{V\cdot n}
+  \label{eq:03-tokenprice}
+\end{equation}
+
+其中 $n$ 为流通代币数量。如\cref{eq:03-tokenprice}所示，估值结果与 $V$ 成反比，而 $V$ 恰恰是最不可观测、也最容易被操纵的参数。
+
+\begin{warningbox}[交换方程的循环论证]
+用\cref{eq:03-exchange}给代币估值存在两重逻辑问题。第一，$Q$ 通常用「链上交易额」度量，而链上交易额中包含大量刷量交易与同一笔资金的循环转账，$V$ 与 $Q$ 会同步被人为抬高，估值结果对刷量高度敏感。第二，该方程描述的是货币的\textbf{交易需求}，而绝大多数代币并未被用作支付媒介，其价格由投机需求驱动；把投机需求塞进交易需求方程，等于用结论去假定前提。第一代「代币价值 $=$ 链上交易额除以流速」的模型普遍给出比市场价高一个数量级的结果，正是这一循环论证的后果。
+\end{warningbox}
+
+\subsection{协议现金流折现}
+
+对真正产生收入的协议，更可靠的方法是回到现金流折现。若协议在第 $t$ 期的收入为 $R_t$，收入中归代币持有者的比例为 $\beta$，代币总供给为 $n$，折现率为 $r$，则单枚代币的内在价值为
+
+\begin{equation}
+  V_0 = \frac{1}{n}\sum_{t=1}^{\infty}\frac{\beta\,R_t}{(1+r)^{t}}
+  \label{eq:03-dcf}
+\end{equation}
+
+其中 $\beta$ 是关键参数：若协议收入全部归国库而不分配给代币，则 $\beta=0$，代币价值只能来自治理权，\cref{eq:03-dcf}退化为零。这就是「治理代币无现金流」争议的数学表达。
+
+\begin{example}[用协议现金流估算代币价值]\label{ex:03-dcf}
+某去中心化交易协议的年化手续费收入为 $R_0 = 3.0$ 亿美元，且收入以每年 $g = 8\%$ 增长，协议治理投票决定将其中 $\beta = 50\%$ 用于回购并分配给质押者，流通代币数量 $n = 6$ 亿枚，折现率取 $r = 15\%$。由永续增长公式
+
+\[
+  V_0 = \frac{1}{n}\cdot\frac{\beta R_0\,(1+g)}{r-g}
+      = \frac{1}{6\times 10^{8}}\cdot\frac{0.5\times 3.0\times 10^{8}\times 1.08}{0.15-0.08}
+      \approx 0.386\ \text{美元/枚}
+\]
+\end{example}
+
+\Cref{ex:03-dcf}的结果对折现率极为敏感：若把 $r$ 从 15\% 调到 25\%，价值降至 $0.5\times3.0\times10^{8}\times1.08/(0.25-0.08)/6\times10^{8}\approx 0.159$ 美元/枚，降幅 59\%。这提示我们，对高增长假设的协议估值，稳健的表述方式是给出「在什么折现率下价格才合理」而非单点结论。
 
 \section{DeFi 协议数学}
 
-\subsection{自动做市商 (AMM)}
+\subsection{恒定乘积做市商}
 
-恒定乘积做市商（Constant Product Market Maker, CPMM）：
-
-\begin{equation}
-  x \cdot y = k
-\end{equation}
-
-其中 $x$ 和 $y$ 分别为池中两种代币的数量。由此得到边际价格：
+\begin{definition}[恒定乘积做市商 CPMM]\label{def:03-cpmm}
+恒定乘积做市商维护两种代币的储备 $x$ 与 $y$，并要求其乘积在每次交易后不小于一个不变量 $k$：
 
 \begin{equation}
-  P = -\frac{dy}{dx} = \frac{y}{x}
+  x\cdot y = k
+  \label{eq:03-cpmm}
 \end{equation}
 
-交易滑点（Slippage）：
+交易者向池中注入 $\Delta x$ 的 $X$ 代币，获得 $\Delta y$ 的 $Y$ 代币，储备更新为 $(x+\Delta x,\;y-\Delta y)$，且新储备仍满足 $x'y'=k$（忽略手续费）。
+\end{definition}
+
+由\cref{def:03-cpmm}可直接得到「支付多少 $\Delta x$ 才能取出给定 $\Delta y$」的关系式：
 
 \begin{equation}
-  \text{Slippage} = \frac{\Delta x}{x + \Delta x}
+  \Delta x = \frac{x\,\Delta y}{y-\Delta y}
+  \qquad\Longleftrightarrow\qquad
+  \Delta y = \frac{y\,\Delta x}{x+\Delta x}
+  \label{eq:03-swap}
 \end{equation}
 
-\textbf{恒定和做市商 (CSMM)}：
+如\cref{eq:03-swap}所示，输出量关于输入量是凹函数：投入翻倍并不能使输出翻倍。池内两种代币的瞬时交换比例由隐函数求导得到：
+
 \begin{equation}
-  x + y = k
+  x\,\dd y + y\,\dd x = 0
+  \quad\Longrightarrow\quad
+  -\frac{\dd y}{\dd x} = \frac{y}{x}
+  \label{eq:03-marginalprice}
 \end{equation}
-零滑点但流动性无限消耗，适合稳定币（如 Curve 的 Stableswap 使用 CPMM+CSMM 混合）。
 
-\subsection{无常损失 (Impermanent Loss)}
+其中 $-{\dd y}/{\dd x}$ 表示「卖出 1 单位 $X$ 能换回多少 $Y$」，即边际价格。\Cref{eq:03-marginalprice}说明 CPMM 的报价完全由储备比例决定，池中没有独立的做市商报价，也没有订单簿。
 
-当池中资产价格比率偏离存入时的比率，LP 相对于简单持有的损失：
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm, grid=major,
+  xlabel={$X$ 代币储备 $x$}, ylabel={$Y$ 代币储备 $y$},
+  xmin=0, xmax=400, ymin=0, ymax=400,
+  legend pos=north east, legend style={font=\scriptsize},
+  every axis label/.style={font=\small\sffamily},
+  tick label style={font=\scriptsize}
+]
+\addplot[quantblue, very thick, domain=25:400, samples=120] {40000/x};
+\addlegendentry{初始不变量 $xy = 40000$}
+\addplot[quantgreen, very thick, domain=27.3:400, samples=120] {48000/x};
+\addlegendentry{含手续费后的新不变量 $xy = 48000$}
+\addplot[only marks, mark=*, mark size=2.2pt, quantred] coordinates {(100,400)};
+\addplot[only marks, mark=*, mark size=2.2pt, quantgold] coordinates {(200,200)};
+\addplot[only marks, mark=*, mark size=2.2pt, quantpurple] coordinates {(136.4,351.9)};
+\draw[quantred, dashed, thick] (axis cs:100,400) -- (axis cs:100,200);
+\draw[quantred, dashed, thick] (axis cs:100,200) -- (axis cs:200,200);
+\node[font=\scriptsize\sffamily, anchor=south east, quantred!85!black] at (axis cs:196,222) {$(200,200)$：交易后};
+\node[font=\scriptsize\sffamily, anchor=north east, quantpurple!85!black] at (axis cs:132,340) {$(136.4,\,351.9)$：含费};
+\node[font=\scriptsize\sffamily, anchor=north east, inkgray] at (axis cs:372,300)
+     {曲线越陡 $\Rightarrow$ $X$ 越稀缺};
+\end{axis}
+\end{tikzpicture}
+\caption{恒定乘积双曲线与一次交易前后的位置变化}\label{fig:03-cpmm}
+\end{figure}
+
+\Cref{fig:03-cpmm}中的红色虚线是一次「用 100 单位 $X$ 换 $Y$」的交易：储备从 $(100,400)$ 沿曲线滑到 $(200,200)$，交易者平均成交价为 $200/100=2$，而成交前的边际价格是 $400/100=4$。两者之差就是滑点。
+
+\begin{keybox}[滑点公式与价格冲击]
+在忽略手续费的情形下，一次性用 $\Delta x$ 换取 $Y$ 代币的\textbf{执行价格}与\textbf{边际价格}之比为
+
+\begin{equation}
+  \frac{\text{平均成交价}}{\text{成交前边际价}} = \frac{\Delta y/\Delta x}{y/x}
+  = \frac{x}{x+\Delta x} = 1 - \frac{\Delta x}{x+\Delta x}
+  \label{eq:03-slippage}
+\end{equation}
+
+因此\textbf{相对滑点}恰为 $\dfrac{\Delta x}{x+\Delta x}$，它只依赖于「交易量占池中该代币储备的比例」。当 $\Delta x = x$ 时滑点为 50\%，当 $\Delta x = 0.01x$ 时滑点约为 1\%。这条公式是评估链上交易执行质量的第一准则。
+\end{keybox}
+
+\begin{example}[滑点的数值计算]\label{ex:03-slippage}
+设某 ETH/USDC 池储备为 $x = 100$ ETH、$y = 200000$ USDC，边际价格为 2000 USDC/ETH。交易者卖出 $\Delta x = 10$ ETH。由\cref{eq:03-swap}：
+
+\[
+  \Delta y = \frac{200000\times 10}{100+10} = 18181.8\ \text{USDC}
+\]
+
+执行价格为 $1818.2$ USDC/ETH，相对边际价格的滑点为 $\frac{10}{110} = 9.09\%$。若该池深度翻倍至 $200$ ETH，同样卖出 10 ETH 的滑点降为 $\frac{10}{210}=4.76\%$，近似与池深度成反比。
+\end{example}
+
+\subsection{流动性份额与手续费收入}
+
+流动性提供者（LP）按存入时两种代币的价值比例获得份额。若池中原有价值为 $V_{\text{pool}}$，LP 存入价值 $V_{\text{in}}$，则其份额为
+
+\begin{equation}
+  s = \frac{V_{\text{in}}}{V_{\text{pool}}+V_{\text{in}}}
+  \label{eq:03-lpshare}
+\end{equation}
+
+手续费按交易额的比例 $\phi$ 收取，并留在池中。若一段时间内累计交易额为 $V_{\text{vol}}$（以池中某一代币计价），则 LP 的手续费收入近似为
+
+\begin{equation}
+  \text{费收} \approx s\cdot\phi\cdot V_{\text{vol}}
+  \label{eq:03-fee}
+\end{equation}
+
+如\cref{eq:03-lpshare}与\cref{eq:03-fee}所示，LP 的收益结构是「确定性的费收减去不确定性的价格损失」。后一项正是下一小节的主题。
+
+\begin{table}[htbp]
+\centering
+\caption{三类 AMM 不变量的对比}\label{tab:03-amm}
+\tablefont
+\begin{tabular}{@{}lL{2.6cm}L{3.4cm}L{4.6cm}@{}}
+\toprule
+类型 & 不变量形式 & 适用场景 & 主要问题 \\
+\midrule
+恒定和（CSMM） & $x+y=k$ & 锚定 1:1 的稳定币兑换 & 储备可被单侧耗尽，无法维持锚定 \\
+恒定积（CPMM） & $xy=k$ & 波动性资产对 & 大额交易滑点高，资金效率低 \\
+混合（Stableswap） & $An^n\sum x_i + \prod x_i = k$ & 稳定币与同锚定资产 & 参数 $A$ 需随锚定偏离动态调整 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:03-amm}中的 Stableswap 不变量在 $A\to 0$ 时退化为 CPMM，在 $A\to\infty$ 时退化为 CSMM，因此 $A$ 可理解为「池对锚定关系的信心」。当市场价偏离锚定时，若不及时调低 $A$，池会成为套利者的提款机。
+
+\subsection{无常损失}
+
+\begin{definition}[无常损失 Impermanent Loss]\label{def:03-il}
+无常损失指 LP 在池中的持仓价值，相对于「存入时等值的两种代币各自持有」的价值之差，用比例表示。设价格比例 $\rho = P_1/P_0$ 为相对存入时刻的价格倍数，则
 
 \begin{equation}
   IL(\rho) = \frac{2\sqrt{\rho}}{1+\rho} - 1
+  \label{eq:03-il}
 \end{equation}
 
-其中 $\rho = P_t / P_0$ 是相对价格变化。当价格变动 5 倍时，IL 约为 25.5\%。
+当 $\rho = 1$ 时 $IL = 0$；只要 $\rho\neq 1$，$IL$ 恒为负，因此无常损失在价格发生任何变动时都会出现，只是幅度可能很小。
+\end{definition}
 
-\subsection{超额抵押借贷}
-
-健康因子（Health Factor）：
+下面给出\cref{eq:03-il}的完整推导。设存入时 $Y$ 代币计价的价格为 $P_0$，池中储备为 $(x_0,y_0)$，且以 $Y$ 计价的池价值为
 
 \begin{equation}
-  HF = \frac{\sum \text{Collateral}_i \times \text{Liquidation Threshold}_i}{\text{Total Borrowed}}
+  V_0 = 2\,x_0 P_0
+  \label{eq:03-v0}
 \end{equation}
 
-当 $HF < 1$ 时触发清算。清算者以折扣价购买抵押品获利。
+这是因为在 CPMM 最优配置下 $x_0P_0 = y_0$，两种代币价值各占一半。价格变为 $P_1 = \rho P_0$ 后，套利者会把池内比例调整到新的边际价格，即 $y_1/x_1 = P_1$，同时维持不变量 $x_1y_1 = x_0y_0$。联立两式可解出
 
-\section{NFT 与数字资产}
+\begin{equation}
+  x_1 = x_0\sqrt{\frac{P_0}{P_1}} = \frac{x_0}{\sqrt{\rho}},
+  \qquad
+  y_1 = y_0\sqrt{\frac{P_1}{P_0}} = y_0\sqrt{\rho}
+  \label{eq:03-il-reserves}
+\end{equation}
 
-\subsection{NFT 定价挑战}
+如\cref{eq:03-il-reserves}所示，价格上升时 LP 被动卖出上涨的资产、买入下跌的资产（这正是「自动再平衡」的另一面：逆向选择）。LP 持仓以 $Y$ 计价的价值为
 
-NFT 的非同质性和低流动性使传统估值方法（DCF、可比法）难以直接应用。新兴方法包括：
+\begin{equation}
+  V_1 = x_1P_1 + y_1 = \frac{x_0}{\sqrt{\rho}}\cdot\rho P_0 + y_0\sqrt{\rho}
+      = x_0P_0\sqrt{\rho} + x_0P_0\sqrt{\rho} = \sqrt{\rho}\,V_0
+  \label{eq:03-v1}
+\end{equation}
 
-\begin{itemize}[leftmargin=*]
-  \item 特征定价模型（Hedonic Pricing）：按稀有度、创作者声誉等特征回归
-  \item 基于做市的定价：如 Sudoswap 的流动性池
-  \item 碎片化（Fractionalization）：将 NFT 拆分为可交易代币
+而「持有不动」策略的价值为 $V_{\text{HODL}} = x_0P_1 + y_0 = x_0P_0\rho + x_0P_0 = \tfrac{V_0}{2}(1+\rho)$。两者相除即得\cref{eq:03-il}。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=7cm, grid=major,
+  xlabel={价格比例 $\rho$}, ylabel={无常损失（\%）},
+  xmin=0.1, xmax=10, ymin=-45, ymax=1,
+  legend pos=south east, legend style={font=\scriptsize},
+  every axis label/.style={font=\small\sffamily},
+  tick label style={font=\scriptsize}
+]
+\addplot[quantred, very thick, domain=0.1:10, samples=200]
+        {100*(2*sqrt(x)/(1+x) - 1)};
+\addlegendentry{$IL(\rho)=\dfrac{2\sqrt{\rho}}{1+\rho}-1$}
+\addplot[quantblue, dashed, thick, domain=0.1:10, samples=120] {0};
+\addlegendentry{持有不动的基准}
+\addplot[only marks, mark=*, mark size=2.2pt, quantpurple]
+        coordinates {(1,0) (2,-5.72) (0.5,-5.72) (5,-25.46) (0.2,-25.46)};
+\node[font=\scriptsize\sffamily, anchor=south west, quantpurple!85!black]
+     at (axis cs:1.05,-4.2) {$\rho=1$ 时无损失};
+\node[font=\scriptsize\sffamily, anchor=north west, quantred!85!black]
+     at (axis cs:2.1,-27) {$\rho=5$ 或 $0.2$ 时约 $-25.5\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{无常损失关于价格比例的函数，曲线关于 $\rho=1$ 左右对称}\label{fig:03-il}
+\end{figure}
+
+\Cref{fig:03-il}揭示了无常损失的两个重要性质：其一，$IL(\rho) = IL(1/\rho)$，价格翻倍与价格腰斩造成的损失完全相同；其二，曲线在 $\rho=1$ 附近的二阶近似为 $IL\approx -\frac{(\rho-1)^2}{8}$，说明小幅波动下损失是「波动幅度的平方」量级，因此高频小幅震荡对 LP 的伤害远小于一次趋势行情。
+
+\begin{example}[无常损失的数值验证]\label{ex:03-il}
+某 LP 向 ETH/USDC 池存入 1 ETH 与 10000 USDC，此时 $P_0 = 10000$ USDC/ETH，池价值 $V_0 = 20000$ USDC。价格上涨 25\% 至 $P_1 = 12500$ USDC/ETH，即 $\rho = 1.25$。
+
+由\cref{eq:03-il-reserves}：$x_1 = 1/\sqrt{1.25} = 0.89443$ ETH，$y_1 = 10000\times\sqrt{1.25} = 11180.3$ USDC。LP 持仓价值为
+
+\[
+  V_1 = 0.89443\times 12500 + 11180.3 \approx 11180.3 + 11180.3 = 22360.7\ \text{USDC}
+\]
+
+若选择持有不动，价值为 $1\times12500 + 10000 = 22500$ USDC。差额为 $-139.3$ USDC，相对损失 $-0.619\%$。用\cref{eq:03-il}直接验算：
+
+\[
+  IL(1.25) = \frac{2\sqrt{1.25}}{1+1.25}-1 = \frac{2.23607}{2.25}-1 = -0.619\%
+\]
+
+两种算法一致。注意：损失相对值很小，但 LP 的绝对持仓从 1 ETH 降到约 0.894 ETH，若之后价格继续上涨，这部分「少赚的 ETH」会持续放大。
+\end{example}
+
+\begin{example}[手续费能否覆盖无常损失]\label{ex:03-il-fee}
+某池的手续费率为 $\phi = 0.3\%$，池总价值 1000 万美元。某 LP 占池份额 $s = 1\%$。在一个月内 ETH 价格从 3000 美元上涨至 3750 美元（$\rho = 1.25$），期间池内累计成交额为 4000 万美元。
+
+先算无常损失：由\cref{ex:03-il}，$|IL| = 0.619\%$，即 LP 因价格偏离损失约 $0.619\%\times sV_{\text{pool}} = 0.619\%\times10^{5}=619$ 美元。再算手续费收入：由\cref{eq:03-fee}，费收 $= 1\%\times0.3\%\times4\times10^{7} = 1200$ 美元。净收益为 $+581$ 美元，手续费覆盖了无常损失。若成交额只有 1000 万美元，费收降为 300 美元，净收益变为 $-319$ 美元。
+
+盈亏平衡所需的成交额满足 $s\phi V_{\text{vol}}^{*} = |IL|\cdot sV_{\text{pool}}$，即
+
+\[
+  V_{\text{vol}}^{*} = \frac{|IL(\rho)|}{\phi}\,V_{\text{pool}}
+  = \frac{0.00619}{0.003}\times 10^{7} \approx 2063\ \text{万美元}
+\]
+
+即一个月内池的换手率需达到约 $2.06$ 倍。作为经验法则，$\rho = 2$ 时 $|IL| = 5.72\%$，所需换手率约为 $19$ 倍/月——多数零售币对难以持续达到这一水平，这正是「LP 长期跑输持有」现象的数量解释。
+\end{example}
+
+\begin{intuitionbox}[无常损失为什么叫「无常」]
+「无常」（impermanent）一词源于一种辩护性说法：只要价格回到存入时的水平，损失就会消失。这在数学上确实成立——$IL(1)=0$，且在加回手续费后 $\rho=1$ 时 LP 严格优于持有。但这一说法有严重误导性：价格路径一旦偏离并停留在偏离后的水平，损失就永久「兑现」为少持有的资产数量，与是否卖出无关。更准确的表述是「再平衡损失」：LP 在价格上行趋势中持续卖出上涨资产，在趋势行情中必然跑输持有者。
+\end{intuitionbox}
+
+\subsection{借贷协议：Kink 利率模型与清算}
+
+超额抵押借贷协议中，利率由资金利用率 $U$ 内生决定。利用率定义为
+
+\begin{equation}
+  U = \frac{\text{总借款}}{\text{总存款}}
+  \label{eq:03-util}
+\end{equation}
+
+两段式（kink）利率模型写成
+
+\begin{equation}
+  r(U) =
+  \begin{cases}
+    r_0 + \dfrac{U}{U^{*}}\,(r_1 - r_0), & U \le U^{*} \\[6pt]
+    r_1 + \dfrac{U - U^{*}}{1 - U^{*}}\,(r_2 - r_1), & U > U^{*}
+  \end{cases}
+  \label{eq:03-kink}
+\end{equation}
+
+其中 $r_0$ 为利用率趋零时的基础利率，$r_1$ 为拐点利率，$U^{*}$ 为最优利用率（通常取 0.8--0.9），$r_2$ 为利用率趋近 1 时的极端利率。\Cref{eq:03-kink}的设计意图是：在 $U^{*}$ 以下，利率对利用率不敏感以鼓励借款；在 $U^{*}$ 以上，利率陡峭上升以吸引存款、抑制借款，防止出现「无钱可提」的流动性危机。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12cm, height=6.6cm, grid=major,
+  xlabel={资金利用率 $U$}, ylabel={年化借款利率（\%）},
+  xmin=0, xmax=1, ymin=0, ymax=82,
+  legend pos=south east, legend style={font=\scriptsize},
+  every axis label/.style={font=\small\sffamily},
+  tick label style={font=\scriptsize}
+]
+\addplot[quantblue, very thick, domain=0:0.8, samples=40] {2 + 3.75*x};
+\addlegendentry{温和区 $U\le U^{*}=0.8$}
+\addplot[quantred, very thick, domain=0.8:1, samples=40] {5 + 360*(x-0.8)};
+\addlegendentry{陡峭区 $U>U^{*}$}
+\draw[quantgold, dashed, thick] (axis cs:0.8,0) -- (axis cs:0.8,77);
+\node[font=\scriptsize\sffamily, anchor=north east, quantgold!80!black]
+     at (axis cs:0.99,76) {拐点 $U^{*}=0.8$，利率 $5\%$};
+\end{axis}
+\end{tikzpicture}
+\caption{两段式 Kink 利率曲线（基础利率 2\%，拐点 5\%，极端 77\%）}\label{fig:03-kink}
+\end{figure}
+
+\Cref{fig:03-kink}的参数取自 Aave 类协议的典型设定。曲线在 $U^{*}$ 处连续但不可导，这是刻意的：不可导意味着利率的边际变化在拐点处跃升，从而在接近满利用率时给出极强的价格信号。
+
+借款人的偿债能力用健康因子度量：
+
+\begin{equation}
+  HF = \frac{\sum_{i} C_i\cdot \text{LT}_i}{B},\qquad
+  \text{加权清算阈值} = \frac{\sum_i C_i\,\text{LT}_i}{\sum_i C_i}
+  \label{eq:03-hf}
+\end{equation}
+
+其中 $C_i$ 为第 $i$ 种抵押品以计价货币折算的价值，$\text{LT}_i$ 为其清算阈值（例如 ETH 取 0.825），$B$ 为借款总额。$HF<1$ 时任何地址均可触发清算，清算人以折扣价获得抵押品，并支付一笔清算罚金给协议金库。
+
+\begin{example}[健康因子与清算触发价格]\label{ex:03-hf}
+某用户存入 10 ETH，当时价格 2000 USDC/ETH，即抵押价值 20000 USDC；借出 12000 USDC 的稳定币；ETH 的清算阈值 $\text{LT}=0.825$。则
+
+\[
+  HF = \frac{20000\times 0.825}{12000} = 1.375
+\]
+
+保持其他条件不变，触发清算（$HF=1$）的 ETH 价格为
+
+\[
+  P^{*} = \frac{B}{\text{数量}\times\text{LT}} = \frac{12000}{10\times0.825} = 1454.5\ \text{USDC/ETH}
+\]
+
+即 ETH 下跌 $27.3\%$ 时进入清算区。若用户把借款额降到 10000 USDC，则 $P^{*} = 1212.1$，安全垫扩大到 $39.4\%$。若用户同时存入波动性更高的另类币（$\text{LT}=0.60$）作为第二抵押品，其混合清算阈值为 $\frac{20000\times0.825 + 5000\times0.60}{25000}=0.78$，安全垫进一步收窄。
+\end{example}
+
+\begin{warningbox}[清算与预言机：DeFi 的两处结构性脆弱]
+第一，清算依赖\textbf{预言机价格}而非真实成交价。当预言机更新延迟或依赖单一交易所时，攻击者可用闪电贷在该交易所瞬间砸盘，使链上预言机读数下跌，从而以极低成本触发并接管大量清算头寸。第二，清算在\textbf{拥堵时最需要却最难执行}。市场剧烈下跌时 Gas 价格飙升，清算机器人因利润不足而退出，坏账在协议内累积。2022 年多起借贷协议坏账事件均属于这一类型——不是价格模型错了，而是「清算激励」在极端时点失效。
+\end{warningbox}
+
+\subsection{MEV、抢跑与交易排序}
+
+区块生产者（或排序者）对交易顺序拥有裁量权，而顺序本身具有价值，这部分价值称为 MEV（最大可提取价值）。在 AMM 场景中，MEV 有精确的数学形式：设某笔待处理交易将把价格从 $P$ 推至 $P'$，则夹在它前面的抢先交易可获的无风险利润约为
+
+\begin{equation}
+  \text{MEV} \;=\; \bigl(P' - P\bigr)\cdot q \;-\; \text{Gas},
+  \label{eq:03-mev}
+\end{equation}
+
+其中 $q$ 为抢先交易的规模，$P'-P$ 为被推高的价格。如\cref{eq:03-mev}所示，利润与被夹交易的规模成正相关，因此大额订单在链上会被系统性地「围猎」。
+
+\begin{table}[htbp]
+\centering
+\caption{MEV 的主要类型与受害者}\label{tab:03-mev}
+\tablefont
+\begin{tabular}{@{}lL{4.0cm}L{5.8cm}@{}}
+\toprule
+类型 & 提取机制 & 直接受害方 \\
+\midrule
+三明治攻击 & 在目标交易前后各插入一笔，赚取价格差 & 提交大额兑换的交易者 \\
+清算套利 & 抢先提交触发清算的交易，赚取清算折扣 & 被清算的借款人（罚金叠加） \\
+DEX 套利 & 消除不同池之间的价差 & 报价偏离的池（即其 LP） \\
+时间强盗 & 重组区块以抢占高价值交易 & 原区块生产者 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:03-mev}表明 MEV 并非「黑客行为」，而是排序权的自然租金。工程上的应对手段包括：用户设置严格滑点上限、使用隐私交易通道（交易在被打包前不进入公开内存池）、以及协议层面的批量拍卖（把排序权公开竞价，并将收益返还给用户或协议）。
+
+\section{扩容、跨链与治理}
+
+\subsection{二层扩容的技术取舍}
+
+\begin{table}[htbp]
+\centering
+\caption{两类 Rollup 的对比}\label{tab:03-rollup}
+\tablefont
+\begin{tabular}{@{}lL{4.4cm}L{5.4cm}@{}}
+\toprule
+维度 & Optimistic Rollup & zk-Rollup \\
+\midrule
+正确性保证 & 欺诈证明（挑战期默认有效） & 有效性证明（数学即刻验证） \\
+提现延迟 & 通常 7 天（等待挑战窗口） & 分钟级 \\
+链上成本 & 仅提交状态根与压缩数据 & 需验证证明，成本较高 \\
+通用性 & 兼容 EVM，迁移成本低 & 早期受电路约束，通用性较弱 \\
+主要风险 & 挑战者缺位导致无效状态被接受 & 证明系统实现漏洞、可信设置 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:03-rollup}的取舍可以概括为：Optimistic Rollup 用「时间」换成本，zk-Rollup 用「计算」换即时性。对量化业务而言，提现延迟直接决定了资金周转效率，因此两者在资金成本上的差别往往大于手续费差别。
+
+\subsection{跨链桥的风险结构}
+
+跨链桥之所以成为攻击重灾区，原因在于它把「两条独立共识的资产」用「第三方验证」连接起来，从而引入了一个额外的信任假设。常见设计有三类：锁定--铸造（源链锁定、目标链铸造映射资产）、流动性池（两侧各备流动性）、轻客户端验证（在目标链上验证源链共识）。
+
+\begin{warningbox}[桥的中心化风险与「安全预算倒挂」]
+锁定--铸造桥的验证者集合若由多签控制，则桥的安全性等于多签的安全性，而非两条链的安全性。更根本的问题是\textbf{安全预算倒挂}：桥中锁定的资产价值 $A$ 常常远超验证者质押的价值 $D$，只要 $A>D$，理性攻击者就有动机直接攻破验证者而不必攻击任一条链。2022 年 Ronin 桥与 Wormhole 桥的事件都符合这一结构。评估桥的安全性时，通用方法是比较 $A$ 与「验证者质押总值 $\times$ 攻破所需比例」。
+\end{warningbox}
+
+\subsection{DAO 治理与治理攻击}
+
+DAO 用代币投票替代公司章程。这一机制面临三类系统性缺陷：\textbf{投票权与利益不对称}（借贷协议中的治理代币可被借出并用于投票，借款人获得投票权却无经济后果）、\textbf{低投票率}（多数提案的实际投票率低于 10\%，少数大户可轻易达到通过阈值）、\textbf{提案与执行的时序漏洞}（若投票权在快照后仍可转移，则存在「买票--投票--卖票」的瞬时攻击）。
+
+\begin{appbox}[治理设计的工程约束]
+较稳健的治理设计通常包含四项约束：投票权按时间加权（需锁定一段时间才计入）、提案门槛与执行延迟（给出退出窗口）、国库支出需多签与时间锁双重确认、以及关键参数（抵押率、清算阈值、预言机地址）的变更需更长延迟。这些约束的共同作用是\textbf{把「瞬时控制」变成「持续控制」}，从而提高攻击成本。
+\end{appbox}
+
+\section{监管、估值实务与本章定位}
+
+\subsection{监管框架}
+
+美国证券法使用 Howey 测试判定某项安排是否构成「投资合同」：是否投入资金、是否存在共同事业、是否期待利润、利润是否来自他人的努力。四项同时成立则构成证券。欧盟的 MiCA 于 2024 年起分阶段实施，对稳定币发行方与加密资产服务提供商设定资本与披露要求。中国香港实行虚拟资产服务提供商（VASP）发牌制度，要求平台满足托管隔离、反洗钱与适当性评估。新加坡则主要通过支付服务法框架监管。
+
+\begin{notebox}[监管差异对量化策略的实际影响]
+监管辖区的差异会直接改变策略的可行集：在要求客户资产隔离托管的辖区，交易所内部的对冲与再抵押受到限制，跨交易所套利的资金调度速度下降；在禁止向零售投资者销售衍生品的辖区，链上永续合约的资金费率套利只能通过离岸实体执行。因此合规不是策略之外的约束，而是策略参数的一部分。
+\end{notebox}
+
+\subsection{代码：计算无常损失与 LP 净收益}
+
+下面这段 Python 代码实现了\cref{eq:03-il}，并回答\cref{ex:03-il-fee}中的盈亏平衡问题。
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={计算无常损失曲线与手续费盈亏平衡换手率},
+                   label={lst:03-il}]
+import numpy as np
+
+def impermanent_loss(rho):
+    """Loss of an LP relative to holding, as a fraction (<= 0)."""
+    rho = np.asarray(rho, dtype=float)
+    return 2.0 * np.sqrt(rho) / (1.0 + rho) - 1.0
+
+def pool_reserves(x0, y0, rho):
+    """Reserves after arbitrage restores the marginal price to rho * P0."""
+    return x0 / np.sqrt(rho), y0 * np.sqrt(rho)
+
+def breakeven_turnover(rho, fee_rate):
+    """Pool turnover (volume / TVL) needed to offset IL."""
+    return -impermanent_loss(rho) / fee_rate
+
+if __name__ == "__main__":
+    for rho in (0.5, 0.8, 1.25, 2.0, 5.0):
+        x1, y1 = pool_reserves(1.0, 10000.0, rho)
+        v_lp = x1 * 10000.0 * rho + y1
+        v_hodl = 1.0 * 10000.0 * rho + 10000.0
+        print(f"rho={rho:5.2f}  IL={impermanent_loss(rho):8.4%}"
+              f"  check={(v_lp / v_hodl - 1.0):9.5%}"
+              f"  turnover={breakeven_turnover(rho, 0.003):7.2f}x")
+
+    curve = impermanent_loss(np.linspace(0.1, 10.0, 400))
+    print("worst case in [0.1, 10]:", f"{curve.min():.4%}")
+\end{lstlisting}
+
+运行\cref{lst:03-il}会输出与\cref{fig:03-il}一致的结果，其中 \texttt{IL} 与 \texttt{check} 两列分别对应\cref{eq:03-il}的解析式与逐笔模拟，二者差值应在 $10^{-12}$ 量级，可用于验证推导。
+
+\subsection{本章在全书中的位置}
+
+加密金融的定价问题与第 4 章的传统衍生品定价共享同一套无套利逻辑：AMM 的瞬间报价等价于一个深度有限的做市商，滑点公式\cref{eq:03-slippage}与第 4 章的流动性折价是同一现象的两种表述；无常损失\cref{eq:03-il}与第 4 章的 Delta 对冲损益同源，都是「在价格变动中被迫调整持仓」的代价。链上永续合约的资金费率机制、期权金库的自动做市策略，本质上都是把第 4 章的希腊字母管理交给智能合约执行。因此理解本章的数学，关键在于识别它与传统金融工程的同构关系，而非把它当作一套独立的新体系。
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.2em, itemsep=2pt]
+  \item Web3 用共识开销换取「无需可信第三方」，其成本结构决定了链上业务必须在高费率环境下仍具备正毛利。
+  \item Merkle 证明把轻节点的验证复杂度降到 $O(\log n)$，代价是必须信任链头选择；PoW 提供概率终局，PoS 与 BFT 类协议提供确定性终局。
+  \item CPMM 的不变量 $xy=k$ 直接给出报价 $y/x$ 与滑点 $\Delta x/(x+\Delta x)$；池深度是唯一决定执行质量的内生变量。
+  \item 无常损失满足 $IL(\rho)=\frac{2\sqrt{\rho}}{1+\rho}-1$，关于 $\rho=1$ 对称，小幅波动下约为 $-(\rho-1)^2/8$。
+  \item LP 是否值得做取决于换手率能否超过 $|IL|/\phi$；$\rho=2$ 时按 0.3\% 费率计算需要约 19 倍月换手。
+  \item 借贷协议的风险集中在预言机读数与清算激励：$HF<1$ 只是触发条件，能否被清算取决于当时的经济激励。
+  \item MEV 是排序权的租金；跨链桥的根本风险是「锁定资产价值大于验证者质押价值」的安全预算倒挂。
 \end{itemize}
+\end{summarybox}
 
-\section{DAO 与去中心化治理}
+\begin{exercises}
+  \item 设某 CPMM 池中 $X$ 与 $Y$ 的储备分别为 500 与 1000。若某交易者先用 50 单位 $X$ 兑换 $Y$，再用得到的 $Y$ 全部换回 $X$（忽略手续费），最终持有的 $X$ 是增加还是减少？请用两笔交易后的储备严格计算，并解释结论对流动性与交易者的含义。
+  \item 证明只有两笔交易时输出量对交易顺序敏感：证明 $\Delta y^{(1)}+\Delta y^{(2)} > \Delta y^{(1+2)}$ 当且仅当 $\Delta x_1\Delta x_2>0$，并说明这与「分拆订单可以降低成本」的说法是否矛盾。
+  \item 某 LP 存入时两种代币价值各为 50000 美元。若价格比例变为 $\rho=1.5$，求无常损失比例、LP 的持仓价值，以及相对于持有不动的美元损失。若费率为 0.05\%，求盈亏平衡的月换手率。
+  \item 某借贷协议参数为 $U^{*}=0.85$、$r_0=0\%$、$r_1=4\%$、$r_2=100\%$。当利用率从 0.85 上升到 0.95 时，借款利率上升多少个百分点？存款利率约为 $r(U)\cdot U\cdot(1-\text{储备金率})$，若储备金率为 10\%，求两种利用率下的存款利率。
+  \item 利用\cref{eq:03-kink}推导：当 $U\to 1$ 时存款利率的极限值为多少？该极限为何在工程上是必要的？
+  \item 某用户存入 5 ETH（价格 1800 USDC，$\text{LT}=0.80$）与 20000 USDC（$\text{LT}=0.90$），借出 15000 USDC。求当前健康因子，以及仅由 ETH 价格下跌触发清算的临界价格。
+  \item 某锁定--铸造跨链桥中锁定资产价值 6 亿美元，验证者多签需 5/8 个密钥，每个验证者平均质押 2000 万美元。若攻击者控制 5 个验证者，其成本与被窃取资产之比是多少？请据此评论该桥的安全边际。
+  \item 编写代码：对\cref{lst:03-il}进行扩展，加入「LP 头寸的美元价值随时间演化」的模拟，设价格按几何布朗运动演化，比较 LP 与持有不动的期望收益差，并验证该差值是否近似等于 $-\frac{1}{8}\E[(\rho-1)^2]$。
+\end{exercises}
 
-去中心化自治组织（DAO）通过智能合约编码治理规则，代币持有者投票决定协议升级、国库分配。治理攻击（Governance Attack）——如通过借贷协议借入大量治理代币进行恶意投票——是 DAO 面临的关键安全风险。
-
-\section{监管格局}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{美国}：SEC vs CFTC 监管权之争；Howey Test 判定证券
-  \item \textbf{欧盟}：MiCA（加密资产市场监管法案，2024 年全面实施）
-  \item \textbf{中国香港}：虚拟资产服务提供商（VASP）发牌制度
-  \item \textbf{新加坡}：Payment Services Act 监管框架
-\end{itemize}
-
-\section{小结}
-
-Web3 代表了金融基础设施的范式转变。对量化金融从业者而言，理解智能合约的数学原理、AMM 定价机制和代币经济模型，是在这个新兴领域建立竞争力的关键。
+\begin{furtherreading}
+  \refitem Uniswap 白皮书（Hayden Adams 等，2019--2021），给出了 CPMM 与集中流动性的原始数学，尤其是流动性区间的份额计算。
+  \refitem Buterin, V., \emph{Ethereum White Paper}，2014。理解账户模型与状态机抽象的最短路径。
+  \refitem Daian, P. 等，``Flash Boys 2.0: Frontrunning in Decentralized Exchanges''，2019。首次系统性刻画 MEV 与交易排序市场，是理解链上微观结构的关键文献。
+  \refitem Aave 与 Compound 的官方文档中关于利率模型、清算阈值与储备金的参数说明，可用于核对\cref{eq:03-kink}的取值。
+  \refitem Harvey, C. 等，``DeFi and the Future of Finance''，2021。对 DeFi 的机制与风险做了较完整的综述，适合作为本章的延伸阅读。
+\end{furtherreading}

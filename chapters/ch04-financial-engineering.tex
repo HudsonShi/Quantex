@@ -1,224 +1,798 @@
 \chapter{金融工程}
 
+金融工程（Financial Engineering）是运用数学、统计学与计算机科学来设计、定价与管理金融产品的学科。
+它的独特之处在于：\textbf{定价与风险管理的答案不依赖于「未来会怎样」的主观预测，而只依赖于「复制成本是多少」这一无套利约束}。
+
 \section{金融工程方法论}
 
-金融工程（Financial Engineering）是运用数学、统计学和计算机科学来设计、定价和管理金融产品的学科。其核心循环为：
+\subsection{核心工作循环}
+
+金融工程的实务流程可以概括为一个闭环：
 
 \begin{center}
-识别需求 $\to$ 产品设计 $\to$ 定价建模 $\to$ 风险管理 $\to$ 执行与对冲
+\sffamily 识别需求 $\to$ 产品设计 $\to$ 定价建模 $\to$ 风险度量与对冲 $\to$ 执行与生命周期管理
 \end{center}
+
+\begin{keybox}
+金融工程的第一性原理是\textbf{复制（replication）}：如果两个投资组合在任意未来状态下的现金流完全相同，
+它们在今天必须具有相同的价格。所有衍生品定价公式都是这一句话的推论，
+所有对冲策略都是在构造这样的复制组合。
+\end{keybox}
+
+\subsection{三类基本构造块}
+
+几乎所有的金融产品都可以由三个基本构造块拼装而成，理解这一点比记住具体产品更重要：
+
+\begin{table}[htbp]
+\centering
+\caption{金融产品的三个基本构造块}\label{tab:04-blocks}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}Y L{4.4cm}@{}}
+\toprule
+\textbf{构造块} & \textbf{现金流特征} & \textbf{典型产品} \\
+\midrule
+无风险债券 & 确定性的未来现金流（本金与利息） & 国债、零息债、货币市场工具 \\
+远期承诺 & 双方在到期日必须履约（对称的收益） & 远期、期货、利率互换 \\
+期权权利 & 买方有权利无义务（不对称的收益） & 期权、可转债、结构化产品 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{任何结构化产品都可以写成「债券 + 若干期权」的组合}。例如保本票据 = 零息债券 + 看涨期权多头；
+自动赎回产品 = 附息债券 + 一系列敲出期权空头 + 敲入看跌期权多头。这一视角的价值在于：
+它把「复杂产品如何定价」转化成了「如何给一堆期权定价」，后者有成熟的方法论。
 
 \section{远期与期货定价}
 
-\subsection{远期合约定价}
+\subsection{无套利定价与套利表}
 
-无套利定价原理：在无摩擦市场下，远期价格 $F_0$ 必须满足：
+考虑标的资产现价 $S_0$、无风险利率 $r$、到期时间 $T$ 的远期合约。
+以远期价格 $F_0$ 成交、到期以 $F_0$ 买入标的，两种复制路径的现金流如下：
+
+\begin{table}[htbp]
+\centering
+\caption{远期的复制与套利表（$t=0$ 建仓，$T$ 到期）}\label{tab:04-arb}
+\tablefont
+\begin{tabular}{@{}lll@{}}
+\toprule
+策略 & $t=0$ 现金流 & $t=T$ 现金流 \\
+\midrule
+买入远期（交割价 $F_0$） & $0$ & $S_T - F_0$ \\
+买入现货并持有 & $-S_0$ & $S_T$ \\
+买入现货（借 $S_0$） & $0$ & $S_T - S_0\ee^{rT}$ \\
+\midrule
+复制组合 & $0$ & $S_T - S_0\ee^{rT}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+两条 $t=0$ 现金流为零的路径在 $T$ 时刻的现金流必须相同（否则可以套利），因此：
 
 \begin{equation}
-  F_0 = S_0 e^{rT}
+  F_0 = S_0\,\ee^{rT}
+  \label{eq:04-forward}
 \end{equation}
 
-考虑持有成本（存储费 $u$、便利收益率 $y$）：
+考虑持有成本后，更一般的形式为：
 
 \begin{equation}
-  F_0 = S_0 e^{(r + u - y)T}
+  F_0 = S_0\,\ee^{(r+u-y)T}
+  \label{eq:04-forward-cost}
 \end{equation}
 
-对于股票指数（含股息收益率 $q$）：
+其中 $u$ 为存储成本率（商品），$y$ 为便利收益（convenience yield，持有现货带来的隐性收益）。
+对于支付连续股息率 $q$ 的股票指数：
 
 \begin{equation}
-  F_0 = S_0 e^{(r - q)T}
+  F_0 = S_0\,\ee^{(r-q)T}
+  \label{eq:04-forward-div}
 \end{equation}
+
+\begin{example}[股指期货定价与套利检验]\label{ex:04-forward}
+设指数现价 $S_0 = 4500$，无风险利率 $r = 4\%$，指数股息率 $q = 1.8\%$，剩余期限 $T = 0.5$ 年。
+理论期货价格为
+\[
+  F_0 = 4500\times \ee^{(0.04-0.018)\times 0.5} = 4500\times \ee^{0.011} = 4549.8.
+\]
+若市场上 6 个月股指期货报价为 $4560$，则期货相对理论值高估 $10.2$ 点。
+套利操作是：\textbf{卖空期货、买入指数现货（或用 ETF 复制），并持有至到期}。
+到期时基差收敛，锁定约 $4560 - 4549.8 = 10.2$ 点的无风险利润（未计交易成本与保证金占用）。
+如果这 $10.2$ 点小于「融券成本 + 冲击成本 + 保证金资金占用」，则套利不可行——这正是现实中基差可以长期偏离理论值的原因。
+\end{example}
 
 \subsection{期货与远期的差异}
 
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
-\caption{期货 vs 远期}
-\begin{tabular}{@{}lll@{}}
+\caption{期货与远期的对比}\label{tab:04-futures}
+\tablefont
+\begin{tabular}{@{}L{2.2cm}L{5.4cm}L{6.0cm}@{}}
 \toprule
-特征 & 远期 & 期货 \\
+特征 & 远期（Forward） & 期货（Futures） \\
 \midrule
-交易场所 & OTC & 交易所 \\
-标准化 & 定制 & 标准化 \\
-信用风险 & 双边 & CCP 清算 \\
-保证金 & 无 & 逐日盯市 \\
-流动性 & 低 & 高 \\
+交易场所 & 场外（OTC），双边协商 & 交易所，中央对手方清算（CCP） \\
+标准化 & 完全定制 & 标准化合约 \\
+信用风险 & 双边信用风险，需 ISDA/CSA 管理 & CCP 承担，会员分担违约基金 \\
+保证金 & 通常无（或有 CSA 初始保证金） & 逐日盯市（mark-to-market） \\
+流动性 & 低，平仓困难 & 高，可随时对冲 \\
+价格差异 & 理论基准 & 因每日结算产生\textbf{凸性调整} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\section{期权定价理论}
+\begin{notebox}[期货价格与远期价格为何略有不同]
+期货每日盯市，盈利可以立即再投资、亏损需要立即补充资金，因此\textbf{利率与期货价格正相关时，
+期货多头比远期多头更有利}（赚钱时利率高、再投资收益率高）。严格结果是：
+$F_{\text{futures}} \approx F_{\text{forward}}\exp\!\left(\tfrac12\sigma^2T^2\right)$ 的一阶修正（Cox--Ingersoll--Ross）。
+在 $r=5\%$、$\sigma=20\%$、$T=1$ 的典型情形下差异约为 0.02\%，实务中通常忽略；
+但在利率期货（如欧洲美元、国债期货）中这一差异不可忽略。
+\end{notebox}
 
-\subsection{期权收益函数}
+\section{期权基础与到期收益}
 
-欧式看涨期权到期收益：
-\begin{equation}
-  C_T = \max(S_T - K, 0)
-\end{equation}
+\subsection{收益函数与内在价值}
 
-欧式看跌期权到期收益：
-\begin{equation}
-  P_T = \max(K - S_T, 0)
-\end{equation}
-
-\subsection{看跌-看涨平价 (Put-Call Parity)}
-
-欧式期权在无套利条件下满足：
+欧式看涨与看跌期权在到期日的收益分别为：
 
 \begin{equation}
-  C + Ke^{-rT} = P + S_0
+  C_T = \max(S_T - K,\,0), \qquad P_T = \max(K - S_T,\,0)
+  \label{eq:04-payoff}
 \end{equation}
 
-这是金融工程最基本的复制关系——一个看涨 + 现金 = 看跌 + 标的。
-
-\subsection{Black-Scholes-Merton 公式}
-
-在以下假设下：
-\begin{itemize}[leftmargin=*]
-  \item 标的服从几何布朗运动：$dS = \mu S\,dt + \sigma S\,dW$
-  \item 无摩擦市场、连续交易、常数利率和波动率
-  \item 无套利机会
-\end{itemize}
-
-Black-Scholes PDE：
+在到期之前的任意时刻，期权价值可以分解为内在价值与时间价值：
 
 \begin{equation}
-  \frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + rS\frac{\partial V}{\partial S} - rV = 0
+  V_t = \underbrace{\max(S_t-K,0)}_{\text{内在价值}}+\underbrace{\text{时间价值}}_{\ge 0}
+  \label{eq:04-intrinsic}
 \end{equation}
 
-欧式看涨期权解析解：
+\begin{intuitionbox}[为什么美式看涨期权不会提前行权（无股息时）]
+提前行权放弃了两样东西：(1) 行权价 $K$ 的时间价值（本可以晚点付钱）；
+(2) 期权在标的下跌时的保护价值（内在价值有下限 $0$，而持股没有）。
+因此在无股息、无摩擦的市场里，美式看涨与欧式看涨同价。
+\textbf{但只要标的支付足够高的股息，或者利率极高，提前行权就可能是最优的}——
+这正是股指期权与外汇期权需要认真处理提前行权边界的原因。
+\end{intuitionbox}
+
+\subsection{看跌看涨平价}
+
+买入看涨期权并持有现金 $K\ee^{-rT}$，与买入看跌期权并持有标的，在到期日的收益完全相同：
+
+\begin{equation}
+  C + K\ee^{-rT} = P + S_0
+  \label{eq:04-parity}
+\end{equation}
+
+这是金融工程中最基本的复制关系，其重要性体现在三方面：
+
+\begin{enumerate}[leftmargin=1.8em]
+  \item \textbf{定价一致性}：只要知道三个价格，第四个必须满足该关系，否则存在无风险套利；
+  \item \textbf{平价可以被市场数据检验}：如果 $C + K\ee^{-rT} - P - S_0 \ne 0$，其偏差的规模就是套利成本的下界；
+  \item \textbf{可用来提取信息}：把平价关系两边同时加减可得「隐含远期价格」$F_0 = S_0\ee^{rT} = C - P + K\ee^{-rT}$，
+        因此期权市场可以反推出市场对未来股息的预期。
+\end{enumerate}
+
+\begin{example}[用期权价格反推隐含股息率]\label{ex:04-implied-div}
+设 $S_0 = 100$、$r = 5\%$、$T = 0.25$，平值附近看涨 $C = 4.20$、看跌 $P = 3.05$、$K = 100$。
+由平价关系得到隐含远期价格
+\[
+  F_0 = C - P + K\ee^{-rT} = 4.20 - 3.05 + 100\times\ee^{-0.0125} = 1.15 + 98.7576 = 99.908,
+\]
+而理论无股息远期价格为 $100\times\ee^{0.0125} = 101.258$。
+两者之差说明市场隐含了正股息：由 $S_0\ee^{(r-q)T} = 99.908$ 解得
+$q = r - \frac{\ln(99.908/100)}{T} = 0.05 + 0.00368/0.25 \approx 6.5\%$。
+这正是「期权平价提取股息预期」的用法。
+\end{example}
+
+\subsection{期权组合策略}
+
+期权组合的本质是对收益曲线形状的下注。\Cref{fig:04-strategy} 给出四个经内组合的到期收益。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.78, every node/.style={font=\small\sffamily}]
+  % 通用坐标轴宏
+  \def\axes{
+    \draw[->, thick, inkgray] (0,0) -- (4.6,0);
+    \draw[->, thick, inkgray] (0,-1.4) -- (0,1.9);
+    \draw[dashed, inkgray!45] (2.3,-1.4) -- (2.3,1.9);
+    \node[below, inkgray] at (2.3,-1.45) {$K$};
+    \node[below, inkgray] at (4.6,-0.05) {$S_T$};
+  }
+  % (a) 备兑看涨 covered call
+  \begin{scope}
+    \axes
+    \draw[quantblue, very thick] (0,-0.9) -- (2.3,-0.9) -- (4.5,0.75);
+    \node[above, quantblue] at (1.15,0.15) {\small 备兑看涨};
+  \end{scope}
+  % (b) 保护性看跌 protective put
+  \begin{scope}[shift={(5.6,0)}]
+    \axes
+    \draw[quantgreen, very thick] (0,0.75) -- (2.3,-0.9) -- (4.5,1.55);
+    \node[above, quantgreen] at (1.15,0.9) {\small 保护性看跌};
+  \end{scope}
+  % (c) 跨式 straddle
+  \begin{scope}[shift={(0,-3.6)}]
+    \axes
+    \draw[quantred, very thick] (0,1.55) -- (2.3,-0.9) -- (4.5,1.55);
+    \node[above, quantred] at (1.15,1.05) {\small 买入跨式};
+  \end{scope}
+  % (d) 领口 collar
+  \begin{scope}[shift={(5.6,-3.6)}]
+    \axes
+    \draw[quantgold, very thick] (0,-0.55) -- (2.3,-0.55) -- (4.5,0.6);
+    \draw[dashed, inkgray!60] (1.35,-1.4) -- (1.35,1.9);
+    \draw[dashed, inkgray!60] (3.35,-1.4) -- (3.35,1.9);
+    \node[above, quantgold] at (2.5,0.95) {\small 领口};
+  \end{scope}
+\end{tikzpicture}
+\caption{四个常见期权组合的到期收益（纵轴为相对期初的损益）}\label{fig:04-strategy}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{主要期权策略的风险收益特征}\label{tab:04-strategies}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}Y L{3.6cm}@{}}
+\toprule
+\textbf{策略} & \textbf{构成与适用观点} & \textbf{主要风险} \\
+\midrule
+备兑看涨 & 持股 + 卖出看涨。温和看涨、以放弃上行换取权利金 & 标的大跌时保护有限 \\
+保护性看跌 & 持股 + 买入看跌。看涨但需下行保护 & 权利金持续侵蚀收益 \\
+买入跨式 & 同时买入同行权价看涨与看跌。预期大幅波动但方向不明 & 需足够大的波动才盈利，时间损耗严重 \\
+卖出跨式 & 同时卖出看涨与看跌。预期波动收敛 & 理论上亏损无上限，尾部风险极高 \\
+牛市价差 & 买入低行权价看涨 + 卖出高行权价看涨 & 收益封顶，成本较低 \\
+蝶式 & 卖出两个平值期权、买入两侧虚值期权 & 需要精确的价格落点 \\
+领口 & 持股 + 买入看跌 + 卖出看涨 & 上下都被截断，适合区间预期 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Black--Scholes--Merton 模型}
+
+\subsection{假设与标的动态}
+
+BSM 建立在以下假设之上：标的服从几何布朗运动、无摩擦市场（无交易成本与税）、可连续交易与卖空、
+常数无风险利率与常数波动率、标的在期权存续期内不支付股息、无套利机会。
+
+\begin{equation}
+  \dd S_t = \mu S_t\,\dd t + \sigma S_t\,\dd W_t
+  \label{eq:04-gbm}
+\end{equation}
+
+由伊藤引理（详见第 10 章）可得对数价格服从正态分布：
+
+\begin{equation}
+  \ln S_T \sim \N\!\left(\ln S_0 + \left(\mu-\tfrac12\sigma^2\right)T,\ \sigma^2T\right)
+  \label{eq:04-lognormal}
+\end{equation}
+
+其中 $-\tfrac12\sigma^2$ 项被称为\textbf{伊藤修正}：它说明在存在波动的情况下，
+\textbf{几何平均增长率（对数收益的期望）小于算术平均增长率 $\mu$}。
+这一项是波动率拖累（volatility drag）的数学来源。
+
+\subsection{Delta 对冲与 BSM 方程}
+
+构造「买入一份期权、卖出 $\Delta$ 份标的」的组合 $\Pi = V - \Delta S$。在 $[t, t+\dd t]$ 上：
+
+\begin{equation}
+  \dd\Pi = \dd V - \Delta\,\dd S
+       = \left(\pd{V}{t} + \tfrac12\sigma^2S^2\pdd{V}{S}\right)\dd t
+         + \left(\pd{V}{S} - \Delta\right)\dd S
+  \label{eq:04-hedge}
+\end{equation}
+
+取 $\Delta = \pd{V}{S}$ 可完全消除随机项，此后组合在 $\dd t$ 内是无风险的，必须获得无风险收益：
+
+\begin{equation}
+  \dd\Pi = r\Pi\,\dd t = r\left(V - S\pd{V}{S}\right)\dd t
+  \label{eq:04-nofree}
+\end{equation}
+
+令两式相等，即得 Black--Scholes 偏微分方程：
+
+\begin{equation}
+  \pd{V}{t} + \tfrac12\sigma^2S^2\pdd{V}{S} + rS\pd{V}{S} - rV = 0
+  \label{eq:04-pde}
+\end{equation}
+
+\begin{keybox}
+BSM 方程中\textbf{不出现漂移率 $\mu$}，这是整个理论的支点。
+它的经济含义是：期权的价格只取决于\textbf{波动率}这一不确定性的大小，
+而与投资者对标的涨跌的主观预期无关——因为预期已经被「用标的做对冲」这个动作消掉了。
+这一性质被称为\textbf{偏好无关（preference-free）}，也是风险中性定价的直观来源。
+\end{keybox}
+
+\subsection{解析解与风险中性定价}
+
+以欧式看涨期权为终端条件求解 \cref{eq:04-pde}，或等价地在风险中性测度 $\Qm$ 下取期望：
+
+\begin{equation}
+  C = \ee^{-rT}\,\E^{\Qm}\!\left[(S_T-K)^+\right]
+  \label{eq:04-rnprice}
+\end{equation}
+
+在 $\Qm$ 下 $S_T = S_0\exp\left((r-\tfrac12\sigma^2)T + \sigma\sqrt{T}Z\right)$，$Z\sim\N(0,1)$，积分可得：
 
 \begin{align}
-  C &= S_0 N(d_1) - Ke^{-rT} N(d_2) \\
-  d_1 &= \frac{\ln(S_0/K) + (r + \sigma^2/2)T}{\sigma\sqrt{T}} \\
-  d_2 &= d_1 - \sigma\sqrt{T}
+  C &= S_0\,N(d_1) - K\ee^{-rT}N(d_2) \label{eq:04-bsm}\\
+  d_1 &= \frac{\ln(S_0/K) + \left(r+\tfrac12\sigma^2\right)T}{\sigma\sqrt{T}},
+  \qquad d_2 = d_1 - \sigma\sqrt{T} \label{eq:04-d1d2}
 \end{align}
 
-其中 $N(\cdot)$ 为标准正态分布的累积分布函数。
+其中 $N(\cdot)$ 为标准正态累积分布函数。看跌期权由平价关系给出
+$P = K\ee^{-rT}N(-d_2) - S_0N(-d_1)$。
 
-\subsection{希腊字母 (Greeks)}
+\begin{example}[平值期权的定价与计算复核]\label{ex:04-bsm}
+设 $S_0 = K = 100$、$r = 5\%$、$\sigma = 20\%$、$T = 1$ 年。则
+\[
+  d_1 = \frac{0 + (0.05+0.02)\times 1}{0.2} = 0.35,\qquad d_2 = 0.15.
+\]
+查表得 $N(0.35) = 0.6368$、$N(0.15) = 0.5596$，于是
+\[
+  C = 100\times0.6368 - 100\times\ee^{-0.05}\times0.5596
+    = 63.68 - 95.1229\times0.5596 = 10.45.
+\]
+由平价关系 $P = C - S_0 + K\ee^{-rT} = 10.45 - 100 + 95.12 = 5.57$。
+注意 $C$ 明显大于内在价值 $0$，其中 $10.45 - 0 = 10.45$ 全部是时间价值——
+平值期权的时间价值最大，这是 Theta 在平值附近最陡的根本原因。
+\end{example}
 
-\begin{table}[h]
+\subsection{隐含波动率与求解}
+
+隐含波动率是把市场价格代入 BSM 公式后反解出的 $\sigma$。由于 BSM 价格关于 $\sigma$ 单调递增，
+该反解唯一，可用 Newton--Raphson 迭代高效求得（导数正好是 Vega）：
+
+\begin{equation}
+  \sigma_{n+1} = \sigma_n - \frac{C_{\text{BSM}}(\sigma_n) - C_{\text{mkt}}}{\nu(\sigma_n)},
+  \qquad \nu = S_0\phi(d_1)\sqrt{T}
+  \label{eq:04-newton}
+\end{equation}
+
+\begin{lstlisting}[style=pythonstyle, caption={BSM 定价与 Newton 法反解隐含波动率}, label={lst:04-iv}]
+import numpy as np
+from scipy.stats import norm
+
+def bsm(S, K, r, sigma, T, kind="call"):
+    """Black-Scholes price of a European option (no dividends)."""
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if kind == "call":
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+def vega(S, K, r, sigma, T):
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    return S * norm.pdf(d1) * np.sqrt(T)
+
+def implied_vol(price, S, K, r, T, kind="call", tol=1e-10, max_iter=100):
+    """Newton-Raphson with a bisection safeguard on the moneyness bounds."""
+    lo, hi = 1e-4, 5.0
+    if not (bsm(S, K, r, lo, T, kind) <= price <= bsm(S, K, r, hi, T, kind)):
+        return np.nan                      # violates no-arbitrage bounds
+    sigma = 0.2
+    for _ in range(max_iter):
+        diff = bsm(S, K, r, sigma, T, kind) - price
+        if abs(diff) < tol:
+            return sigma
+        v = vega(S, K, r, sigma, T)
+        if v < 1e-8:                       # deep OTM / near expiry: fall back
+            sigma = 0.5 * (lo + hi)
+            if bsm(S, K, r, sigma, T, kind) < price:
+                lo = sigma
+            else:
+                hi = sigma
+            continue
+        sigma -= diff / v
+        sigma = float(np.clip(sigma, lo, hi))
+    return sigma
+\end{lstlisting}
+
+\begin{warningbox}[隐含波动率的三个陷阱]
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{不是预测}：隐含波动率是市场对未来波动率的定价，包含风险溢价，系统性高于随后实现的波动率；
+  \item \textbf{不是常数}：同一标的、同一时刻，不同行权价与不同期限的隐含波动率系统性不同（微笑与期限结构），
+        因此「BSM 是错的」这一说法更准确的表达是「BSM 只是一个把价格翻译成波动率的约定」；
+  \item \textbf{反解可能失败}：当价格违反无套利边界（低于内在价值、或高于标的价）时无解；
+        当 Vega 趋于零时数值不稳定，必须用二分法兜底。
+\end{enumerate}
+\end{warningbox}
+
+\section{期权希腊字母}
+
+\subsection{显式解析式}
+
+希腊字母是期权价格对各风险因子的敏感度，也是交易台风险系统的通用语言。
+下表给出无股息欧式期权的解析式，其中 $\phi(\cdot)$ 为标准正态密度函数。
+
+\begin{table}[htbp]
 \centering
-\caption{期权敏感度指标}
-\begin{tabular}{@{}lll@{}}
+\caption{欧式看涨期权的希腊字母解析式}\label{tab:04-greeks}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{1.5cm}L{2.4cm}Y L{3.4cm}@{}}
 \toprule
-希腊字母 & 定义 & 意义 \\
+\textbf{希腊字母} & \textbf{定义} & \textbf{看涨期权解析式} & \textbf{经济含义} \\
 \midrule
-$\Delta$ & $\partial V / \partial S$ & 标的价格敏感度 \\
-$\Gamma$ & $\partial^2 V / \partial S^2$ & Delta 变化率 \\
-$\Theta$ & $\partial V / \partial t$ & 时间损耗 \\
-$\nu$ (Vega) & $\partial V / \partial \sigma$ & 波动率敏感度 \\
-$\rho$ & $\partial V / \partial r$ & 利率敏感度 \\
+$\Delta$ & $\pd{V}{S}$ & $N(d_1)$ & 标的每变动 1 元，期权价值变动 $\Delta$ 元；也是对冲所需标的份数 \\
+$\Gamma$ & $\pdd{V}{S}$ & $\dfrac{\phi(d_1)}{S\sigma\sqrt{T}}$ & Delta 的变化率；衡量对冲误差的曲率 \\
+$\nu$（Vega） & $\pd{V}{\sigma}$ & $S\phi(d_1)\sqrt{T}$ & 波动率每变动 1 个百分点（0.01）的价值变化 \\
+$\Theta$ & $\pd{V}{t}$ & $-\dfrac{S\phi(d_1)\sigma}{2\sqrt{T}} - rK\ee^{-rT}N(d_2)$ & 每经过一天损失的时间价值 \\
+$\rho$ & $\pd{V}{r}$ & $KT\ee^{-rT}N(d_2)$ & 利率每变动 1 个百分点的价值变化 \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \begin{keybox}
-Gamma 是期权的"加速度计"：ATM 近到期期权的 Gamma 极高，Delta 对冲频率需随之增加。交易员正是通过管理 Greeks 敞口来控制风险。
+Gamma 是期权的「加速度计」：平值（ATM）近到期期权的 Gamma 极高，
+标的的微小变动就会使 Delta 剧烈改变，因此\textbf{对冲频率必须相应提高}。
+Vega 则在平值附近最大、在长期限上最大——这意味着\textbf{长期平值期权是最贵的波动率敞口}。
+交易员正是通过组合不同的 $\Delta$、$\Gamma$、$\nu$ 敞口来表达对市场方向、波动幅度与期限结构的观点。
 \end{keybox}
+
+\subsection{希腊字母之间的关系与 Delta 对冲误差}
+
+BSM 方程本身就是希腊字母之间的一个恒等式：
+
+\begin{equation}
+  \Theta + \tfrac12\sigma^2S^2\Gamma + rS\Delta - rV = 0
+  \label{eq:04-greek-identity}
+\end{equation}
+
+它说明\textbf{时间损耗（$\Theta<0$）必然被 Gamma 收益所补偿}：持有正 Gamma 的组合在标的大幅波动中获益，
+代价是每天支付时间价值。做市商的核心工作就是让「Gamma 收益」长期覆盖「Theta 成本」。
+
+另一方面，由于无法连续对冲，实际 PnL 与理论值之间存在离散化误差。在 $\Delta t$ 后重新对冲的近似 PnL 为：
+
+\begin{equation}
+  \text{PnL} \approx \underbrace{\Theta\,\Delta t}_{\text{时间损耗}}
+   + \underbrace{\tfrac12\Gamma\left(\Delta S\right)^2}_{\text{Gamma 收益}}
+   \approx \tfrac12\Gamma S^2\left(\sigma_{\text{realized}}^2 - \sigma_{\text{implied}}^2\right)\Delta t
+  \label{eq:04-pnl}
+\end{equation}
+
+\begin{intuitionbox}[一句话记住 Delta 对冲的盈亏本质]
+式 \cref{eq:04-pnl} 说明：\textbf{做多期权（正 Gamma）并在市场上对冲，等价于做多波动率}。
+当实际波动率高于你买入时的隐含波动率，你就赚钱；反之则亏钱。
+这解释了为什么「卖出期权收取权利金」在没有波动率优势时是一个负期望的策略——
+它并不是「稳赚权利金」，而是「做空波动率」。
+\end{intuitionbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.2cm, grid=major,
+  xlabel={标的资产价格 $S$}, ylabel={敏感度},
+  domain=50:150, samples=120,
+  legend pos=north west, legend style={font=\scriptsize},
+  ymin=-0.2, ymax=1.15
+]
+\addplot[quantblue, very thick] {0.6 + 0.4*tanh((x-100)/18)};
+\addlegendentry{$\Delta$（左轴量级）}
+\addplot[quantred, very thick, dashed] {exp(-((x-100)/17)^2)};
+\addlegendentry{$\Gamma$ 的形状（已缩放）}
+\addplot[quantgreen, very thick, dotted] {0.35*exp(-((x-100)/26)^2) + 0.05};
+\addlegendentry{Vega（已缩放）}
+\end{axis}
+\end{tikzpicture}
+\caption{Delta、Gamma 与 Vega 随标的价格的变化（示意）}\label{fig:04-greeks}
+\end{figure}
+
+如 \cref{fig:04-greeks} 所示，Delta 呈 S 形（在深度实值趋于 1、深度虚值趋于 0），
+Gamma 与 Vega 均在平值附近达到峰值，但 Vega 的峰更宽——因为 Vega 同时受波动率与期限影响，
+而 Gamma 在临近到期时会急剧集中。
 
 \section{波动率建模}
 
-\subsection{隐含波动率 (Implied Volatility)}
+\subsection{波动率微笑与偏斜}
 
-隐含波动率是将市场期权价格代入 BS 公式反解出的 $\sigma$。波动率微笑（Volatility Smile）和偏斜（Skew）揭示了市场对尾部风险的定价偏差。
+若 BSM 完全正确，不同行权价的隐含波动率应该完全相同（一条水平线）。
+但真实市场呈现系统性的形状：
+
+\begin{itemize}[leftmargin=1.8em]
+  \item \textbf{外汇市场：微笑}。两端虚值期权的隐含波动率都高于平值，因为汇率大幅双向跳动的风险被定价；
+  \item \textbf{股票市场：偏斜（skew）}。低行权价（虚值看跌）的隐含波动率显著高于高行权价，
+        反映市场对崩盘风险的定价——即\textbf{杠杆效应}：股价下跌时波动率上升；
+  \item \textbf{期限结构}：短期偏斜最陡，随期限拉长而平缓，长期趋于水平。
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.2cm, grid=major,
+  xlabel={行权价 / 标的价（moneyness）}, ylabel={隐含波动率（\%）},
+  domain=0.75:1.25, samples=100,
+  legend pos=north east, legend style={font=\scriptsize},
+  ytick={20,24,28,32,36}
+]
+\addplot[quantred, very thick] {20 - 42*(x-1) + 420*(x-1)^2};
+\addlegendentry{1 个月（陡峭偏斜）}
+\addplot[quantblue, very thick] {21 - 22*(x-1) + 220*(x-1)^2};
+\addlegendentry{6 个月}
+\addplot[quantgreen, very thick, dashed] {22 - 10*(x-1) + 120*(x-1)^2};
+\addlegendentry{2 年（趋于平坦）}
+\end{axis}
+\end{tikzpicture}
+\caption{股票指数隐含波动率的偏斜与期限结构（示意）}\label{fig:04-smile}
+\end{figure}
 
 \subsection{局部波动率模型}
 
-Dupire 公式从期权价格曲面推导局部波动率函数 $\sigma_L(S,t)$：
+Dupire（1994）证明：给定完整的期权价格曲面 $C(K,T)$，存在唯一的确定性函数 $\sigma_L(S,t)$
+使得 BSM 的框架能精确重现所有市场价格：
 
 \begin{equation}
-  \sigma_L^2(K,T) = \frac{\frac{\partial C}{\partial T} + rK\frac{\partial C}{\partial K}}{\frac{1}{2}K^2\frac{\partial^2 C}{\partial K^2}}
+  \sigma_L^2(K,T) = \frac{\pdd{C}{T} + rK\pd{C}{K}}{\tfrac12K^2\pdd{C}{K}}
+  \label{eq:04-dupire}
 \end{equation}
 
-\subsection{随机波动率模型}
+\begin{warningbox}[局部波动率的「虚假动力学」]
+局部波动率模型可以完美拟合今天的波动率曲面，但它对\textbf{曲面未来如何演化}的预测通常很糟糕：
+它隐含的「波动率随机性」与标的的相关性被人为锁定，导致用该模型给远期起始期权（forward-start）
+或障碍期权定价时出现系统性偏差。这正是随机波动率模型（Heston、SABR）在实务中更受青睐的原因：
+\textbf{拟合能力与动力学合理性是两件不同的事}。
+\end{warningbox}
 
-Heston 模型同时建模标的和波动率：
+\subsection{随机波动率：Heston 模型}
+
+Heston（1993）让波动率本身也成为随机过程：
 
 \begin{align}
-  dS_t &= \mu S_t\,dt + \sqrt{v_t} S_t\,dW_t^S \\
-  dv_t &= \kappa(\theta - v_t)\,dt + \xi\sqrt{v_t}\,dW_t^v
+  \dd S_t &= \mu S_t\,\dd t + \sqrt{v_t}\,S_t\,\dd W_t^{S} \label{eq:04-heston-s}\\
+  \dd v_t &= \kappa(\theta - v_t)\,\dd t + \xi\sqrt{v_t}\,\dd W_t^{v} \label{eq:04-heston-v}
 \end{align}
 
-其中 $dW_t^S dW_t^v = \rho\,dt$（通常 $\rho < 0$，即杠杆效应）。
+其中 $v_t$ 为瞬时方差，$\kappa$ 为均值回复速度，$\theta$ 为长期方差，
+$\xi$ 为波动率的波动率（vol-of-vol），且 $\dd W_t^{S}\dd W_t^{v} = \rho\,\dd t$。
+股票市场通常估计出 $\rho < 0$（约 $-0.6$ 至 $-0.8$），这正是\textbf{杠杆效应}的参数化，
+也是 Heston 能生成真实偏斜的原因。
+
+Feller 条件 $2\kappa\theta \ge \xi^2$ 保证方差过程不触及零。Heston 模型存在对数价格特征函数的解析解，
+因此可以配合傅里叶方法（第 6 章）实现半解析定价，这是它在业界流行的关键。
+
+\subsection{SABR 与市场惯例}
+
+SABR（Hagan 等，2002）对远期价格与波动率建模：
+
+\begin{equation}
+  \dd F_t = \alpha_t F_t^{\beta}\,\dd W_t^{1},\qquad
+  \dd\alpha_t = \nu\alpha_t\,\dd W_t^{2},\qquad
+  \dd W^{1}\dd W^{2} = \rho\,\dd t
+  \label{eq:04-sabr}
+\end{equation}
+
+SABR 的流行不是因为更「正确」，而是因为它有\textbf{渐近解析的隐含波动率近似公式}，
+在给定 $\alpha,\beta,\rho,\nu$ 后可以极快地生成整条微笑曲线，且参数具有清晰的市场含义
+（$\rho$ 控偏斜、$\nu$ 控曲率、$\alpha$ 控水平）。对利率市场而言，这种「可校准、可插值、
+可平滑」的实用价值往往高于理论纯净性。
 
 \section{结构化产品}
 
-\subsection{保本票据 (Principal-Protected Notes)}
+\subsection{保本票据}
 
-结构：零息债券 + 看涨期权多头。本金由债券保证，收益由期权提供上行参与。
-
-\subsection{自动赎回产品 (Autocallables)}
-
-触发特征：若标的在观察日超过障碍水平，产品提前赎回并支付票息。否则持续至到期或发生敲入。定价依赖于复杂的路径依赖蒙特卡洛模拟。
-
-\section{固定收益金融工程}
-
-\subsection{利率互换 (IRS)}
-
-固定利率方支付固定利率 $K$，浮动利率方支付 LIBOR/SOFR。互换利率 $K$ 满足：
+保本票据（Principal-Protected Note, PPN）= 零息债券 + 看涨期权多头：
 
 \begin{equation}
-  K = \frac{1 - B(0,T_n)}{\sum_{i=1}^{n} \tau_i B(0,T_i)}
+  V_0 = \underbrace{K\ee^{-rT}}_{\text{保本部分}}
+      + \underbrace{\lambda\,C_0}_{\text{参与上行}},\qquad
+  \lambda = \frac{1 - K\ee^{-rT}}{C_0}
+  \label{eq:04-ppn}
 \end{equation}
 
-其中 $B(0,t)$ 为零息债券价格。
+其中 $\lambda$ 为参与率。由式 \cref{eq:04-ppn} 可见：\textbf{利率越高、期限越长、波动率越低，
+参与率越高}。这解释了为什么「保本 + 高参与率」在低利率环境中几乎不可能同时实现——
+这是 2010 年代后全球低利率环境下保本型产品萎缩的直接原因。
 
-\subsection{利率上限/下限 (Cap/Floor)}
+\subsection{自动赎回产品（Autocallables）与雪球}
 
-Caplet（单期 Cap）是利率看涨期权，其 Black 公式：
+自动赎回结构在观察日检验标的价格：若高于敲出障碍（通常为期初的 100\%），产品提前赎回并支付累计票息；
+若跌破敲入障碍（通常为期初的 70\%--80\%），到期时承担标的下跌的损失。
+
+投资者实质上\textbf{卖出}了一个敲出期权并\textbf{买入}了一个敲入看跌期权，
+因而是「卖出波动率 + 卖出尾部保护」的组合：
 
 \begin{equation}
-  \text{Caplet} = \tau \cdot B(0,T_{i+1}) \cdot [F_i N(d_1) - K N(d_2)]
+  V_{\text{autocall}} = \underbrace{B(0,T)}_{\text{债券}}
+    - \underbrace{\sum_i \text{KO}_i}_{\text{敲出期权空头}}
+    + \underbrace{\text{KI Put}}_{\text{敲入看跌多头}}
+  \label{eq:04-autocall}
 \end{equation}
 
-其中 $F_i$ 为远期利率。
+\begin{warningbox}[雪球类产品的真实风险]
+这类产品的票息本质上来自\textbf{卖出波动率与尾部保护}，而不是「无风险的固定收益」。
+2015 年与 2024 年 A 股、以及 2018--2020 年间的多轮快速下跌中，
+大量雪球产品集中敲入，投资者在「以为有票息保护」的情况下承担了显著的本金损失。
+关键风险特征是：\textbf{长期横盘或小幅上涨时收益良好，一旦发生快速深跌，
+损失以标的跌幅线性呈现，且没有上限保护}。产品越「看起来稳健」，越需要检查它隐含卖出了什么。
+\end{warningbox}
+
+\section{利率衍生品}
+
+\subsection{利率互换}
+
+利率互换（IRS）中，固定端支付固定利率 $K$，浮动端支付 SOFR（历史上为 LIBOR）。
+在无套利条件下，互换利率等于使互换初始价值为零的固定利率：
+
+\begin{equation}
+  K = \frac{1 - B(0,T_n)}{\sum_{i=1}^{n}\tau_i B(0,T_i)}
+  \label{eq:04-irs}
+\end{equation}
+
+其中 $B(0,T_i)$ 为贴现因子，$\tau_i$ 为计息期长度。分子可以理解为「用浮动端换固定端」的净现值：
+支出浮动相当于在 $T_n$ 支付 1 元（通过浮动端复利累积），因此互换的定价完全由贴现曲线决定。
+
+\subsection{互换期权与利率上下限}
+
+Caplet（单期利率上限）是标的为远期利率的看涨期权，其 Black 公式为：
+
+\begin{equation}
+  \text{Caplet} = \tau\,B(0,T_{i+1})\Big[F_i N(d_1) - K N(d_2)\Big],
+  \qquad d_{1,2} = \frac{\ln(F_i/K)\pm\tfrac12\sigma_i^2T_i}{\sigma_i\sqrt{T_i}}
+  \label{eq:04-caplet}
+\end{equation}
+
+其中 $F_i$ 为远期利率，$\sigma_i$ 为该 Caplet 的 Black 波动率。
+\textbf{把一系列 Caplet 的波动率拼起来就得到 Cap 波动率曲面}，
+它是利率市场最重要的校准输入之一。互换期权（swaption）则是标的为互换利率的期权，
+与 Cap 一起构成了利率波动率曲面的两个维度（Cap--Swaption 校准是利率建模的经典难点）。
 
 \section{信用衍生品}
 
-\subsection{信用违约互换 (CDS)}
+\subsection{信用违约互换}
 
-CDS 买方支付定期保费（CDS Spread），在参考实体违约时获得赔偿：
+CDS 买方定期支付保费（价差 $s$），在参考实体违约时获得 $(1-R)$ 的赔偿，
+其中 $R$ 为回收率。让「保费现值 = 保护现值」即可求保本价差：
 
 \begin{equation}
-  \text{CDS Spread} \approx \frac{(1-R) \cdot \sum_{i} B(0,t_i) [Q(t_{i-1}) - Q(t_i)]}{\sum_{i} \tau_i B(0,t_i) Q(t_i)}
+  s \approx \frac{(1-R)\sum_{i}B(0,t_i)\left[Q(t_{i-1}) - Q(t_i)\right]}
+                {\sum_{i}\tau_i B(0,t_i)Q(t_i)}
+  \label{eq:04-cds}
 \end{equation}
 
-其中 $R$ 为回收率，$Q(t)$ 为生存概率。
+其中 $Q(t)$ 为生存概率（至 $t$ 仍未违约的概率）。\textbf{在平坦的违约强度与贴现率假设下，
+上式化简为一个非常有用的近似 $s \approx (1-R)\lambda$}，其中 $\lambda$ 为违约强度（风险率）。
+例如 $R = 40\%$、$\lambda = 2\%$ 时，$s \approx 0.6\times2\% = 120$ 个基点。
+这个关系说明了为什么 CDS 价差是\textbf{市场对违约概率的实时报价}——
+观察 CDS 价差的变化就等于观察市场隐含违约概率的变化。
 
-\subsection{担保债务凭证 (CDO)}
+\subsection{担保债务凭证与相关风险}
 
-CDO 将信用风险池分层（Tranche）：优先层（Senior）、夹层层（Mezzanine）、权益层（Equity）。损失按从下到上的顺序吸收。CDO 定价的核心是相关建模——Gaussian Copula 模型虽然因金融危机而臭名昭著，但仍是理解相关风险的经典框架。
+CDO 把信用风险池按承担损失的顺序分层（tranche）：优先层（Senior）、夹层级（Mezzanine）、权益层（Equity）。
+损失自下而上吸收，因此\textbf{权益层承担最先发生的损失，优先层只在损失超过一定门槛后才受损}。
+
+定价的核心困难是\textbf{违约相关性}：一个由 100 个平均违约概率 2\% 的贷款组成的池子，
+如果违约完全独立，权益层几乎必然亏损、优先层几乎无风险；
+但如果所有贷款同时违约（相关 = 1），优先层也会被击穿。Gaussian Copula 提供了刻画这种相关性的框架：
+
+\begin{equation}
+  X_i = \sqrt{\rho}\,Z + \sqrt{1-\rho}\,\varepsilon_i,\qquad Z,\varepsilon_i \sim \N(0,1)\ \text{独立}
+  \label{eq:04-copula}
+\end{equation}
+
+\begin{warningbox}[Gaussian Copula 与 2008 年危机]
+Gaussian Copula 模型的问题不是数学错误，而是\textbf{把「相关性」简化成了一个常数，
+并且严重低估了尾部同时违约的概率}。它无法刻画：违约在压力期高度聚集、
+回收率在危机中同时下降（$\rho$ 与 $R$ 而非独立）、以及流动性消失时价格的断崖。
+2008 年的教训是：\textbf{当模型的关键参数（相关性）无法用历史数据可靠估计时，
+用它推导出的分层评级就是脆弱的}。现代实践倾向于 $t$-Copula（更厚的联合尾部）、
+因子模型加压力情景，并对相关性做敏感性上下限分析。
+\end{warningbox}
+
+\subsection{XVA：估值调整框架}
+
+金融危机后，衍生品定价从「无风险价值」演化为「无风险价值 + 一系列估值调整」：
+
+\begin{equation}
+  V_{\text{total}} = V_{\text{risk-free}} - \text{CVA} + \text{DVA} - \text{FVA} - \text{MVA} - \text{KVA}
+  \label{eq:04-xva}
+\end{equation}
+
+\begin{table}[htbp]
+\centering
+\caption{XVA 家族的构成}\label{tab:04-xva}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{1.6cm}Y L{3.4cm}@{}}
+\toprule
+\textbf{调整项} & \textbf{含义} & \textbf{驱动因素} \\
+\midrule
+CVA & 交易对手违约给我方带来的预期损失 & 对手 CDS 价差、敞口分布 \\
+DVA & 我方自身违约带来的「收益」（会计上有争议） & 自身 CDS 价差 \\
+FVA & 为抵押品融资的成本或收益 & 资金成本、抵押品条款 \\
+MVA & 初始保证金的资金占用成本 & IM 模型（SIMM） \\
+KVA & 资本占用对应的资本成本 & 监管资本要求 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{风险管理框架}
 
-\subsection{在险价值 (VaR)}
+\subsection{在险价值与预期亏空}
 
-在给定置信水平 $\alpha$ 和时间范围下，最大可能损失：
-
-\begin{equation}
-  \text{VaR}_{\alpha} = \inf\{x : P(L > x) \leq 1-\alpha\}
-\end{equation}
-
-参数化 VaR（正态假设）：
-\begin{equation}
-  \text{VaR}_{\alpha} = \mu + \sigma \cdot z_{\alpha}
-\end{equation}
-
-\subsection{预期亏空 (Expected Shortfall / CVaR)}
-
-ES 是 Basel III 推荐的风险度量，克服了 VaR 的次可加性缺陷：
+在置信水平 $\alpha$ 与持有期 $h$ 下，在险价值（VaR）定义为损失分布的 $\alpha$ 分位数：
 
 \begin{equation}
-  ES_{\alpha} = \mathbb{E}[L \mid L > \text{VaR}_{\alpha}]
+  \VaR_\alpha = \inf\{x : \Prob(L > x) \le 1-\alpha\}
+  \label{eq:04-var-def}
 \end{equation}
+
+正态假设下的参数化形式为 $\VaR_\alpha = \mu + \sigma z_\alpha$，其中 $z_\alpha$ 为标准正态的 $\alpha$ 分位数。
+
+预期亏空（ES，亦称 CVaR）是超过 VaR 之后的平均损失：
+
+\begin{equation}
+  \ES_\alpha = \E\left[L \mid L > \VaR_\alpha\right]
+  \label{eq:04-es}
+\end{equation}
+
+\begin{keybox}
+VaR 有两个致命缺陷：(1) \textbf{不满足次可加性}，即 $\VaR(A+B)$ 可能大于 $\VaR(A)+\VaR(B)$，
+这意味着「分散化」在 VaR 度量下可能显示为增加风险，与直觉和监管目标冲突；
+(2) \textbf{对尾部形状不敏感}，只报告分位点，完全不告诉我们分位点以外的损失有多大。
+ES 满足包括次可加性在内的一致性风险度量公理，因而被 Basel III 的市场风险框架（FRTB）采纳。
+但要注意：\textbf{ES 的可回测性差于 VaR}，因为尾部的样本极少，检验功效低。
+\end{keybox}
 
 \subsection{压力测试与情景分析}
 
-历史情景：2008 金融危机、2020 新冠冲击、2022 加息周期。假设情景：权益暴跌 30\% + 利率飙升 200bp 等复合冲击。
+历史情景：2008 年全球金融危机、2020 年新冠冲击、2022 年加息周期、2015 年 A 股流动性危机。
+假设情景：权益下跌 30\% 同时信用价差扩大 200bp、利率上升 200bp 同时波动率翻倍、
+本币贬值 20\% 同时资本外流等复合冲击。
 
-\section{小结}
+\begin{appbox}[压力测试的工程要点]
+\begin{itemize}[leftmargin=1.4em]
+  \item 情景必须是\textbf{一致的多资产冲击}：不能只跌股票而不动信用价差与波动率，
+        因为现实中这些变量的相关性在压力期会显著上升；
+  \item 必须反映\textbf{非线性与凸性}：期权组合在极端冲击下的损失不能靠 Delta 线性外推，
+        至少要包含 Gamma 与 Vega 的影响；
+  \item 必须包含\textbf{流动性折价}：压力情形下的变现成本通常是最主要的损失来源；
+  \item 情景的来源应当可追溯（历史重演、监管规定、专家判断），并明确标注假设，而不是只给一个数字。
+\end{itemize}
+\end{appbox}
 
-金融工程是量化金融的核心应用领域。从 BSM 的解析优雅到 Heston 的数值复杂度，从单一衍生品到结构化产品组合，金融工程师需要掌握定价理论、数值方法和风险管理的完整工具链。
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em]
+  \item 金融工程的第一性原理是无套利复制；远期价格 $F_0 = S_0\ee^{(r+u-y)T}$，期权必须满足平价关系 $C + K\ee^{-rT} = P + S_0$。
+  \item BSM 方程不含漂移率 $\mu$，因为 Delta 对冲已经消去了方向性风险；定价只依赖波动率。
+  \item 希腊字母是风险语言：$\Delta = N(d_1)$、$\Gamma = \phi(d_1)/(S\sigma\sqrt{T})$、$\nu = S\phi(d_1)\sqrt{T}$，
+        并且满足恒等式 $\Theta + \tfrac12\sigma^2S^2\Gamma + rS\Delta - rV = 0$。
+  \item 离散对冲的 PnL 近似为 $\tfrac12\Gamma S^2(\sigma_{\text{realized}}^2-\sigma_{\text{implied}}^2)\Delta t$——
+        做多期权即做多波动率。
+  \item 波动率微笑与偏斜是市场对尾部风险的定价；局部波动率能拟合曲面但动力学不可靠，Heston 与 SABR 是实务主流。
+  \item 结构化产品（保本票据、自动赎回、雪球）都可以拆成「债券 + 期权」，
+        票息越「稳健」越要检查隐含卖出了什么风险。
+  \item 信用衍生品的核心是违约强度与相关性；Gaussian Copula 的失败是 2008 年的重要数学教训。
+  \item 风险管理中 ES 优于 VaR（一致性），但可回测性更差；压力测试必须是一致、非线性且可追溯的。
+\end{itemize}
+\end{summarybox}
+
+\begin{exercises}
+\item 设 $S_0 = 80$、$r = 3\%$、连续股息率 $q = 4\%$、$T = 2$。求理论远期价格。
+若市场价格为 $76$，请写出完整的套利操作与利润（忽略成本）。
+
+\item 用看跌看涨平价证明：欧式看涨期权价格必须落在 $\left[\max(S_0\ee^{-qT}-K\ee^{-rT},0),\ S_0\ee^{-qT}\right]$ 区间内，
+并解释上下界的金融含义。
+
+\item 已知 $\Delta = N(d_1)$，请推导 $\Gamma = \phi(d_1)/(S\sigma\sqrt{T})$，
+并说明为什么 $\Gamma$ 在临近到期且平值时爆炸。
+
+\item 某投资者卖出 3 个月平值跨式期权，收取权利金 8 元（$S_0 = K = 100$，$\sigma = 25\%$）。
+请计算到期时盈亏平衡的两个价格，并解释为什么「波动率下降」比「标的上涨」对该策略更不利。
+
+\item 某 5 年期 CDS 参考实体回收率 35\%，市场报价 180bp。
+请用近似公式估计隐含的年度违约强度，并说明该近似的两个主要误差来源。
+
+\item 某雪球产品敲入线为期初的 75\%，敲出线为 100\%，期限 2 年，票息年化 15\%。
+请分别讨论「一年后标的上涨 10\% 「与「一年后标的下跌 30\%」两种情形下投资者的实际收益，
+并从卖波动率的角度解释票息的来源。
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Hull, J. C., \emph{Options, Futures, and Other Derivatives}, 10th ed., Pearson, 2018.（产品、希腊字母与实务细节的标准教材，第 4--6、15--20 章）
+\refitem Black, F., and Scholes, M., ``The Pricing of Options and Corporate Liabilities'', \emph{Journal of Political Economy}, 1973, 81(3): 637--654.（定价理论的起点，值得读原论文的推导思路）
+\refitem Merton, R. C., ``Theory of Rational Option Pricing'', \emph{Bell Journal of Economics}, 1973, 4(1): 141--183.（把复制思想推至一般化，含提前行权边界）
+\refitem Heston, S. L., ``A Closed-Form Solution for Options with Stochastic Volatility'', \emph{Review of Financial Studies}, 1993, 6(2): 327--343.（随机波动率与特征函数方法）
+\refitem Hagan, P. S., et al., ``Managing Smile Risk'', \emph{Wilmott Magazine}, 2002.（SABR 模型与市场微笑的参数化惯例）
+\refitem Li, D. X., ``On Default Correlation: A Copula Function Approach'', \emph{Journal of Fixed Income}, 2000, 9(4): 43--54.（理解 CDO 定价与 2008 年教训的必读文献）
+\refitem Brigo, D., and Mercurio, F., \emph{Interest Rate Models --- Theory and Practice}, 2nd ed., Springer, 2006.（利率衍生品与波动率曲面的系统参考）
+\end{furtherreading}

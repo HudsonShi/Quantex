@@ -1,179 +1,695 @@
 \chapter{金融入门}
 
-\section{金融体系概览}
-
-金融体系（Financial System）是经济资源配置的核心机制，由金融市场、金融中介、金融工具和监管框架四个支柱构成。
+本章为全书建立金融学的概念底座与符号约定。量化方法之所以能在金融领域生效，是因为金融资产的
+价格、收益与风险可以被写成可计算的对象：现金流是时间序列，折现率是期限的函数，风险是随机变量的
+二阶或高阶矩。因此本章的目标不是罗列金融产品，而是把「金融语言」翻译成后面十章反复使用的数学语言。
 
 \begin{keybox}
-金融的本质是跨期资源配置：将富余部门的储蓄引导至短缺部门的投资，在时间与风险两个维度上优化资本配置效率。
+金融的本质是跨期资源配置：把资金富余部门的储蓄，通过金融工具与金融中介，引导到资金短缺部门的
+投资活动中。这一过程中同时发生两类交换——时间维度的交换（放弃今天的消费换取未来的现金流）与
+风险维度的交换（把不确定的现金流重新分配给愿意承担风险的一方）。任何金融工具的价格，都是这两类
+交换的定价结果。
 \end{keybox}
 
-\subsection{金融市场的分类}
+\section{金融体系概览}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{按期限}：货币市场（Money Market，$\le 1$年）与资本市场（Capital Market，$>1$年）
-  \item \textbf{按发行层级}：一级市场（Primary Market，证券首次发行）与二级市场（Secondary Market，已发行证券交易）
-  \item \textbf{按资产类别}：权益市场、固定收益市场、外汇市场、大宗商品市场、衍生品市场
-  \item \textbf{按组织形态}：交易所市场（Exchange）与场外市场（OTC）
-\end{itemize}
+金融体系（Financial System）由四个支柱构成：金融市场（价格发现与流动性）、金融中介（信息生产与
+风险转换）、金融工具（权利义务的合约化）与监管框架（外部性与系统性风险的约束）。
 
-\subsection{金融中介}
+\subsection{货币市场与资本市场工具对比}
 
-金融中介（Financial Intermediaries）解决信息不对称、降低交易成本、实现风险转换：
+按剩余期限划分，一年以内的债务工具属于\term{货币市场}（Money Market），一年以上属于
+\term{资本市场}（Capital Market）。两者的差异不只是期限，更在于信用风险结构、二级市场流动性与
+定价基准，见表 \cref{tab:01-moneymkt}。
 
-\begin{itemize}[leftmargin=*]
-  \item 存款机构：商业银行、储蓄机构、信用合作社
-  \item 契约型储蓄机构：保险公司、养老基金
-  \item 投资中介：投资银行、共同基金、对冲基金、私募股权
-\end{itemize}
-
-\section{核心金融工具}
-
-\subsection{权益证券（Equity）}
-
-普通股代表对公司的剩余索取权。其估值基础为未来现金流的折现：
-
-\begin{equation}
-  P_0 = \sum_{t=1}^{\infty} \frac{D_t}{(1+r)^t}
-\end{equation}
-
-其中 $P_0$ 为当前股价，$D_t$ 为第 $t$ 期股利，$r$ 为要求回报率。
-
-在恒定增长率 $g$ 假设下，得到 Gordon 增长模型：
-
-\begin{equation}
-  P_0 = \frac{D_1}{r - g}, \quad r > g
-\end{equation}
-
-\subsection{固定收益证券（Fixed Income）}
-
-债券（Bond）是固定收益证券的典型代表，承诺在未来特定日期支付利息（票息）和偿还本金（面值）。
-
-债券定价公式：
-
-\begin{equation}
-  P = \sum_{t=1}^{n} \frac{C}{(1+y)^t} + \frac{F}{(1+y)^n}
-\end{equation}
-
-其中 $C$ 为票息，$F$ 为面值，$y$ 为到期收益率（YTM），$n$ 为剩余期数。
-
-\begin{definition}[久期 Duration]
-麦考利久期衡量债券价格对收益率变化的敏感度（一阶近似）：
-\begin{equation}
-  D = \frac{\sum_{t=1}^{n} t \cdot PV(CF_t)}{P}
-\end{equation}
-修正久期 $D^* = D / (1+y)$，则有 $\Delta P / P \approx -D^* \cdot \Delta y$。
-\end{definition}
-
-\begin{definition}[凸性 Convexity]
-凸性衡量久期随收益率变化的速率（二阶效应）：
-\begin{equation}
-  C = \frac{1}{P} \cdot \frac{1}{(1+y)^2} \sum_{t=1}^{n} \frac{t(t+1) \cdot CF_t}{(1+y)^t}
-\end{equation}
-\end{definition}
-
-\subsection{衍生品（Derivatives）基础}
-
-衍生品的价值派生于标的资产（Underlying），主要包括：
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{远期合约}（Forward）：双方约定在未来某日以约定价格买卖标的资产
-  \item \textbf{期货合约}（Futures）：标准化、在交易所交易的远期
-  \item \textbf{期权}（Option）：赋予买方在未来以行权价买入（Call）或卖出（Put）标的资产的权利而非义务
-  \item \textbf{互换}（Swap）：双方约定交换未来现金流的协议，如利率互换（IRS）、信用违约互换（CDS）
-\end{itemize}
-
-\section{财务报表分析基础}
-
-三大财务报表构成了公司分析的基本框架：
-
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{资产负债表}（Balance Sheet）：资产 = 负债 + 所有者权益
-  \item \textbf{利润表}（Income Statement）：收入 - 费用 = 净利润
-  \item \textbf{现金流量表}（Cash Flow Statement）：经营、投资、融资活动现金流
-\end{enumerate}
-
-\subsection{关键财务比率}
-
-\begin{table}[h]
+\begin{table}[htbp]
 \centering
-\caption{核心财务比率}
-\begin{tabular}{@{}lll@{}}
+\caption{货币市场与资本市场主要工具对比}\label{tab:01-moneymkt}
+\tablefont
+\begin{tabular}{@{}L{2.4cm}L{2.6cm}L{3.4cm}L{4.6cm}@{}}
 \toprule
-类别 & 比率 & 公式 \\
+工具 & 市场 & 期限与特征 & 定价与风险要点 \\
 \midrule
-盈利能力 & ROE & $NI / Equity$ \\
-         & ROA & $NI / Total\ Assets$ \\
-\midrule
-偿债能力 & 流动比率 & $Current\ Assets / Current\ Liabilities$ \\
-         & 利息覆盖倍数 & $EBIT / Interest\ Expense$ \\
-\midrule
-估值指标 & P/E & $Price / EPS$ \\
-         & P/B & $Price / Book\ Value\ per\ Share$ \\
-         & EV/EBITDA & 企业价值相对经营利润的倍数 \\
+国库券（T-bill） & 货币 & 3、6、12 个月，贴现发行 & 以贴现率报价，信用风险近似为零，是短期无风险基准 \\
+商业票据（CP） & 货币 & 最长 270 天（美国惯例） & 由高评级企业发行，属无担保，展期风险是核心风险 \\
+大额存单（CD） & 货币 & 3--12 个月，可转让 & 银行负债，二级市场存在报价价差，利率高于同期国库券 \\
+回购协议（Repo） & 货币 & 隔夜至数月，以证券抵押融资 & 本质是抵押贷款；回购利率是货币市场最重要的资金价格 \\
+国债（T-note/Bond） & 资本 & 2--30 年，附息 & 构建收益率曲线的基准，价格对利率高度敏感 \\
+公司债（Corporate） & 资本 & 1--30 年，附息 & 收益率 = 基准利率 + 信用价差，含违约与流动性溢价 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\section{利率与货币时间价值}
+回购协议的定价逻辑值得单独说明。若交易商以面值 $F$ 的国债作抵押融入现金 $P$，约定 $n$ 天后以
+$P(1+R_{\text{repo}}\,n/360)$ 回购，则 $R_{\text{repo}}$ 是隐含的抵押贷款利率。由于抵押品在违约时
+可直接被处置，回购利率通常显著低于同期限的无担保拆借利率，二者的差额被称为\term{抵押品便利}
+（collateral convenience）。2008 年危机中，回购市场因抵押品折价（haircut）突然上升而冻结，
+说明即使有抵押，流动性风险也不会自动消失。
 
-\subsection{利率的决定因素}
+\subsection{一级市场、二级市场与流动性}
 
-名义利率 $r_{\text{nom}}$ 可以分解为：
-\begin{equation}
-  r_{\text{nom}} = r_{\text{real}} + \pi^e + RP
+\term{一级市场}（Primary Market）承担融资功能：发行人通过首次公开发行（IPO）、增发或债券发行
+获得资金。\term{二级市场}（Secondary Market）承担流动性功能：已发行证券在投资者之间转手，发行人
+不再获得资金。二级市场的存在反过来决定一级市场的发行成本——若一只股票无法在二级市场快速变现，
+投资者会要求更高的预期收益，发行折价随之扩大。
+
+流动性可以从三个维度刻画：\term{宽度}（买卖价差）、\term{深度}（报价数量）、\term{弹性}
+（大额交易后价格恢复的速度）。三者不可混淆：价差很窄但深度不足的市场，遇到大单时同样会剧烈波动。
+
+\subsection{交易所、场外市场与做市商}
+
+交易所市场采用集中撮合、标准化合约与中央对手方清算，价格与成交信息透明；场外市场（OTC）由
+做市商双边报价，合约可以定制，但信息披露有限，2008 年前的信用违约互换市场即是典型。OTC 的
+替代品是「交易所化」：把标准化合约移入中央清算所，用保证金与逐日盯市控制对手方风险。
+
+\begin{appbox}[做市商如何赚钱]
+做市商（Market Maker）同时挂出买价与卖价，以价差补偿三类成本：订单处理成本、库存风险的
+持有成本、以及与被更知情交易者成交的逆向选择成本。若某只股票报价为 10.00/10.02（单位：元），
+价差 0.02 元对应 20 个基点；做市商每成交一个来回获得 0.02 元，但若库存期间价格不利变动
+0.10 元，则需成交 5 个来回才能弥补。这解释了为什么波动率上升时价差几乎同步扩大。
+\end{appbox}
+
+\section{权益与固定收益工具}
+
+\subsection{股利折现模型与 Gordon 增长模型}
+
+股票代表对公司剩余现金流的索取权，其内在价值等于未来股利的折现值：
+
+\begin{equation}\label{eq:01-ddm}
+  P_0 = \sum_{t=1}^{\infty} \frac{D_t}{(1+r)^t}
 \end{equation}
 
-其中 $r_{\text{real}}$ 为实际无风险利率，$\pi^e$ 为预期通胀，$RP$ 为风险溢价（含违约风险、流动性风险、期限风险等）。
+其中 $P_0$ 为当前股价，$D_t$ 为第 $t$ 期每股股利，$r$ 为与该股票风险匹配的要求回报率。
+若股利以恒定速度 $g$ 永续增长，即 $D_t = D_1(1+g)^{t-1}$，代入 \cref{eq:01-ddm} 得几何级数，
+在 $r > g$ 时收敛为 Gordon 增长模型：
 
-\subsection{收益率曲线}
+\begin{equation}\label{eq:01-gordon}
+  P_0 = \frac{D_1}{r-g}, \qquad r > g
+\end{equation}
 
-收益率曲线（Yield Curve）描述不同期限债券收益率之间的关系：
+\cref{eq:01-gordon} 在实务中常被反解为资本成本：$r = D_1/P_0 + g$，即股利收益率加股利增长率。
+但这一定价式的稳健性很差。当 $r$ 与 $g$ 接近时，分母趋于零，估值对参数极端敏感：设
+$D_1 = 1$ 元，$r = 8\%$，若 $g$ 从 $4\%$ 升至 $5\%$，价格从 25 元跳到 33.3 元，涨幅 33\%；
+而一家长期增长率不可能高于名义 GDP 增速的企业，取值 $g = 5\%$ 本身就需要论证。
+
+\begin{warningbox}[Gordon 模型的失效条件]
+该模型假定增长率恒定且永不超过折现率，忽略了高增长阶段的再投资回报与竞争格局变化。
+对不分红、周期性极强、或处于成长早期的公司，模型会给出无意义的结果。实务做法是
+两阶段或三阶段模型：前 $n$ 年用显式预测股利，之后用 \cref{eq:01-gordon} 计算终值，
+再对终值部分单独做敏感性分析。
+\end{warningbox}
+
+\subsection{债券定价与到期收益率}
+
+附息债券的价格等于票息年金与面值现值之和：
+
+\begin{equation}\label{eq:01-bondprice}
+  P = \sum_{t=1}^{n} \frac{C}{(1+y)^t} + \frac{F}{(1+y)^n}
+\end{equation}
+
+其中 $C$ 为每期票息，$F$ 为面值，$n$ 为剩余付息期数，$y$ 为到期收益率（Yield to Maturity，
+YTM）。\term{到期收益率}的定义是：使未来全部现金流的现值恰好等于当前价格的单一折现率。它是
+一个内部收益率，而非可观测的市场利率：想要得到 $y$，必须解一个 $n$ 次多项式方程，实务上靠
+数值求根。
+
+\Cref{eq:01-bondprice} 给出三条可用于校验直觉的性质：当 $y = C/F$ 时，价格等于面值（平价债券）；
+当 $y$ 高于票息率时价格低于面值（折价债券）；$y$ 上升，价格下降，且价格函数关于 $y$ 是凸的。
+这三条性质在久期与凸性的讨论中被两次求导放大。
+
+\subsection{久期：四种解释}
+
+久期是债券分析中最重要的单一指标，也是被误用最多的指标。它至少有四种等价的解释。
+
+\begin{definition}[麦考利久期与修正久期]\label{def:01-duration}
+以到期收益率 $y$ 折现，麦考利久期（Macaulay Duration）定义为现金流到期时间的现值加权平均：
+\begin{equation}\label{eq:01-macaulay}
+  D = \frac{\sum_{t=1}^{n} t \cdot PV(CF_t)}{P}, \qquad PV(CF_t) = \frac{CF_t}{(1+y)^t}
+\end{equation}
+修正久期（Modified Duration）定义为 $D^{*} = D/(1+y)$，对半年付息一次且按年复利报价的债券，
+$y$ 与付息频率须一致，通常写作 $D^{*} = D/(1+y/f)$。
+\end{definition}
+
+\Cref{def:01-duration} 中的 $D$ 有四种读法：
 
 \begin{itemize}[leftmargin=*]
-  \item \textbf{正常形态}：长期收益率 > 短期收益率（向上倾斜）
-  \item \textbf{倒挂}：短期收益率 > 长期收益率（常预示衰退）
-  \item \textbf{平坦}：长短期收益率接近
+  \item \textbf{加权平均回款时间}：$D$ 是投资者实际收回本息的平均等待年限。零息债券的 $D$ 等于
+        到期期限，付息债券的 $D$ 严格小于到期期限，且票息越高 $D$ 越短。
+  \item \textbf{价格对收益率的一阶敏感度}：把价格写成
+        $P = \sum_t CF_t (1+y)^{-t}$ 并对 $y$ 求导，得到
+        $\dd P/\dd y = -\frac{1}{1+y}\sum_t t\,PV(CF_t)$，而右侧求和的
+        系数恰好是 $-D^{*}P$，于是有\cref{eq:01-durationapprox}。
+  \item \textbf{现金流期限的平衡点}：$D$ 是使资产与负债的利率风险相互抵消的期限匹配条件，这正是
+        免疫策略的基础。
+  \item \textbf{回收期的反面}：$D$ 与会计上的回收期（payback period）完全不同，前者考虑货币
+        时间价值与全部现金流，后者只数够本金的年数。
 \end{itemize}
 
-\begin{keybox}
-收益率曲线是宏观经济最重要的领先指标之一。历史上，收益率曲线倒挂（尤其是 2Y-10Y 利差转负）对美国经济衰退有较强的预测能力。
+\subsection{久期近似、DV01 与凸性修正}
+
+由一阶泰勒展开得到久期近似公式：
+
+\begin{equation}\label{eq:01-durationapprox}
+  \frac{\Delta P}{P} \approx -D^{*}\,\Delta y
+\end{equation}
+
+其中 $\Delta y$ 为到期收益率的绝对变化（如 0.01 表示 100 个基点），$D^{*}$ 为修正久期。
+另一个常用口径是基点价值（DV01，Dollar Value of a Basis Point），即收益率变动一个基点时
+债券价格的绝对变化：
+
+\begin{equation}\label{eq:01-dv01}
+  \mathrm{DV01} = P \times D^{*} \times 10^{-4}
+\end{equation}
+
+\Cref{eq:01-dv01} 中系数 $10^{-4}$ 对应一个基点（$0.01\%$）。若某债券 $P = 100$ 元、
+$D^{*} = 6$，则 $\mathrm{DV01} = 0.06$ 元；对冲 1000 万元面值头寸所需的空头名义本金为
+$1000 \times 6 = 6000$ 万元（用同一只债券对冲时按市值折算）。
+
+久期近似只在 $|\Delta y|$ 很小时可靠，因为价格函数是凸的：收益率上升带来的价格下跌，
+小于收益率同等幅度下降带来的价格上涨。二阶项由凸性给出：
+
+\begin{equation}\label{eq:01-convexity}
+  C_{\text{conv}} = \frac{1}{P}\cdot\frac{1}{(1+y)^2}\sum_{t=1}^{n}\frac{t(t+1)\,CF_t}{(1+y)^t}
+\end{equation}
+
+其中 $CF_t$ 为第 $t$ 期总现金流，$t(t+1)$ 权重来自二阶导数的系数。于是价格变动可以写为
+
+\begin{equation}\label{eq:01-convadj}
+  \frac{\Delta P}{P} \approx -D^{*}\,\Delta y + \tfrac{1}{2}\,C_{\text{conv}}\,(\Delta y)^2
+\end{equation}
+
+\Cref{eq:01-convadj} 的第二项恒为非负，这正是「凸性是持有者的资产」的说法来源：在其他条件
+相同时，凸性越大的债券，在收益率大幅波动时的表现越好。
+
+\begin{example}[久期与凸性的数值修正]\label{ex:01-duration}
+一张面值 100 元、票息率 $5\%$、每年付息、3 年后到期的债券，当前 YTM 为 $6\%$。由
+\cref{eq:01-bondprice} 得到现金流现值：第 1 年 $5/1.06 = 4.71698$，第 2 年 $5/1.06^2 = 4.44998$，
+第 3 年 $105/1.06^3 = 88.16332$，合计 $P = 97.33028$ 元。
+
+由 \cref{eq:01-macaulay}，加权时间之和为
+$1 \times 4.71698 + 2 \times 4.44998 + 3 \times 88.16332 = 278.12590$，故
+$D = 278.12590/97.33028 = 2.8575$ 年，修正久期 $D^{*} = 2.8575/1.06 = 2.6957$ 年。
+由 \cref{eq:01-convexity}，二阶加权和为
+$1\cdot2\cdot4.71698 + 2\cdot3\cdot4.44998 + 3\cdot4\cdot88.16332 = 1110.36440$，
+故 $C_{\text{conv}} = 1110.36440/(97.33028 \times 1.06^2) = 10.1503$，基点价值
+$\mathrm{DV01} = 97.33028 \times 2.6957 \times 10^{-4} = 0.02624$ 元。
+
+若收益率上升 100 个基点至 $7\%$，精确重算得 $P' = 94.75137$ 元，实际跌幅 $2.6504\%$。
+久期近似给出 $-2.6957\%$，误差 4.5 个基点；凸性修正给出
+$-2.6957\% + 0.5 \times 10.1503 \times 0.01^2 = -2.6449\%$，误差收窄到 0.55 个基点，
+即精度提高约 8 倍。这就量化了 \cref{eq:01-convadj} 中二阶项的价值。
+\end{example}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.4cm, height=6.6cm, grid=major,
+  xlabel={到期收益率 $y$（\%）}, ylabel={价格 $P$（元）},
+  domain=2:10, samples=120,
+  legend pos=north east, legend style={font=\scriptsize, cells={anchor=west}},
+  ymin=70, ymax=115, xmin=2, xmax=10
+]
+\addplot[quantblue, very thick]
+  {5/(1+x/100) + 5/((1+x/100)^2) + 105/((1+x/100)^3)};
+\addlegendentry{精确价格（真实凸函数）}
+\addplot[quantred, thick]
+  {97.33028 - 97.33028*2.6957*(x-6)/100};
+\addlegendentry{久期近似（直线）}
+\addplot[quantgold, very thick]
+  {97.33028 - 97.33028*2.6957*(x-6)/100
+   + 0.5*97.33028*10.1503*((x-6)/100)^2};
+\addlegendentry{久期加凸性（抛物线）}
+\addplot[inkgray, only marks, mark=*, mark size=1.2pt] coordinates {(6,97.33028)};
+\end{axis}
+\end{tikzpicture}
+\caption{久期近似与凸性修正对债券价格的拟合效果}\label{fig:01-convexity}
+\end{figure}
+
+\Cref{fig:01-convexity} 把 \cref{ex:01-duration} 的结论可视化：久期近似的直线在 $y = 6\%$
+附近贴合精确曲线，但向两侧迅速偏离；加上凸性项后，抛物线在 $2\%$ 至 $10\%$ 的整个区间
+几乎与精确价格重合。这正是风险管理中「凸性调整」的意义。
+
+\begin{intuitionbox}[为什么凸性是好事]
+想象价格曲线是一张绷紧的弓。收益率上升与下降幅度相同时，弓的上弯让价格少跌多涨。
+用数学语言说，$\Delta P/P$ 关于 $\Delta y$ 的二阶导数为正，因此 $P(y)$ 是凸函数，
+由 Jensen 不等式，随机收益率下的平均价格高于按平均收益率定价的结果。这就是
+「波动率本身有价值」这一命题在债券上的第一次出现，第 4 章的期权价值与之同源。
+\end{intuitionbox}
+
+\subsection{久期对冲与免疫策略}
+
+久期匹配提供了两个经典应用。其一是\term{对冲}：若持有债券组合的 DV01 为 $V$，卖空另一只
+DV01 为 $v$ 的债券（或利率期货）数量 $V/v$，可使组合的净利率风险瞬时归零。其二是
+\term{免疫}（Immunization）：养老基金的负债是一串确定的支付流，具有自己的久期 $D_L$。
+只要使资产久期 $D_A$ 等于负债久期 $D_L$、且资产现值不小于负债现值，则收益率的微小变动
+对双方现值的影响相互抵消。若同时再令资产凸性 $C_A \ge C_L$，则在大幅波动下资产端仍占优，
+这就是所谓「免疫的充分条件」。
+
+\begin{warningbox}[免疫是瞬时的]
+久期与凸性都随收益率与剩余期限变化：时间每过去一天，$D_A$ 与 $D_L$ 的缩短速度通常不同
+（除非资产与负债的现金流结构完全一致）。因此免疫必须\term{定期再平衡}，实务中按月或按
+收益率变动阈值触发调整。此外，久期对冲只消除收益率曲线\term{平行移动}的风险；若曲线发生
+扭曲（如 2 年下降、10 年上升），仅靠总久期中性仍会亏损，需要引入关键期限久期
+（key rate duration）做分点对冲。
+\end{warningbox}
+
+\subsection{股票指数编制方法}
+
+股票指数是把一组股票价格压缩为一个数字的规则，规则本身决定了指数的风险特征。三种主流
+加权方式及其含义见表 \cref{tab:01-index}。
+
+\begin{table}[htbp]
+\centering
+\caption{股票指数编制方法与含义差异}\label{tab:01-index}
+\tablefont
+\begin{tabular}{@{}L{2.1cm}L{3.3cm}L{4.6cm}L{4.3cm}@{}}
+\toprule
+加权方式 & 权重定义 & 代表性指数 & 含义与偏差 \\
+\midrule
+价格加权 & $w_i = P_i / \sum_j P_j$ & 道琼斯工业平均指数 & 高价股影响被放大，与公司规模无关；
+拆股会使权重突变 \\
+市值加权 & $w_i = P_i Q_i / \sum_j P_j Q_j$ & 标普 500、沪深 300 & 隐含「市场组合」，
+动量自我强化；大盘股主导，集中度上升 \\
+等权 & $w_i = 1/N$ & 标普等权指数 & 隐含定期再平衡，天然具有反转（逆向）暴露；
+小盘股与流动性溢价更明显 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+一个数值例子能说明差异的量级。设三只股票价格分别为 100、50、10 元，市值分别为
+2000、1000、100 亿元。价格加权下权重为 $62.5\%$、$31.25\%$、$6.25\%$；市值加权下为
+$64.5\%$、$32.3\%$、$3.2\%$。若第三只股票上涨 $50\%$ 而另两只不动，价格加权指数上涨
+$3.1\%$，市值加权指数仅上涨 $1.6\%$，等权指数则上涨 $16.7\%$。同一批股票，收益相差十倍，
+说明「指数收益」这一说法必须附带加权方式才有意义。
+
+\begin{notebox}[指数的可投资性]
+指数只有可复制才有投资价值。价格加权指数难以被精确复制（需按价格比例配置且受拆股扰动），
+因此追踪道指的基金必须持有大量现金以应对权重漂移。市值加权指数的可复制性最好，
+但需按自由流通市值（free float）调整权重，否则会高估战略持股比例高的公司权重——
+这是 MSCI 与标普在 2000 年代调整编制规则的主要原因。
+\end{notebox}
+
+\section{财务报表分析与勾稽关系}
+
+三大报表并非三张独立的表，而是同一套经济活动的三个切面，通过\term{勾稽关系}相互约束。
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{资产负债表}（Balance Sheet）：资产 $=$ 负债 $+$ 所有者权益，是某一时点的存量快照。
+  \item \textbf{利润表}（Income Statement）：收入 $-$ 费用 $=$ 净利润，是某一期间的流量记录；
+        净利润扣除股利后进入资产负债表的留存收益。
+  \item \textbf{现金流量表}（Cash Flow Statement）：把权责发生制的净利润还原为收付实现制的现金
+        变动，并区分经营、投资、融资三类活动；期末现金余额必须与资产负债表的货币资金衔接。
+\end{enumerate}
+
+最重要的勾稽链条可以写成一条恒等式：\term{净利润}经非现金项目与营运资本调整得到
+\term{经营活动现金流}，扣除资本支出得到\term{自由现金流}，自由现金流加上净融资额等于
+现金余额的变动。若一家公司连续三年净利润为正而经营活动现金流为负，通常意味着收入确认
+激进或应收账款异常膨胀，这是量化筛选中最常用的造假预警信号之一。
+
+\subsection{杜邦分解}
+
+净资产收益率（ROE）可以分解为三项乘积，每一项对应一种商业模式的驱动来源：
+
+\begin{equation}\label{eq:01-dupont}
+  ROE = \frac{NI}{E} = \frac{NI}{S}\times\frac{S}{A}\times\frac{A}{E}
+      = \text{净利率} \times \text{总资产周转率} \times \text{权益乘数}
+\end{equation}
+
+其中 $NI$ 为净利润，$S$ 为营业收入，$A$ 为总资产，$E$ 为所有者权益。净利率反映定价能力
+与成本控制，总资产周转率反映资产使用效率，权益乘数 $A/E$ 反映财务杠杆。
+
+\begin{example}[同样 15\% 的 ROE，风险并不相同]\label{ex:01-dupont}
+甲公司走高价路线：净利率 $20\%$，周转率 $0.25$，权益乘数 $3.0$，则
+$ROE = 0.20 \times 0.25 \times 3.0 = 15\%$。乙公司走薄利多销路线：净利率 $3\%$，
+周转率 $2.0$，权益乘数 $2.5$，则 $ROE = 0.03 \times 2.0 \times 2.5 = 15\%$。两家公司的
+股东回报相同，但风险结构完全不同：甲公司的利润依赖价格维持，一旦降价 $20\%$ 且成本刚性，
+净利率降至零；乙公司的利润依赖销量与周转，对需求冲击更敏感，但成本端具有规模弹性。
+若把甲公司的权益乘数从 3.0 提到 4.0 而其余不变，$ROE$ 变为 $20\%$，看似改善，实际是
+用更高的偿债压力换来的——这就是为什么杜邦分解必须连同资产负债率与利息覆盖倍数一起读。
+\end{example}
+
+\begin{table}[htbp]
+\centering
+\caption{核心财务比率分类与经验区间}\label{tab:01-ratios}
+\tablefont
+\begin{tabular}{@{}L{2.1cm}L{3.1cm}L{4.2cm}L{4.8cm}@{}}
+\toprule
+类别 & 比率 & 计算式 & 解读与经验区间 \\
+\midrule
+盈利能力 & 净资产收益率 ROE & $NI/E$ & 长期可持续水平受行业竞争与杠杆约束 \\
+         & 总资产收益率 ROA & $NI/A$ & 剔除杠杆影响的经营效率指标 \\
+\midrule
+偿债能力 & 流动比率 & $CA/CL$ & 通常 $1.5$ 至 $2.0$；过高可能意味资产闲置 \\
+         & 利息覆盖倍数 & $EBIT/I$ & 低于 $3$ 时再融资风险显著上升 \\
+\midrule
+运营效率 & 总资产周转率 & $S/A$ & 零售与快消可超过 $2$，重资产行业常低于 $0.5$ \\
+\midrule
+估值指标 & 市盈率 P/E & $P/EPS$ & 与增长率匹配时才可比，需区分静态与滚动口径 \\
+         & 市净率 P/B & $P/BVPS$ & 适用于净资产为价值主体的金融业 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:01-ratios} 中的比率在量化选股中通常被进一步处理：先做行业中性化，再做极值
+处理，最后转成横截面排名，原因见第 7 章的因子构建流程。
+
+\section{资本预算：NPV 与 IRR}
+
+企业投资决策的核心判据是净现值（Net Present Value，NPV）：
+
+\begin{equation}\label{eq:01-npv}
+  \mathrm{NPV} = -C_0 + \sum_{t=1}^{T}\frac{C_t}{(1+r)^t}
+\end{equation}
+
+其中 $C_0$ 为初始投资（正值计），$C_t$ 为第 $t$ 期净现金流，$r$ 为与项目风险匹配的资本成本。
+NPV 的经济含义是项目为企业股东创造的价值增量，因此决策规则是：独立项目取 $\mathrm{NPV}>0$，
+互斥项目取 NPV 最大者。内部收益率（Internal Rate of Return，IRR）定义为使 NPV 等于零的折现率：
+
+\begin{equation}\label{eq:01-irr}
+  -C_0 + \sum_{t=1}^{T}\frac{C_t}{(1+\mathrm{IRR})^t} = 0
+\end{equation}
+
+IRR 的决策规则是与资本成本比较，取 $\mathrm{IRR} > r$。两个指标在独立项目上一致，
+但在互斥项目与非常规现金流下会冲突：IRR 是比率，忽略项目规模；且 \cref{eq:01-irr} 是
+$T$ 次方程，符号变化多次时可能存在多个 IRR 或无实数解。
+
+\begin{example}[NPV 与 IRR 的冲突]\label{ex:01-npv}
+两个互斥项目，资本成本 $r = 8\%$。项目 A 投资 100 万元，此后三年每年回收 41 万元；
+项目 B 投资 300 万元，此后三年每年回收 118 万元。由 \cref{eq:01-npv}：
+A 的 $\mathrm{NPV} = -100 + 41 \times 2.5771 = 5.66$ 万元，IRR 约 $11.0\%$；
+B 的 $\mathrm{NPV} = -300 + 118 \times 2.5771 = 4.10$ 万元，IRR 约 $9.3\%$。
+按 IRR 应选 A，按 NPV 也应选 A。若把 B 的年现金流改为 125 万元，则
+$\mathrm{NPV} = -300 + 125 \times 2.5771 = 22.14$ 万元，IRR 约 $12.0\%$，此时
+两个判据仍一致。真正的冲突出现在「高 IRR、小规模」与「低 IRR、大规模」之间：
+把 A 改为投资 100 万元、年回收 45 万元（IRR 约 $16.4\%$，NPV $= 15.97$ 万元），
+B 保持年回收 125 万元（NPV $= 22.14$ 万元），IRR 指向 A 而 NPV 指向 B。
+正确做法是坚持 NPV，因为 NPV 度量的是价值绝对增量，而 IRR 无法比较不同规模的
+增量投资回报。实务中还常用增量 IRR：对 B 相对 A 的增量现金流求 IRR，再与资本成本比较。
+\end{example}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.2cm, height=6.4cm, grid=major,
+  xlabel={折现率 $r$（\%）}, ylabel={NPV（万元）},
+  domain=2:20, samples=100,
+  legend pos=north east, legend style={font=\scriptsize, cells={anchor=west}},
+  ymin=-40, ymax=80, xmin=2, xmax=20
+]
+\addplot[quantgreen, very thick] {-100 + 45/(1+x/100) + 45/((1+x/100)^2) + 45/((1+x/100)^3)};
+\addlegendentry{项目 A（小规模、高 IRR）}
+\addplot[quantblue, very thick] {-300 + 125/(1+x/100) + 125/((1+x/100)^2) + 125/((1+x/100)^3)};
+\addlegendentry{项目 B（大规模、低 IRR）}
+\addplot[inkgray, dashed, thick, domain=2:20] {0};
+\addlegendentry{NPV 等于零的临界线}
+\end{axis}
+\end{tikzpicture}
+\caption{互斥项目的 NPV 曲线与 IRR 冲突}\label{fig:01-npv}
+\end{figure}
+
+\Cref{fig:01-npv} 显示两条曲线在 $r \approx 10.4\%$ 处相交，该折现率称为\term{交叉率}。
+当资本成本低于交叉率时，项目 B 的 NPV 更高；高于交叉率时项目 A 更高——这解释了为什么
+低利率环境下企业倾向于投资大规模、长回收期的项目。
+
+\section{利率的期限结构}
+
+\subsection{名义利率的分解}
+
+名义利率可以分解为三个部分：
+
+\begin{equation}\label{eq:01-fisher}
+  r_{\text{nom}} = r_{\text{real}} + \pi^{e} + RP
+\end{equation}
+
+其中 $r_{\text{real}}$ 为实际无风险利率（反映社会的时间偏好与资本边际产出），$\pi^{e}$ 为
+预期通胀率，$RP$ 为风险溢价，包含违约风险、流动性风险与期限风险。注意 \cref{eq:01-fisher}
+是可加形式的近似；精确的 Fisher 关系为 $(1+r_{\text{nom}}) = (1+r_{\text{real}})(1+\pi^{e})$，
+在低通胀下两者差异为二阶小量，但在高通胀经济体（$\pi^{e} > 10\%$）必须以乘法形式计算。
+
+\subsection{即期利率、远期利率与三大理论}
+
+收益率曲线描述的是不同期限的即期利率 $y(0,T)$。由无套利关系，期限 $T_1$ 与 $T_2$ 之间的
+远期利率 $f(T_1,T_2)$ 由即期利率唯一确定：
+
+\begin{equation}\label{eq:01-forward}
+  \bigl(1 + y(0,T_2)\bigr)^{T_2} = \bigl(1 + y(0,T_1)\bigr)^{T_1}\bigl(1 + f(T_1,T_2)\bigr)^{T_2-T_1}
+\end{equation}
+
+\Cref{eq:01-forward} 的意思是：先投资到 $T_2$，与先投资到 $T_1$ 再按远期利率续投到 $T_2$，
+两条路径必须给出相同的累计回报，否则套利者可以无风险获利。曲线的\term{形态}则由
+三个竞争性理论解释，见表 \cref{tab:01-termstructure}。
+
+\begin{table}[htbp]
+\centering
+\caption{收益率曲线三大理论对比}\label{tab:01-termstructure}
+\tablefont
+\begin{tabular}{@{}L{2.3cm}L{4.9cm}L{3.4cm}L{3.6cm}@{}}
+\toprule
+理论 & 核心主张 & 对上升曲线的解释 & 主要弱点 \\
+\midrule
+纯预期理论 & 远期利率等于市场对未来即期利率的预期 &
+上升曲线意味着市场预期加息 & 忽略期限风险，无法解释长期平均向上的曲线形态 \\
+流动性偏好理论 & 投资者要求期限溢价补偿利率风险 &
+上升曲线 = 加息预期 + 期限溢价 & 期限溢价本身不可直接观测，需模型估计 \\
+市场分割理论 & 各期限市场由不同资金供需主体分割 &
+不同期限的供需失衡造成曲线形状 & 忽略套利力量，与曲线常同步移动的事实不符 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.2cm, height=6.4cm, grid=major,
+  xlabel={到期期限 $T$（年）}, ylabel={即期利率 $y(0,T)$（\%）},
+  domain=0.04:10, samples=120,
+  legend pos=north east, legend style={font=\scriptsize, cells={anchor=west}},
+  ymin=0, ymax=7.5, xmin=0, xmax=10.4
+]
+\addplot[quantblue, very thick] {1.2 + 1.1*sqrt(x)};
+\addlegendentry{正常形态：向上倾斜}
+\addplot[quantred, very thick] {5.2 - 0.28*x + 0.02*x^2 - 0.035/x};
+\addlegendentry{倒挂形态：短期高于长期}
+\addplot[quantgold, very thick] {3.6 + 0.06*x};
+\addlegendentry{平坦形态：接近水平}
+\end{axis}
+\end{tikzpicture}
+\caption{收益率曲线的三种典型形态（示意）}\label{fig:01-yieldcurve}
+\end{figure}
+
+\Cref{fig:01-yieldcurve} 给出三种形态的示意。其中倒挂形态最具信息含量：短端利率由货币政策
+决定，长端由增长与通胀预期决定，当央行大幅收紧而市场预期未来增长走弱时，曲线倒挂。
+经验上，美国 2 年期与 10 年期国债利差转负之后，衰退通常在随后一至两年内出现，但
+\term{倒挂是信号而非机制}：它给出概率倾向，给不出时点与幅度，且样本量极小（半个多世纪
+不足十次），任何把倒挂当作交易触发器的做法都要面对统计功效不足的问题。
+
+\begin{warningbox}[期限结构的常见误用]
+第一，把远期利率直接当成市场预期。远期利率包含期限溢价与流动性溢价，当溢价波动时，
+远期利率的变化方向甚至可以与预期相反。第二，用历史平均利差做「均值回复」交易。
+在政策体制切换（如量化宽松的引入与退出）时，利差的均衡水平本身发生位移，历史均值不再是
+稳定的吸引子。第三，用单一曲线为所有信用等级的债券贴现。正确的做法是基准曲线加信用价差，
+而信用价差在危机中会与基准利率同时扩大，二者并非独立变量。
+\end{warningbox}
+
+\section{有效市场假说与行为金融}
+
+\subsection{三个层次的效率与检验方式}
+
+Eugene Fama 将市场效率分为弱式、半强式与强式三个层次，每一层次对应一类可检验的命题：
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{弱式有效}：价格已反映全部历史交易信息，技术分析不能产生超额收益。检验方式
+        是收益率的自相关检验与游程检验。
+  \item \textbf{半强式有效}：价格已反映全部公开信息，基本面分析不能产生超额收益。检验方式
+        是\term{事件研究}（event study）：计算事件窗口内的异常收益
+        $AR_t = R_t - \E[R_t \mid \text{因子模型}]$，再检验累计异常收益 $CAR$ 是否显著为零。
+  \item \textbf{强式有效}：价格反映包括内幕信息在内的全部信息，任何投资者都无法获得超额收益。
+        检验方式是考察内部人交易与专业基金经理的业绩持续性。
+\end{itemize}
+
+\subsection{异象与 Grossman--Stiglitz 悖论}
+
+动量效应（过去 3 至 12 个月的赢家在未来数月继续跑赢）与价值效应（低 P/B 组合长期跑赢高 P/B
+组合）是最常被引用的两个异象。但异象的存在本身不等于市场无效：数据挖掘、样本外衰减、
+交易成本与容量约束都可能吞掉全部超额收益。这正是 Grossman 与 Stiglitz 在 1980 年提出的
+悖论：如果价格已经反映了全部信息，就没有人有动机去搜集信息；但如果没有人搜集信息，
+价格又不可能有效。因此真实市场必然处于\term{近似有效}状态，有效程度由信息搜集的边际成本
+决定。这一结论对量化从业者有直接含义——\term{超额收益的来源必然是某种信息优势或成本优势}，
+而不可能是「更聪明地算同一个数」。
+
+\begin{appbox}[在量化研究中使用异象的三条纪律]
+其一，异象必须能在扣除交易成本后存活，尤其在换手率高时，需要用实施缺口（implementation
+shortfall）而非收盘价回测。其二，必须做样本外与多重检验校正：测试 100 个信号，即便全部无效，
+也会有约 5 个在 5\% 水平显著，第 7 章讨论的 Deflated Sharpe Ratio 与 PBO 是标准处理。其三，
+必须问「谁在提供这笔超额收益」：若找不到对手方与交易动机，大概率是数据错误或幸存者偏差。
+\end{appbox}
+
+\subsection{前景理论的价值函数}
+
+Kahneman 与 Tversky 的前景理论把决策权重从客观概率改为\term{概率权重} $\pi(p)$，
+把效用改为定义在盈亏上的\term{价值函数}：
+
+\begin{equation}\label{eq:01-prospect}
+  v(x) =
+  \begin{cases}
+    x^{\alpha}, & x \ge 0, \\
+    -\lambda\,(-x)^{\beta}, & x < 0,
+  \end{cases}
+  \qquad \alpha, \beta \in (0,1],\ \lambda > 1
+\end{equation}
+
+其中 $x$ 为相对于参考点（reference point）的盈亏，$\alpha$ 与 $\beta$ 为曲率参数，
+刻画边际敏感性递减，$\lambda$ 为\term{损失厌恶系数}。Kahneman 与 Tversky 的实验估计
+$\alpha \approx \beta \approx 0.88$、$\lambda \approx 2.25$，即同等金额的损失带来的痛苦
+约为收益带来快乐的两倍以上。
+
+这两个参数直接映射到金融现象：$\lambda > 1$ 解释为什么投资者持有亏损股票过久、
+过早卖出盈利股票（处置效应）；$v$ 在收益区的凹性解释为什么面对确定性收益时投资者风险厌恶；
+$v$ 在损失区的凸性解释为什么面对确定性损失时投资者反而追求风险（赌一把）。
+
+\begin{warningbox}[前景理论不是交易策略]
+价值函数中的参考点无法事先观测，$\lambda$ 与 $\alpha$ 的估计值依赖实验任务、金额量级与
+文化背景，个体间差异极大。更重要的是，很多所谓「行为异象」在加入交易成本后会消失。
+把前景理论当作预测工具使用时，必须先明确参考点的可操作定义（如持仓成本、前期高点或
+指数基准），否则模型无法给出可检验的预测。
+\end{warningbox}
+
+\section{市场参与者与交易机制}
+
+\subsection{参与者类型}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{散户投资者}（Retail Investors）：资金规模小、信息劣势明显，但其情绪波动
+        本身构成可交易信号。
+  \item \textbf{机构投资者}（Institutional Investors）：养老基金、主权财富基金、保险公司、
+        共同基金与对冲基金。其委托代理结构决定了考核周期与风险约束。
+  \item \textbf{做市商}（Market Makers）：提供双边报价并承担库存风险，收益来自价差。
+  \item \textbf{高频交易商}（HFT）：以微秒级延迟捕捉订单流信息与跨市场价差，提供流动性的
+        同时也在特定时刻消耗流动性。
+  \item \textbf{监管机构}：美国证券交易委员会（SEC）、中国证券监督管理委员会（CSRC）、
+        英国金融行为监管局（FCA）等，负责信息披露、市场秩序与系统性风险防范。
+\end{itemize}
+
+\subsection{订单类型与交易成本}
+
+最常见的订单类型包括市价单（以当前对手价立即成交，承担价格不确定性）、限价单（指定价格，
+承担不能成交的风险）、以及止损单（触发后转为市价单）。订单类型的差异本质上是
+\term{执行风险}与\term{机会成本}之间的权衡：急迫的交易者用市价单支付价差，耐心的交易者用
+限价单卖出流动性并面临逆向选择。量化策略的实盘表现与回测表现的差距，主要来自这一权衡的
+误估，相关方法在后续章节关于最优执行与交易成本模型的讨论中展开。
+
+\begin{keybox}[本章的三个基础关系]
+一是价值关系：任何资产的价格等于其未来现金流按风险匹配折现率折现的现值，见 \cref{eq:01-ddm}
+与 \cref{eq:01-bondprice}。二是风险关系：价格对风险因子的敏感度可以泰勒展开，一阶项是久期或
+$\Delta$，二阶项是凸性或 $\Gamma$，见 \cref{eq:01-convadj}。三是信息关系：市场的有效程度由
+信息生产的边际成本决定，见 Grossman--Stiglitz 悖论。这三条关系在后续几乎所有章节中反复出现。
 \end{keybox}
 
-\section{现代金融理论基础}
+\begin{lstlisting}[style=pythonstyle,
+                   caption={债券久期、凸性、DV01 与久期近似的数值验证},
+                   label={lst:01-bond}]
+import numpy as np
 
-\subsection{有效市场假说 (EMH)}
+def bond_risk(face, coupon_rate, ytm, years, freq=1):
+    """Price, Macaulay/modified duration, convexity and DV01 of a plain bond."""
+    n = int(years * freq)
+    c = face * coupon_rate / freq
+    t = np.arange(1, n + 1)
+    cf = np.full(n, c)
+    cf[-1] += face
+    disc = (1.0 + ytm / freq) ** (-t)
+    pv = cf * disc
+    price = pv.sum()
+    mac = (t * pv).sum() / (price * freq)
+    mod = mac / (1.0 + ytm / freq)
+    conv = (pv * t * (t + 1)).sum() / (price * (1.0 + ytm / freq) ** 2) / freq ** 2
+    dv01 = price * mod * 1e-4
+    return price, mac, mod, conv, dv01
 
-Eugene Fama 提出的 EMH 将市场效率分为三个层次：
+def price_at(face, coupon_rate, ytm, years, freq=1):
+    n = int(years * freq)
+    c = face * coupon_rate / freq
+    t = np.arange(1, n + 1)
+    cf = np.full(n, c)
+    cf[-1] += face
+    return float((cf * (1.0 + ytm / freq) ** (-t)).sum())
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{弱式有效}：价格反映所有历史交易信息，技术分析无效
-  \item \textbf{半强式有效}：价格反映所有公开信息，基本面分析无效
-  \item \textbf{强式有效}：价格反映所有信息（含内幕信息），无任何超额收益可能
+p, mac, mod, conv, dv01 = bond_risk(100.0, 0.05, 0.06, 3.0)
+print("price=%.5f  D=%.4f  D*=%.4f  C=%.4f  DV01=%.5f" % (p, mac, mod, conv, dv01))
+
+dy = 0.01
+p1 = price_at(100.0, 0.05, 0.06 + dy, 3.0)
+approx = -mod * dy
+with_conv = -mod * dy + 0.5 * conv * dy ** 2
+print("exact=%.4f%%  dur_only=%.4f%%  dur_conv=%.4f%%"
+      % (100 * (p1 - p) / p, 100 * approx, 100 * with_conv))
+# expected: exact=-2.6504%  dur_only=-2.6957%  dur_conv=-2.6449%
+\end{lstlisting}
+
+\Cref{lst:01-bond} 把 \cref{ex:01-duration} 的手算过程写成可复用的函数：改变
+\texttt{coupon\_rate} 或 \texttt{freq} 即可观察票息与付息频率对久期的影响。运行最后三行
+会打印出与手算一致的结果，可用于验证定价与风险指标的实现是否自洽。
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item 金融体系的功能是跨期与跨风险的资源配置；货币市场工具（国库券、商业票据、大额存单、
+        回购）以低信用风险与高流动性为特征，是短期资金价格的基准。
+  \item 资产定价的统一框架是「未来现金流按风险匹配折现率折现」：股利折现模型见
+        \cref{eq:01-ddm}，债券定价见 \cref{eq:01-bondprice}。
+  \item 久期有四种解释（加权回款时间、一阶敏感度、期限平衡点、与回收期的区别），
+        修正久期给出价格对收益率的一阶近似 \cref{eq:01-durationapprox}，
+        凸性项 \cref{eq:01-convadj} 是二阶修正。
+  \item DV01 把久期转成绝对金额，用于久期对冲与负债免疫；免疫只在瞬时成立，必须定期再平衡。
+  \item 指数编制方式（价格加权、市值加权、等权）在同样标的上涨跌可以相差数倍，
+        讨论「指数收益」必须说明加权规则。
+  \item 三大报表通过净利润、留存收益与现金余额三条勾稽链相互约束；杜邦分解
+        \cref{eq:01-dupont} 把 ROE 拆成盈利、效率与杠杆三类驱动。
+  \item 资本预算以 NPV 为首要判据，IRR 在互斥项目与非常规现金流下会误导，
+        必要时改算增量 IRR。
+  \item 期限结构由预期、期限溢价与市场分割共同决定；远期利率由无套利关系
+        \cref{eq:01-forward} 确定，不能等同于市场预期。
+  \item 市场效率由信息生产的边际成本决定（Grossman--Stiglitz），
+        前景理论用 \cref{eq:01-prospect} 刻画损失厌恶，但参考点不可观测。
 \end{itemize}
+\end{summarybox}
 
-\subsection{行为金融学挑战}
+\begin{exercises}
+  \item 一张面值 1000 元、票息率 $4\%$、每年付息、5 年到期的债券，当前 YTM 为 $5\%$。
+        请计算价格、麦考利久期、修正久期、凸性与 DV01，并用 \cref{eq:01-convadj} 估计
+        YTM 上升 50 个基点后的价格，与精确价格比较误差。
+  \item 某养老基金需在 8 年后支付 5000 万元，负债的修正久期为 7.4 年。现有两只债券：
+        A 的修正久期 4.2 年、凸性 22，B 的修正久期 11.5 年、凸性 140。请给出免疫组合的
+        权重，并说明为什么不选择全部持有 B。
+  \item 用 \cref{eq:01-forward} 计算：若 1 年期即期利率为 $3.0\%$、3 年期即期利率为
+        $3.3\%$，求第 2 年至第 3 年的远期利率。若实际 1 年期远期利率报价为 $4.0\%$，
+        说明存在什么样的套利机会。
+  \item 三只股票的股价为 20、40、60 元，股数为 10、5、2 亿股。分别构造价格加权与
+        市值加权指数（基期为 1000 点）。若第三只股票单日上涨 $10\%$、其余不变，
+        两种指数分别变动多少点？
+  \item 某公司净利率 $8\%$、总资产周转率 $1.2$、权益乘数 $2.0$。若管理层希望把 ROE
+        提升到 $25\%$，在净利率与周转率均无法改善的前提下，权益乘数需要达到多少？
+        并说明这一变化对利息覆盖倍数的影响。
+  \item 设计一个事件研究方案，检验「并购公告后目标公司股价是否已充分反映信息」。
+        需要给出事件窗口、估计窗口、异常收益的基准模型与统计检验量，
+        并说明结果不显著时可能的三种解释。
+  \item 假设投资者的价值函数为 \cref{eq:01-prospect}，$\alpha = \beta = 0.88$，
+        $\lambda = 2.25$，参考点为持仓成本。请计算盈利 $10\%$ 与亏损 $10\%$ 的价值函数值之比，
+        并解释该比率如何产生处置效应。
+\end{exercises}
 
-行为金融学指出市场并非完全理性：
-
-\begin{itemize}[leftmargin=*]
-  \item 过度自信（Overconfidence）
-  \item 损失厌恶（Loss Aversion）—— 卡尼曼与特沃斯基的前景理论
-  \item 羊群效应（Herding）
-  \item 锚定效应（Anchoring）
-  \item 处置效应（Disposition Effect）
-\end{itemize}
-
-\section{金融市场参与者}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{散户投资者}（Retail Investors）：个人投资者
-  \item \textbf{机构投资者}（Institutional Investors）：养老基金、主权财富基金、保险公司
-  \item \textbf{做市商}（Market Makers）：提供双边报价，维持市场流动性
-  \item \textbf{高频交易商}（HFT）：利用算法在极短时间尺度上交易
-  \item \textbf{监管机构}：SEC（美国）、CSRC（中国证监会）、FCA（英国）等
-\end{itemize}
-
-\section{小结}
-
-本章建立了金融体系的基本知识框架：从市场结构到核心工具，从财务报表分析到利率理论，再到现代金融理论的思想脉络。后续章节将在此基础上深入量化方法。
+\begin{furtherreading}
+\refitem Bodie, Z., Kane, A., and Marcus, A., \emph{Investments}, 12th ed., McGraw-Hill, 2020.
+  （第 2--3 章讲市场结构与工具，第 13--14 章讲久期与免疫，术语体系与本章一致）
+\refitem Fabozzi, F., \emph{Bond Markets, Analysis, and Strategies}, 10th ed., MIT Press, 2021.
+  （久期、凸性、DV01 与免疫策略的工程细节最完整，附大量数值算例）
+\refitem Fama, E., ``Efficient Capital Markets: A Review of Theory and Empirical Work'',
+  \emph{Journal of Finance}, 1970.（有效市场假说的原始分类，检验方法论的起点）
+\refitem Grossman, S., and Stiglitz, J., ``On the Impossibility of Informationally Efficient Markets'',
+  \emph{American Economic Review}, 1980.（信息成本与市场效率关系的经典悖论）
+\refitem Kahneman, D., and Tversky, A., ``Prospect Theory: An Analysis of Decision under Risk'',
+  \emph{Econometrica}, 1979.（价值函数与概率权重的原始论文，$\lambda$ 的估计出处）
+\refitem Penman, S., \emph{Financial Statement Analysis and Security Valuation}, 5th ed.,
+  McGraw-Hill, 2013.（三大报表勾稽关系与杜邦分解的系统处理）
+\end{furtherreading}

@@ -1,0 +1,499 @@
+% ============================================================================
+%  Quantex 内部讲义 · 《量化金融工程》统一导言区
+%  ---------------------------------------------------------------------------
+%  引擎：XeLaTeX          文档类：ctexbook（在 main.tex 中声明）
+%  本文件被 main.tex 与各章独立编译脚本（tools/check_chapter.sh）共同引用，
+%  所有排版样式、数学宏、彩色盒子、算法与代码样式均集中于此，便于统一维护。
+%  修改样式只需改这里一处，全书与单章 PDF 同时生效。
+% ============================================================================
+
+% ---------------------------------------------------------------- 引擎与数学
+\usepackage{iftex}
+\RequireXeTeX
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{mathrsfs}
+
+% ---------------------------------------------------------------- 颜色（须先于 tikz/pgfplots 载入，避免选项冲突）
+\usepackage[table]{xcolor}
+
+% ---------------------------------------------------------------- 版面与排版
+\usepackage[
+  a4paper, left=2.5cm, right=2.5cm, top=2.6cm, bottom=2.4cm,
+  headheight=16pt, headsep=12pt, footskip=1.1cm
+]{geometry}
+\usepackage{graphicx}
+\usepackage{array,booktabs,multirow,makecell,tabularx,longtable}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{tocloft}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}   % 先载入，稍后由 \hypersetup 统一配置
+
+% ---------------------------------------------------------------- 图形与绘图
+\usepackage{tikz}
+\usetikzlibrary{
+  arrows.meta, positioning, calc, patterns,
+  decorations.pathreplacing, decorations.markings,
+  shapes.geometric, shapes.misc, fit, backgrounds, matrix
+}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+
+% ---------------------------------------------------------------- 颜色与盒子
+\usepackage{fontawesome5}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems,hooks}
+\usepackage{listings}
+
+% ============================================================================
+%  配色方案
+% ============================================================================
+\definecolor{quantblue}{RGB}{30,64,175}     % 主色：量化蓝
+\definecolor{quantnavy}{RGB}{15,32,84}      % 深蓝：封面底色
+\definecolor{quantgreen}{RGB}{5,150,105}    % 辅色：收益/正向
+\definecolor{quantred}{RGB}{185,28,28}      % 警示色：风险/负向
+\definecolor{quantgold}{RGB}{176,122,30}    % 点缀色：金色分隔线
+\definecolor{quantpurple}{RGB}{109,40,217}  % 第四色：概率/测度
+\definecolor{inkgray}{RGB}{55,65,81}        % 正文灰：标题层级
+\definecolor{codebg}{RGB}{247,248,250}      % 代码底色
+\definecolor{boxbg}{RGB}{239,246,255}       % 要点底色
+\definecolor{warnbg}{RGB}{254,242,242}      % 警示底色
+\definecolor{appbg}{RGB}{240,253,244}       % 应用底色
+\definecolor{intubg}{RGB}{253,250,235}      % 直觉底色
+
+% ============================================================================
+%  中文字体（macOS 字体回退：宋体正文 / 黑体标题 / 楷体强调）
+% ============================================================================
+\setCJKmainfont{Songti SC}[BoldFont=Songti SC Bold, ItalicFont=Kaiti SC]
+\setCJKsansfont{Heiti SC}[BoldFont=Heiti SC Medium]
+\setCJKmonofont{Heiti SC}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+\linespread{1.14}
+
+% ============================================================================
+%  章节标题样式（ctexset）
+%  注意：不覆盖 chapter/name，以便 \appendix 自动切换为「附录 A」
+% ============================================================================
+\ctexset{
+  chapter = {
+    format     = \raggedright\sffamily\bfseries\color{quantblue}%
+                 \fontsize{25}{29}\selectfont,
+    nameformat = \color{quantblue!45},
+    aftername  = \hspace{0.35em},
+    beforeskip = {0pt},
+    afterskip  = {16pt},
+    aftertitle = {\par\vspace{2pt}%
+                  {\color{quantgold}\rule{\textwidth}{1.6pt}}\par\vspace{-2pt}},
+    pagestyle  = fancy
+  },
+  section = {
+    format     = \Large\sffamily\bfseries\color{quantblue},
+    aftername  = \hspace{0.3em},
+    beforeskip = {15pt plus 3pt minus 2pt},
+    afterskip  = {7pt plus 1pt minus 1pt}
+  },
+  subsection = {
+    format     = \large\sffamily\bfseries\color{inkgray},
+    beforeskip = {11pt plus 2pt minus 2pt},
+    afterskip  = {5pt plus 1pt minus 1pt}
+  },
+  subsubsection = {
+    format     = \normalsize\sffamily\bfseries\color{inkgray!85},
+    beforeskip = {9pt plus 2pt minus 2pt},
+    afterskip  = {4pt plus 1pt minus 1pt}
+  }
+}
+
+% ============================================================================
+%  目录样式
+% ============================================================================
+\renewcommand{\cftchapfont}{\sffamily\bfseries\color{quantblue}}
+\renewcommand{\cftchappagefont}{\sffamily\bfseries\color{quantblue}}
+\renewcommand{\cftsecfont}{\sffamily\color{inkgray}}
+\renewcommand{\cftsecpagefont}{\sffamily\color{inkgray}}
+\renewcommand{\cftsubsecfont}{\sffamily\small\color{inkgray!80}}
+\renewcommand{\cftsubsecpagefont}{\sffamily\small\color{inkgray!80}}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\setlength{\cftbeforechapskip}{7pt}
+\setlength{\cftbeforesecskip}{2pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{3}
+
+% 目录标题「目录」本身
+\renewcommand{\contentsname}{目\hspace{0.5em}录}
+
+% ============================================================================
+%  页眉页脚
+% ============================================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\sffamily\bfseries\color{quantblue}\thepage}
+\fancyhead[RE]{\sffamily\small\color{inkgray}\nouppercase{\leftmark}}
+\fancyhead[LO]{\sffamily\small\color{inkgray}\nouppercase{\rightmark}}
+\fancyfoot[C]{\sffamily\scriptsize\color{inkgray!65}%
+  Quantex 内部讲义 · 量化金融工程 · Quantitative Financial Engineering}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\headrule}{{\color{quantblue!22}\hrule width\headwidth height 0.9pt}}
+
+% 前置部分（前言/目录）使用简洁页脚
+\fancypagestyle{frontstyle}{%
+  \fancyhf{}%
+  \fancyfoot[C]{\sffamily\small\color{inkgray!70}\thepage}%
+  \renewcommand{\headrule}{}%
+}
+
+% ============================================================================
+%  超链接
+% ============================================================================
+\hypersetup{
+  colorlinks   = true,
+  linkcolor    = quantblue,
+  citecolor    = quantgreen,
+  urlcolor     = quantblue!85!black,
+  linktoc      = all,
+  bookmarksnumbered = true,
+  bookmarksopen     = false,
+  unicode      = true,
+  pdfencoding  = auto,
+  pdftitle     = {量化金融工程 · Quantitative Financial Engineering},
+  pdfauthor    = {Quantex},
+  pdfsubject   = {Quantex 内部讲义 · 量化金融 · 衍生品定价 · 因子投资 · 风险管理},
+  pdfkeywords  = {量化金融, Q Quant, P Quant, 衍生品定价, 随机过程, 因子模型, 组合优化}
+}
+% 标题中如不得已出现数学，保证 PDF 书签可读
+\pdfstringdefDisableCommands{%
+  \def\ensuremath#1{#1}%
+  \def\frac#1#2{#1/#2}%
+  \def\text#1{#1}%
+  \def\mathrm#1{#1}%
+  \def\mathbb#1{#1}%
+}
+
+% ============================================================================
+%  交叉引用（cleveref，中文名称）
+% ============================================================================
+\usepackage{cleveref}
+\crefname{chapter}{章}{章}
+\crefname{section}{节}{节}
+\crefname{subsection}{小节}{小节}
+\crefname{equation}{式}{式}
+\crefname{figure}{图}{图}
+\crefname{table}{表}{表}
+\crefname{lstlisting}{代码}{代码}
+\crefname{algorithm}{算法}{算法}
+\crefname{definition}{定义}{定义}
+\crefname{theorem}{定理}{定理}
+\crefname{proposition}{命题}{命题}
+\crefname{lemma}{引理}{引理}
+\crefname{corollary}{推论}{推论}
+\crefname{example}{例}{例}
+\crefname{remark}{注记}{注记}
+\crefname{assumption}{假设}{假设}
+\crefformat{equation}{式~(#2#1#3)}
+\crefformat{lstlisting}{代码~#2#1#3}
+\crefrangeformat{equation}{式~(#3#1#4)---(#5#2#6)}
+
+% ============================================================================
+%  定理类环境
+%  · definition / example 使用彩色盒子（视觉上更醒目，编号按章）
+%  · theorem / proposition / lemma / corollary / remark / assumption 使用
+%    自定义定理样式（较轻量，避免整页都是色块）
+% ============================================================================
+\newtheoremstyle{quant}
+  {9pt}          % 上方间距
+  {9pt}          % 下方间距
+  {\normalfont}  % 正文
+  {0pt}          % 缩进
+  {\bfseries\sffamily\color{quantblue}}  % 标题
+  {}             % 标题后标点
+  {0.6em}        % 标题后间距
+  {}
+\theoremstyle{quant}
+\newtheorem{theorem}{定理}[chapter]
+\newtheorem{proposition}{命题}[chapter]
+\newtheorem{lemma}{引理}[chapter]
+\newtheorem{corollary}{推论}[chapter]
+\newtheorem{remark}{注记}[chapter]
+\newtheorem{assumption}{假设}[chapter]
+\newtheorem{exercise}{思考题}[chapter]
+
+\renewcommand{\proofname}{\sffamily\bfseries 证明}
+\renewcommand{\qedsymbol}{$\blacksquare$}
+
+% --- 定义盒 ---------------------------------------------------------------
+\newtcolorbox[auto counter, number within=chapter]{definition}[1][]{
+  enhanced, breakable,
+  colback=boxbg, colframe=quantblue!55, boxrule=0.6pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily,
+  title={定义~\thetcbcounter\ \ \textnormal{#1}},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantblue!55, size=small, arc=1mm, boxrule=0pt},
+  coltitle=black
+}
+\crefname{tcb@cnt@definition}{定义}{定义}
+\Crefname{tcb@cnt@definition}{定义}{定义}
+
+% --- 例盒 -----------------------------------------------------------------
+\newtcolorbox[auto counter, number within=chapter]{example}[1][]{
+  enhanced, breakable,
+  colback=quantgreen!5, colframe=quantgreen!55, boxrule=0.6pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily,
+  title={例~\thetcbcounter\ \ \textnormal{#1}},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantgreen!55, size=small, arc=1mm, boxrule=0pt},
+  coltitle=black
+}
+\crefname{tcb@cnt@example}{例}{例}
+\Crefname{tcb@cnt@example}{例}{例}
+
+% ============================================================================
+%  彩色提示盒
+% ============================================================================
+% 要点盒（按章编号，可用 \label + \cref 引用）
+\newtcolorbox[auto counter, number within=chapter]{keybox}[1][]{
+  enhanced, breakable,
+  colback=boxbg, colframe=quantblue!70, boxrule=0.8pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily\color{white},
+  coltitle=white,
+  title={\faLightbulb\hspace{0.4em}核心要点~\thetcbcounter\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantblue!80, size=small, arc=1mm, boxrule=0pt}
+}
+\crefname{tcb@cnt@keybox}{要点}{要点}
+\Crefname{tcb@cnt@keybox}{要点}{要点}
+
+% 风险警示盒
+\newtcolorbox{warningbox}[1][]{
+  enhanced, breakable,
+  colback=warnbg, colframe=quantred!70, boxrule=0.8pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily\color{white}, coltitle=white,
+  title={\faExclamationTriangle\hspace{0.4em}风险警示\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantred!80, size=small, arc=1mm, boxrule=0pt}
+}
+
+% 实务应用盒
+\newtcolorbox{appbox}[1][]{
+  enhanced, breakable,
+  colback=appbg, colframe=quantgreen!65, boxrule=0.8pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily\color{white}, coltitle=white,
+  title={\faChartLine\hspace{0.4em}实务应用\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantgreen!70, size=small, arc=1mm, boxrule=0pt}
+}
+
+% 直觉理解盒
+\newtcolorbox{intuitionbox}[1][]{
+  enhanced, breakable,
+  colback=intubg, colframe=quantgold!65, boxrule=0.8pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily, coltitle=black,
+  title={\faBrain\hspace{0.4em}直觉理解\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantgold!45, size=small, arc=1mm, boxrule=0pt}
+}
+
+% 补充说明盒
+\newtcolorbox{notebox}[1][]{
+  enhanced, breakable,
+  colback=white, colframe=inkgray!45, boxrule=0.6pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily, coltitle=inkgray,
+  title={\faInfoCircle\hspace{0.4em}补充说明\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=inkgray!12, size=small, arc=1mm, boxrule=0pt}
+}
+
+% 考点盒（用于资格证章节）
+\newtcolorbox{exambox}[1][]{
+  enhanced, breakable,
+  colback=quantpurple!5, colframe=quantpurple!60, boxrule=0.8pt, arc=1.5mm,
+  left=3mm, right=3mm, top=2mm, bottom=2mm,
+  fonttitle=\bfseries\sffamily\color{white}, coltitle=white,
+  title={\faGraduationCap\hspace{0.4em}考试要点\ \ #1},
+  attach boxed title to top left={yshift=-2mm, xshift=3mm},
+  boxed title style={colback=quantpurple!70, size=small, arc=1mm, boxrule=0pt}
+}
+
+% ============================================================================
+%  章节收尾环境：本章小结 / 练习与思考 / 延伸阅读
+% ============================================================================
+\newtcolorbox{summarybox}[1][本章小结]{
+  enhanced, breakable,
+  colback=quantblue!4, colframe=quantblue!45, boxrule=0.8pt, arc=2mm,
+  left=3.5mm, right=3.5mm, top=2.5mm, bottom=2.5mm,
+  fonttitle=\bfseries\sffamily\large\color{quantblue},
+  coltitle=quantblue, colbacktitle=quantblue!8,
+  title={\faBookOpen\hspace{0.4em}#1},
+  attach boxed title to top left={yshift=-2.5mm, xshift=4mm},
+  boxed title style={colback=quantblue!8, size=small, arc=1mm, boxrule=0pt}
+}
+
+\newenvironment{exercises}[1][练习与思考]{%
+  \par\vspace{6pt}%
+  {\sffamily\bfseries\large\color{quantblue}\faPen\hspace{0.4em}#1}\par
+  \vspace{4pt}%
+  \begin{enumerate}[label=\textbf{\arabic*.}, leftmargin=1.9em,
+                    itemsep=3pt, topsep=2pt, parsep=0pt]%
+}{%
+  \end{enumerate}\par\vspace{4pt}%
+}
+
+\newenvironment{furtherreading}[1][延伸阅读]{%
+  \par\vspace{6pt}%
+  {\sffamily\bfseries\large\color{quantblue}\faBook\hspace{0.4em}#1}\par
+  \vspace{4pt}%
+  \begin{itemize}[label=\textcolor{quantgold}{\small\faAngleRight},
+                  leftmargin=1.5em, itemsep=2pt, topsep=2pt, parsep=0pt]%
+}{%
+  \end{itemize}\par\vspace{4pt}%
+}
+
+% 用于「延伸阅读」中的文献条目：作者《标题》，期刊/出版社，年份
+\newcommand{\refitem}[1]{\item #1}
+
+% ============================================================================
+%  表格与图注样式
+% ============================================================================
+\captionsetup{
+  font={small,sf},
+  labelfont={bf,color=quantblue},
+  labelsep=quad,
+  skip=6pt,
+  justification=centering
+}
+\captionsetup[table]{skip=4pt}
+\captionsetup[algorithm]{font={small,sf},labelfont={bf,color=quantpurple},labelsep=quad}
+
+% 列类型：定宽左/中/右对齐，以及 tabularx 弹性列
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\newcommand{\tablefont}{\small\setlength{\tabcolsep}{5.5pt}%
+  \renewcommand{\arraystretch}{1.16}}
+
+% 行内术语首次出现：中文（English）
+\newcommand{\term}[1]{\textbf{#1}}
+
+% ============================================================================
+%  算法与代码样式
+% ============================================================================
+\floatname{algorithm}{算法}
+\renewcommand{\algorithmicrequire}{\textbf{输入:}}
+\renewcommand{\algorithmicensure}{\textbf{输出:}}
+\renewcommand{\algorithmiccomment}[1]{\hfill\textcolor{quantgreen}{\itshape\small // #1}}
+\renewcommand{\listalgorithmname}{算法目录}
+\numberwithin{algorithm}{chapter}
+
+\lstdefinestyle{pythonstyle}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{quantblue}\bfseries,
+  commentstyle=\color{quantgreen}\itshape,
+  stringstyle=\color{quantred},
+  numbers=left, numberstyle=\tiny\color{inkgray!60}, numbersep=6pt,
+  frame=single, framerule=0.4pt, rulecolor=\color{inkgray!35},
+  breaklines=true, breakatwhitespace=false,
+  showstringspaces=false, tabsize=2,
+  captionpos=t, abovecaptionskip=4pt, belowcaptionskip=4pt,
+  xleftmargin=14pt, framexleftmargin=14pt
+}
+\lstdefinestyle{soliditystyle}{
+  language=Java,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{quantpurple}\bfseries,
+  commentstyle=\color{quantgreen}\itshape,
+  stringstyle=\color{quantred},
+  numbers=left, numberstyle=\tiny\color{inkgray!60}, numbersep=6pt,
+  frame=single, framerule=0.4pt, rulecolor=\color{inkgray!35},
+  breaklines=true, showstringspaces=false, tabsize=4,
+  captionpos=t, abovecaptionskip=4pt, belowcaptionskip=4pt,
+  xleftmargin=14pt, framexleftmargin=14pt
+}
+\lstdefinestyle{shellstyle}{
+  language=bash,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{quantblue}\bfseries,
+  commentstyle=\color{quantgreen}\itshape,
+  numbers=none,
+  frame=single, framerule=0.4pt, rulecolor=\color{inkgray!35},
+  breaklines=true, showstringspaces=false,
+  captionpos=t, xleftmargin=14pt, framexleftmargin=14pt
+}
+\lstdefinestyle{plaincode}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize,
+  numbers=left, numberstyle=\tiny\color{inkgray!60}, numbersep=6pt,
+  frame=single, framerule=0.4pt, rulecolor=\color{inkgray!35},
+  breaklines=true, showstringspaces=false,
+  captionpos=t, xleftmargin=14pt, framexleftmargin=14pt
+}
+
+% ============================================================================
+%  数学宏（全书统一，鼓励使用以保持符号一致）
+% ============================================================================
+\newcommand{\E}{\mathbb{E}}                        % 期望
+\newcommand{\Prob}{\mathbb{P}}                     % 真实测度
+\newcommand{\Qm}{\mathbb{Q}}                       % 风险中性测度
+\newcommand{\Fm}{\mathcal{F}}                      % 信息流
+\newcommand{\N}{\mathcal{N}}                       % 正态/鞅
+\newcommand{\R}{\mathbb{R}}                        % 实数集
+\newcommand{\Var}{\operatorname{Var}}              % 方差
+\newcommand{\Cov}{\operatorname{Cov}}              % 协方差
+\newcommand{\Corr}{\operatorname{Corr}}            % 相关系数
+\newcommand{\sd}{\operatorname{sd}}                % 标准差
+\newcommand{\se}{\operatorname{SE}}                % 标准误
+\newcommand{\VaR}{\operatorname{VaR}}              % 在险价值
+\newcommand{\ES}{\operatorname{ES}}                % 预期亏空
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\inner}[2]{\left\langle #1,\, #2 \right\rangle}
+\newcommand{\dd}{\mathrm{d}}                       % 微分 d
+\newcommand{\ee}{\mathrm{e}}                       % 自然指数 e
+\newcommand{\ii}{\mathrm{i}}                       % 虚数单位
+\newcommand{\ind}[1]{\mathbf{1}_{\{#1\}}}          % 示性函数
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\vect}[1]{\bm{#1}}                     % 向量/矩阵粗体
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\pdd}[2]{\frac{\partial^2 #1}{\partial #2^2}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator{\sign}{sgn}
+\DeclareMathOperator{\law}{\mathcal{L}}
+\DeclareMathOperator{\supp}{supp}
+
+% 常用简写：收益率、波动率、相关系数、权重
+\newcommand{\ret}{r}
+\newcommand{\vol}{\sigma}
+\newcommand{\wvec}{\vect{w}}
+\newcommand{\muvec}{\bm{\mu}}
+\newcommand{\Sigmamat}{\bm{\Sigma}}
+\newcommand{\volvec}{\bm{\sigma}}                  % 波动率向量
+\newcommand{\corrmat}{\bm{R}}                      % 相关矩阵
+\newcommand{\ones}{\mathbf{1}}                     % 全 1 向量
+\newcommand{\CVaR}{\operatorname{CVaR}}             % 条件在险价值（= ES）
+\newcommand{\SR}{\operatorname{SR}}                 % 夏普比率
+\newcommand{\IC}{\operatorname{IC}}                 % 信息系数
+\newcommand{\IR}{\operatorname{IR}}                 % 信息比率
+\newcommand{\Gm}{\mathcal{G}}                      % 辅助信息流
+\newcommand{\Hm}{\mathcal{H}}                      % 辅助信息流

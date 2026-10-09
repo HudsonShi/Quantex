@@ -1,248 +1,1082 @@
 \chapter{时间序列分析}
 
-\section{经典时间序列模型}
+金融数据几乎全部以时间序列的形式出现：日收益率、分钟级成交价、逐笔订单流、宏观月度指标。
+时间序列分析的任务，是从这些带有序结构的观测中分离出三类成分——可预测的动态（趋势、周期、
+自回归结构）、可建模的波动率（条件异方差）、以及不可约的噪声。本章按「线性均值模型 $\to$
+条件波动率模型 $\to$ 高频与状态空间 $\to$ 协整与因果 $\to$ 深度学习 $\to$ 评估与回测」的顺序展开，
+并始终强调一个原则：模型复杂度必须由样本外表现与失效条件来约束，而不是由样本内拟合优度来驱动。
 
-\subsection{平稳性与自相关}
+\section{平稳性与模型识别}
 
-弱平稳条件：
+\subsection{平稳性的两种定义}
+
+\begin{definition}[严平稳与弱平稳]\label{def:09-stationary}
+若对任意 $k$ 与任意时刻集合 $t_1<\cdots<t_k$，联合分布
+$(y_{t_1},\dots,y_{t_k})$ 与 $(y_{t_1+h},\dots,y_{t_k+h})$ 相同，则称 $\{y_t\}$ 为\term{严平稳}
+（strictly stationary）。若仅要求前两阶矩满足
+\begin{equation}\label{eq:09-weak}
+  \E[y_t]=\mu,\qquad \Cov(y_t,y_{t-k})=\gamma_k\quad\text{（不依赖 $t$）}
+\end{equation}
+则称 $\{y_t\}$ 为\term{弱平稳}（weakly stationary）或协方差平稳，其中 $\mu$ 为常数均值、
+$\gamma_k$ 为滞后 $k$ 阶的自协方差、$\gamma_0=\Var(y_t)$ 为常数方差。
+\end{definition}
+
+弱平稳是绝大多数线性时间序列模型的建模前提，也是假设检验的对象。实践中常见的偏离有三类：
+确定性趋势（如名义 GDP）、随机趋势（单位根，如股价对数）、季节性与结构突变。三类偏离的
+处理方式完全不同：趋势可以用回归或差分消除，单位根需要差分并检验，而结构突变会污染参数估计。
+\Cref{def:09-stationary} 中的 $\gamma_k$ 只依赖于滞后阶数 $k$ 而不依赖绝对时刻 $t$，这正是
+「时间平移不变」含义在二阶矩层面的体现。
+
+\subsection{自相关函数与偏自相关函数}
+
+把自协方差标准化即得\term{自相关函数}（autocorrelation function, ACF）：
+\begin{equation}\label{eq:09-acf}
+  \rho_k=\frac{\gamma_k}{\gamma_0},\qquad
+  \hat{\rho}_k=\frac{\sum_{t=k+1}^{T}(y_t-\bar{y})(y_{t-k}-\bar{y})}
+                       {\sum_{t=1}^{T}(y_t-\bar{y})^2}
+\end{equation}
+其中 $T$ 为样本量、$\bar{y}$ 为样本均值、$\hat{\rho}_k$ 为滞后 $k$ 阶的样本自相关。
+在「序列为白噪声」的原假设下，$\hat{\rho}_k$ 的近似标准差为 $\se(\hat\rho_k)\approx 1/\sqrt{T}$，
+因此 95\% 置信带约为 $\pm 1.96/\sqrt{T}$；当 $T=1000$ 时该带宽约为 $\pm 0.062$，
+凡是超出这条带子的 $\hat\rho_k$ 都值得进一步追究。
+
+\term{偏自相关函数}（partial ACF, PACF）度量剔除中间滞后项之后的「直接」相关：
+\begin{equation}\label{eq:09-pacf}
+  \alpha_k=\Corr\bigl(y_t,\,y_{t-k}\;\big|\;y_{t-1},\dots,y_{t-k+1}\bigr)
+\end{equation}
+其样本版本可由 Yule--Walker 方程配合 Durbin--Levinson 递推 $O(Tk)$ 计算。ACF 与 PACF 的
+联合使用构成了线性模型定阶的经典工具，具体模式见\cref{tab:09-identify}。
+
+\begin{table}[htbp]
+\centering
+\caption{ACF 与 PACF 的识别模式（模型定阶的第一步）}\label{tab:09-identify}
+\tablefont
+\begin{tabular}{@{}lll@{}}
+\toprule
+模型 & 理论 ACF & 理论 PACF \\
+\midrule
+AR($p$) & 拖尾（指数或振荡衰减） & $p$ 阶后截尾 \\
+MA($q$) & $q$ 阶后截尾 & 拖尾 \\
+ARMA($p,q$) & 拖尾 & 拖尾 \\
+ARIMA($p,d,q$) & 差分后同 ARMA & 差分后同 ARMA \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{intuitionbox}[ACF 与 PACF 的分工]
+ACF 回答「相隔 $k$ 期的两个观测有多像」，PACF 回答「在已知最近 $k-1$ 期的情况下，
+第 $k$ 期滞后还能额外提供多少信息」。若$y_t$ 由 $y_{t-1}$ 驱动、$y_{t-1}$ 又由 $y_{t-2}$ 驱动，
+则 ACF 会一路衰减下去（拖尾），而 PACF 在第 2 阶就截断为零——因为第 2 阶滞后被 $y_{t-1}$
+完全「解释」掉了。这正是 AR(1) 的 ACF 拖尾、PACF 一阶截尾的原因。
+\end{intuitionbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13.2cm, height=6.0cm,
+  xlabel={滞后阶数 $k$}, ylabel={自相关 $\rho_k$},
+  ymin=-0.15, ymax=1.05, xmin=0, xmax=11,
+  legend pos=north east, legend style={font=\scriptsize},
+  grid=major, grid style={inkgray!16}
+]
+\addplot[quantblue, ycomb, mark=*, mark options={fill=quantblue, scale=0.8},
+         thick] coordinates {
+  (1,0.8000) (2,0.6400) (3,0.5120) (4,0.4096) (5,0.3277)
+  (6,0.2621) (7,0.2097) (8,0.1678) (9,0.1342) (10,0.1074)
+};
+\addlegendentry{AR(1)：$\rho_k=0.8^k$（拖尾）}
+\addplot[quantred, ycomb, mark=square*, mark options={fill=quantred, scale=0.8},
+         thick] coordinates {
+  (1,0.4878) (2,0.0000) (3,0.0000) (4,0.0000) (5,0.0000)
+  (6,0.0000) (7,0.0000) (8,0.0000) (9,0.0000) (10,0.0000)
+};
+\addlegendentry{MA(1)：$\rho_1=\theta/(1+\theta^2)$（截尾）}
+\draw[inkgray, dashed] (axis cs:0,0) -- (axis cs:11,0);
+\end{axis}
+\end{tikzpicture}
+\caption{AR(1) 与 MA(1) 的自相关函数对比（$\phi=0.8$，$\theta=0.8$）}\label{fig:09-acf}
+\end{figure}
+
+\Cref{fig:09-acf} 直观展示了识别逻辑：AR(1) 的 ACF 以几何速度 $0.8^k$ 拖尾，MA(1) 的 ACF
+在 $k\ge 2$ 处严格为零。注意 MA(1) 的 $\rho_1=\theta/(1+\theta^2)$ 关于变换 $\theta\mapsto 1/\theta$
+不变，因此单看 ACF 无法区分 $\theta=0.8$ 与 $\theta=1.25$——这正是需要\term{可逆性}条件的原因。
+
+\subsection{单位根检验：三种检验的逻辑差异}
+
+差分是否必要，取决于序列是否存在单位根。三类检验的原假设不同，混用会导致结论互相矛盾：
+
 \begin{itemize}[leftmargin=*]
-  \item 均值恒定：$\mathbb{E}[y_t] = \mu$
-  \item 自协方差仅依赖于滞后：$\text{Cov}(y_t, y_{t-k}) = \gamma_k$
+  \item \term{ADF 检验}（Augmented Dickey--Fuller）回归
+  $\Delta y_t=\alpha+\beta t+\gamma y_{t-1}+\sum_{i=1}^{k}\delta_i\Delta y_{t-i}+\varepsilon_t$，
+  原假设 $H_0:\gamma=0$（存在单位根），备择为平稳。$t$ 统计量的临界值来自 Dickey--Fuller
+  分布而非正态分布，5\% 临界值约 $-2.86$（无趋势）与 $-3.41$（含趋势）。
+  \item \term{KPSS 检验}把原假设反过来：$H_0$ 为（趋势）平稳。因此 ADF 与 KPSS 同时不拒绝
+  是常见结果，说明样本对「接近单位根」这一区域没有足够分辨力。
+  \item \term{PP 检验}（Phillips--Perron）用非参数方式修正残差中的序列相关与异方差，
+  避免 ADF 中滞后阶数选择的主观性，但在强负相关 MA 误差下容易过度拒绝。
 \end{itemize}
 
-样本自相关函数（ACF）：
-\begin{equation}
-  \hat{\rho}_k = \frac{\sum_{t=k+1}^{T} (y_t - \bar{y})(y_{t-k} - \bar{y})}{\sum_{t=1}^{T} (y_t - \bar{y})^2}
+\begin{warningbox}[伪回归：高 $R^2$ 也可能是假象]
+Granger 与 Newbold（1974）的模拟显示：让两条\emph{相互独立}的随机游走做 OLS 回归，
+$R^2$ 常常超过 0.8，$t$ 统计量动辄大于 4，但 Durbin--Watson 统计量接近 0。
+原因是一阶单整序列的样本矩以非标准速率发散，常规的 $t$ 与 $F$ 分布完全失效。
+因此在做任何跨资产的回归之前，必须先检验单整阶数；若被解释变量与解释变量都是 $I(1)$，
+则要么差分建模，要么检验协整（见后文）。
+\end{warningbox}
+
+\subsection{结构突变}
+
+结构突变（structural break）指数据生成过程的参数在某个时点发生跳变，如 2008 年金融危机、
+2020 年 3 月流动性枯竭、监管规则变更。常见检验包括已知断点下的 Chow 检验，以及未知断点下的
+Bai--Perron 多断点检验。Perron（1989）指出一个关键事实：若真实过程是「趋势平稳 + 一次大的
+水平突变」，而研究者忽略该突变直接做 ADF，检验会系统性地不拒绝单位根——把确定性突变误判为
+随机趋势。这意味着单位根结论必须与结构突变检验联合解读，否则极易得到错误的差分阶数。
+
+\section{ARMA 模型族：平稳性与可逆性}
+
+\subsection{AR 模型与平稳性条件}
+
+$p$ 阶自回归模型 $\mathrm{AR}(p)$ 写作
+\begin{equation}\label{eq:09-ar}
+  y_t=c+\phi_1y_{t-1}+\phi_2y_{t-2}+\cdots+\phi_py_{t-p}+\varepsilon_t
 \end{equation}
+其中 $c$ 为常数项、$\phi_i$ 为自回归系数、$\varepsilon_t$ 为白噪声（$\E[\varepsilon_t]=0$、
+$\Var(\varepsilon_t)=\sigma^2$、$\Cov(\varepsilon_t,\varepsilon_s)=0$ 当 $t\ne s$）。
+引入滞后算子 $L$（$Ly_t=y_{t-1}$）可写成 $\phi(L)y_t=c+\varepsilon_t$，
+其中 $\phi(L)=1-\phi_1L-\cdots-\phi_pL^p$。
 
-偏自相关函数（PACF）用于辨识 AR 模型的阶数。
+\begin{keybox}[平稳性条件与可逆性条件的对偶]\label{key:09-duality}
+AR 部分的多项式 $\phi(z)=1-\phi_1z-\cdots-\phi_pz^p$ 的\emph{全部根}都落在单位圆外时，
+$\mathrm{AR}(p)$ 才是弱平稳的；MA 部分的多项式 $\theta(z)=1+\theta_1z+\cdots+\theta_qz^q$
+的全部根都落在单位圆外时，$\mathrm{MA}(q)$ 才是\emph{可逆}的。平稳性保证「现在可以写成过去
+冲击的收敛加权和」，可逆性保证「冲击可以写成现在与过去的收敛加权和」——两者是同一枚硬币
+的两面，都对应把 $z$ 的幂级数在 $|z|\le 1$ 内展开。
+\end{keybox}
 
-\subsection{AR(p) 模型}
-
-\begin{equation}
-  y_t = c + \phi_1 y_{t-1} + \phi_2 y_{t-2} + \cdots + \phi_p y_{t-p} + \varepsilon_t
+以 $\mathrm{AR}(1)$ 为例可以看清条件的作用。把 $y_t=c+\phi y_{t-1}+\varepsilon_t$ 向前迭代：
+\begin{equation}\label{eq:09-ar1-ma}
+  y_t=\frac{c}{1-\phi}+\sum_{j=0}^{\infty}\phi^{j}\varepsilon_{t-j}
 \end{equation}
-
-平稳性条件：特征方程 $1 - \phi_1 z - \cdots - \phi_p z^p = 0$ 的根均在单位圆外。
-
-\subsection{MA(q) 模型}
-
-\begin{equation}
-  y_t = \mu + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \cdots + \theta_q \varepsilon_{t-q}
+该 $\mathrm{MA}(\infty)$ 表示收敛（从而二阶矩有限）当且仅当 $|\phi|<1$，此时
+\begin{equation}\label{eq:09-ar1-moments}
+  \E[y_t]=\frac{c}{1-\phi},\qquad
+  \gamma_0=\frac{\sigma^2}{1-\phi^2},\qquad
+  \rho_k=\phi^{k}
 \end{equation}
-
-MA 过程始终平稳，有限阶 MA 具有截尾的 ACF。
-
-\subsection{ARMA(p,q) 模型}
-
-\begin{equation}
-  y_t = c + \sum_{i=1}^{p} \phi_i y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j \varepsilon_{t-j}
+其中 $\gamma_0$ 由 Yule--Walker 方程 $\gamma_0=\phi\gamma_1+\sigma^2$ 与 $\gamma_1=\phi\gamma_0$
+联立得到，而 $\rho_k=\phi^k$ 直接来自 $\gamma_k=\phi\gamma_{k-1}$ 的递推。
+式 \eqref{eq:09-ar1-moments} 给出一个可操作的数量级直觉：自相关衰减到一半所需期数为
+\begin{equation}\label{eq:09-halflife-ar}
+  h_{1/2}=\frac{\ln 0.5}{\ln|\phi|}
 \end{equation}
+当 $\phi=0.9$ 时 $h_{1/2}\approx 6.6$ 期，$\phi=0.8$ 时 $h_{1/2}\approx 3.1$ 期。
+换句话说，日频 $\mathrm{AR}(1)$ 系数从 0.8 提高到 0.9，冲击的记忆长度几乎翻倍。
 
-使用滞后算子 $L$：
-\begin{equation}
-  \phi(L) y_t = c + \theta(L) \varepsilon_t
+\subsection{MA 模型与可逆性}
+
+$q$ 阶移动平均模型 $\mathrm{MA}(q)$ 定义为
+\begin{equation}\label{eq:09-ma}
+  y_t=\mu+\varepsilon_t+\theta_1\varepsilon_{t-1}+\cdots+\theta_q\varepsilon_{t-q}
 \end{equation}
-
-其中 $\phi(L) = 1 - \phi_1 L - \cdots - \phi_p L^p$，$\theta(L) = 1 + \theta_1 L + \cdots + \theta_q L^q$。
-
-\subsection{ARIMA(p,d,q) 模型}
-
-\begin{equation}
-  \phi(L)(1-L)^d y_t = c + \theta(L) \varepsilon_t
+其中 $\mu$ 为均值、$\theta_j$ 为移动平均系数。有限阶 MA 过程\emph{永远}是弱平稳的——它是
+有限个白噪声的线性组合，前两阶矩不随 $t$ 变化，无需任何参数约束。对 $\mathrm{MA}(1)$：
+$\gamma_0=\sigma^2(1+\theta^2)$、$\gamma_1=\sigma^2\theta$、$\gamma_k=0$（$k\ge 2$），故
+\begin{equation}\label{eq:09-ma1-acf}
+  \rho_1=\frac{\theta}{1+\theta^2},\qquad \rho_k=0\ \ (k\ge 2)
 \end{equation}
+可逆性要求 $|\theta|<1$，即 $\theta(z)=1+\theta z$ 的根 $z=-1/\theta$ 落在单位圆外。
+由于 $\theta$ 与 $1/\theta$ 产生完全相同的 ACF，若不施加可逆性约束，参数将不可识别；
+统计软件默认报告可逆的那个根，因此「$\theta=1.25$」的估计通常会被改写成「$\theta=0.8$」。
 
-$(1-L)^d$ 为 $d$ 阶差分算子，使非平稳序列变为平稳。
+\subsection{ARMA 与 ARIMA}
 
-Box-Jenkins 方法：识别（ACF/PACF 判断 p,q）$\to$ 估计 $\to$ 诊断检验（残差白噪声检验）$\to$ 预测。
-
-\subsection{SARIMA}
-
-季节性 ARIMA：$\text{SARIMA}(p,d,q)(P,D,Q)_s$
-
-\begin{equation}
-  \phi(L)\Phi(L^s)(1-L)^d(1-L^s)^D y_t = \theta(L)\Theta(L^s)\varepsilon_t
+把 AR 与 MA 合并即得 $\mathrm{ARMA}(p,q)$：
+\begin{equation}\label{eq:09-arma}
+  \phi(L)y_t=c+\theta(L)\varepsilon_t,\qquad
+  \phi(L)=1-\sum_{i=1}^{p}\phi_iL^i,\quad
+  \theta(L)=1+\sum_{j=1}^{q}\theta_jL^j
 \end{equation}
+ARMA 的平稳性完全由 $\phi(z)$ 决定，可逆性完全由 $\theta(z)$ 决定，两者互不干扰。
+对 $\mathrm{ARMA}(1,1)$，其一阶自相关为
+\begin{equation}\label{eq:09-arma1-acf}
+  \rho_1=\frac{(1+\phi\theta)(\phi+\theta)}{1+2\phi\theta+\theta^{2}}
+\end{equation}
+而对 $k\ge 2$ 有 $\rho_k=\phi\rho_{k-1}$——即 ACF 在 1 阶之后呈现纯 AR(1) 的几何衰减。
+例如 $\phi=0.6$、$\theta=0.3$ 时 $\rho_1=1.062/1.45\approx 0.732$，$\rho_2\approx 0.439$。
 
-\section{波动率建模 (GARCH 族)}
+对非平稳但差分后平稳的序列，采用 $\mathrm{ARIMA}(p,d,q)$：
+\begin{equation}\label{eq:09-arima}
+  \phi(L)(1-L)^{d}y_t=c+\theta(L)\varepsilon_t
+\end{equation}
+其中 $d$ 为差分阶数，$(1-L)^d$ 为 $d$ 阶差分算子，$(1-L)y_t=\Delta y_t$。
+差分阶数并非越大越好：若序列其实已平稳而仍然差分，会在 MA 部分引入一个接近 $-1$ 的根，
+即「过差分」，使 $\theta(z)$ 出现单位根、可逆性被破坏，并放大高频噪声。
+\textbf{判断原则}：以单位根检验与原序列 ACF 的衰减速度交叉验证，通常 $d\le 2$。
+
+\subsection{季节模型 SARIMA}
+
+季节性 ARIMA 记作 $\mathrm{SARIMA}(p,d,q)(P,D,Q)_s$，其形式为
+\begin{equation}\label{eq:09-sarima}
+  \phi(L)\Phi(L^{s})(1-L)^{d}(1-L^{s})^{D}y_t=\theta(L)\Theta(L^{s})\varepsilon_t
+\end{equation}
+其中 $s$ 为季节周期（月度数据 $s=12$、季度数据 $s=4$）、$\Phi(L^s)$ 与 $\Theta(L^s)$
+分别为季节自回归与季节移动平均多项式、$D$ 为季节差分阶数。以电力消费的月度数据为例，
+$(1-L^{12})$ 消除「同月同比」之外的年内周期，$D=1$ 即可让季节 ACF 上 $12,24,36$ 处的
+尖峰消失。金融日频数据的季节结构远弱于宏观数据，但日内效应（开盘与收盘的波动率尖峰）
+可以用 $s=48$（半小时采样）的同类模型刻画。
+
+\section{Box--Jenkins 建模流程}
+
+Box--Jenkins 方法把建模拆成四步闭环，其价值在于把「模型选择」从一次性判断变成可迭代的
+诊断过程。
+
+\begin{algorithm}[htbp]
+\caption{Box--Jenkins 四步建模流程}\label{alg:09-boxjenkins}
+\begin{algorithmic}[1]
+\Require 平稳化后的序列 $y_1,\dots,y_T$，最大阶数 $p_{\max},q_{\max}$
+\Ensure 通过诊断检验的模型 $\widehat{\mathrm{ARMA}}(p,q)$
+\State \textbf{识别}：计算 ACF/PACF，结合 AIC/BIC 在 $p\le p_{\max},q\le q_{\max}$ 内搜索
+\State \textbf{估计}：用条件极大似然或精确极大似然估计 $(\phi,\theta,\sigma^2,c)$
+\While{诊断未通过}
+  \State \textbf{诊断}：检验残差 $\hat\varepsilon_t$ 是否为白噪声（Ljung--Box $Q$ 检验）
+  \State \hspace{2em}并检查残差方差的 ARCH 效应（$\hat\varepsilon_t^2$ 的 ACF）
+  \If{存在显著自相关}
+    \State 调整 $p,q$（或引入季节项、结构突变虚拟变量）后重新估计
+  \ElsIf{存在显著 ARCH 效应}
+    \State 转波动率建模（\cref{tab:09-garch-family}），对均值方程残差拟合 GARCH 族
+  \EndIf
+\EndWhile
+\State \textbf{预测}：递推条件均值 $\hat{y}_{T+h|T}$ 并给出预测区间
+\State \Return $(\hat\phi,\hat\theta,\hat\sigma^2)$ 与 $h$ 步预测
+\end{algorithmic}
+\end{algorithm}
+
+\cref{alg:09-boxjenkins} 的第 7--9 步是最容易被跳过、却最能决定成败的部分：均值方程残差
+若仍含 ARCH 效应，则普通最小二乘的标准误被低估、置信区间过窄、$t$ 检验偏激进。诊断阶段的
+核心统计量是 Ljung--Box $Q$ 检验
+\begin{equation}\label{eq:09-ljungbox}
+  Q=T(T+2)\sum_{k=1}^{m}\frac{\hat\rho_k^{2}}{T-k}\ \sim\ \chi^{2}_{m-p-q}
+\end{equation}
+其中 $m$ 为考察的最大滞后阶数（经验取法 $m\approx\min(20,\,T/5)$）、$\hat\rho_k$ 为残差自相关。
+$Q$ 显著说明还有结构没有提取干净。
+
+阶数选择常用信息准则：
+\begin{equation}\label{eq:09-ic}
+  \mathrm{AIC}=-2\ln \hat{L}+2k,\qquad
+  \mathrm{BIC}=-2\ln \hat{L}+k\ln T,\qquad
+  \mathrm{HQ}=-2\ln \hat{L}+2k\ln\ln T
+\end{equation}
+其中 $\hat L$ 为极大似然值、$k$ 为待估参数个数。BIC 的惩罚随 $\ln T$ 增长，因此比 AIC 更
+保守、更倾向于简约模型；当两个模型 AIC 相差小于 2 时，可以认为它们在样本内表现上无法区分。
+
+\begin{appbox}[实务中的默认配置]
+多数卖方与买方研究在日频资产收益率上都使用「常数均值 + 低阶结构」的配置：均值方程取
+$\mathrm{AR}(1)$ 或纯常数，波动率方程取 $\mathrm{GARCH}(1,1)$ 或 $\mathrm{GJR}$，
+分布取学生 $t$。原因有三：日收益率自相关的经济幅度极小（$|\phi|<0.1$，扣掉交易成本后
+基本不可交易）；高阶模型在滚动窗口中的参数不稳定性抵消了样本内增益；
+而波动率部分的自相关是真实且稳健的，值得投入建模预算。
+\end{appbox}
+
+\section{波动率建模：ARCH 与 GARCH 族}
 
 \subsection{ARCH 模型}
 
-Engle (1982) 的自回归条件异方差模型：
-
+Engle（1982）注意到收益率的\emph{平方}存在显著自相关，于是把方差设为过去冲击的函数：
 \begin{align}
-  r_t &= \mu_t + \varepsilon_t, \quad \varepsilon_t = \sigma_t z_t, \quad z_t \sim \text{i.i.d.}(0,1) \\
-  \sigma_t^2 &= \omega + \sum_{i=1}^{q} \alpha_i \varepsilon_{t-i}^2
+  r_t&=\mu_t+\varepsilon_t,\qquad \varepsilon_t=\sigma_t z_t,\qquad z_t\sim \mathrm{i.i.d.}(0,1)\label{eq:09-arch-mean}\\
+  \sigma_t^{2}&=\omega+\sum_{i=1}^{q}\alpha_i\varepsilon_{t-i}^{2}\label{eq:09-arch}
 \end{align}
+其中 $r_t$ 为收益率、$\mu_t$ 为条件均值、$\sigma_t^2$ 为条件方差、$z_t$ 为标准化新息
+（常取标准正态或标准化学生 $t$）、$\omega>0$ 为基准方差、$\alpha_i\ge 0$ 度量第 $i$ 阶
+冲击对当前方差的影响。ARCH 的实质是：今天的方差由最近 $q$ 期「意外的大小」决定。
+其缺陷在于记忆太短——要让波动率冲击衰减得足够慢，往往需要 $q>10$ 甚至几十个参数。
 
-\subsection{GARCH(p,q) 模型}
+\subsection{GARCH 模型与长期方差}
 
-Bollerslev (1986) 的推广：
-
-\begin{equation}
-  \sigma_t^2 = \omega + \sum_{i=1}^{q} \alpha_i \varepsilon_{t-i}^2 + \sum_{j=1}^{p} \beta_j \sigma_{t-j}^2
+Bollerslev（1986）用「方差的滞后项」替代大量冲击滞后项：
+\begin{equation}\label{eq:09-garch}
+  \sigma_t^{2}=\omega+\sum_{i=1}^{q}\alpha_i\varepsilon_{t-i}^{2}+\sum_{j=1}^{p}\beta_j\sigma_{t-j}^{2}
+\end{equation}
+其中 $\beta_j$ 为方差自回归系数。金融实践中最常用的是 $\mathrm{GARCH}(1,1)$：
+\begin{equation}\label{eq:09-garch11}
+  \sigma_t^{2}=\omega+\alpha\varepsilon_{t-1}^{2}+\beta\sigma_{t-1}^{2}
+\end{equation}
+只需三个参数就能刻画「大波动跟着大波动」的聚集现象。取无条件期望可得\term{长期方差}
+\begin{equation}\label{eq:09-garch-longrun}
+  \bar{\sigma}^{2}=\E[\sigma_t^{2}]=\frac{\omega}{1-\alpha-\beta},
+  \qquad \text{要求 }\alpha+\beta<1
+\end{equation}
+其中 $\alpha+\beta$ 称为\term{持续性}（persistence），度量一次波动率冲击的衰减速度；
+$\alpha+\beta\to 1$ 时长期方差发散，对应 IGARCH 模型（波动率冲击永不衰减）。
+把式 \eqref{eq:09-garch11} 反复代入可得到 $\mathrm{ARCH}(\infty)$ 表示
+\begin{equation}\label{eq:09-archinf}
+  \sigma_t^{2}=\frac{\omega}{1-\beta}+\alpha\sum_{j=0}^{\infty}\beta^{j}\varepsilon_{t-1-j}^{2}
+\end{equation}
+这说明 GARCH(1,1) 其实是一个几何衰减的记忆核，$\beta$ 就是核的衰减率。
+冲击的半衰期由持续性直接给出：
+\begin{equation}\label{eq:09-halflife}
+  h_{1/2}=\frac{\ln 0.5}{\ln(\alpha+\beta)}
 \end{equation}
 
-GARCH(1,1) 是金融中最常用的波动率模型：
-
-\begin{equation}
-  \sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \beta \sigma_{t-1}^2
+\begin{example}[GARCH(1,1) 的长期波动率、半衰期与预测]\label{ex:09-garch}
+设日频参数为 $\omega=0.01$、$\alpha=0.08$、$\beta=0.90$（收益率以百分数计，
+故方差单位为「百分数平方」）。
+（1）持续性 $\alpha+\beta=0.98$，由 \cref{eq:09-garch-longrun} 得长期方差
+$\bar\sigma^2=0.01/0.02=0.50$，长期日波动率 $\bar\sigma=0.707\%$；
+按 252 个交易日年化得 $0.707\times\sqrt{252}\approx 11.2\%$。
+（2）由 \cref{eq:09-halflife}，半衰期 $h_{1/2}=\ln 0.5/\ln 0.98\approx 34.3$ 个交易日，
+即一次波动率冲击约需 34 天衰减一半，正好对应\cref{fig:09-garch-cluster} 中
+长达数周的「高位平台」。
+（3）$h$ 步方差预测为
+\begin{equation}\label{eq:09-garch-forecast}
+  \E_t[\sigma_{t+h}^{2}]=\bar\sigma^{2}+(\alpha+\beta)^{h-1}\bigl(\sigma_{t+1}^{2}-\bar\sigma^{2}\bigr)
 \end{equation}
+若当前 $\sigma_{t+1}=1.4\%$（即 $\sigma_{t+1}^2=1.96$），则 1 天后方差预测为
+$0.50+0.98^{0}\times(1.96-0.50)=1.96$，10 天后为
+$0.50+0.98^{9}\times 1.46\approx 0.50+1.216=1.72$，对应波动率 $1.31\%$；
+预测值以半衰期速度回归长期水平。
+\end{example}
 
-无条件方差：$\mathbb{E}[\sigma^2] = \omega / (1 - \alpha - \beta)$，要求 $\alpha + \beta < 1$。
-
-\subsection{GARCH 扩展}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{EGARCH}：对 $\log\sigma_t^2$ 建模，捕捉杠杆效应（好消息与坏消息对波动率的非对称影响）
-  \item \textbf{GJR-GARCH}：在方差方程中引入负收益指示变量，直接捕捉非对称
-  \item \textbf{FIGARCH}：长记忆波动率模型（分数阶差分）
-  \item \textbf{DCC-GARCH}：动态条件相关——多变量波动率模型
-\end{itemize}
-
-\begin{keybox}
-金融收益率的"程式化事实"（Stylized Facts）：肥尾（Leptokurtosis）、波动率聚集（Volatility Clustering）、杠杆效应（Leverage Effect）、长记忆性。GARCH 族模型正是为了捕捉这些特征而发展。
-\end{keybox}
-
-\section{深度学习时间序列模型}
-
-\subsection{循环神经网络 (RNN)}
-
-RNN 核心递归：
-\begin{equation}
-  h_t = \tanh(W_h h_{t-1} + W_x x_t + b)
+\cref{eq:09-garch-forecast} 的推导只用到一步。把方差方程推进一步并取条件期望：
+\begin{equation}\label{eq:09-garch-step}
+  \sigma_{t+h}^{2}=\omega+(\alpha+\beta)\sigma_{t+h-1}^{2}
+  +\alpha\sigma_{t+h-1}^{2}\bigl(z_{t+h-1}^{2}-1\bigr)
 \end{equation}
+其中最后一项的条件期望为零（$z_{t+h-1}$ 与 $\Fm_{t+h-2}$ 独立且均值为零，
+故 $\E_t[\sigma_{t+h-1}^2(z_{t+h-1}^2-1)]=0$），于是得到以一阶线性差分方程递推的
+预测公式 \eqref{eq:09-garch-forecast}：每一期的方差预测值按比例 $(\alpha+\beta)$
+向长期方差 $\bar\sigma^2$ 收缩。
 
-RNN 的梯度消失/爆炸问题阻碍了长序列学习。
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=13.6cm, height=6.0cm,
+  xlabel={交易日}, ylabel={幅度（\%）},
+  xmin=0, xmax=142, ymin=0, ymax=2.35,
+  legend pos=north east, legend style={font=\scriptsize},
+  grid=major, grid style={inkgray!14}
+]
+\addplot[quantred, only marks, mark=*, mark size=0.9pt] coordinates {
+%  (1.000,0.231) (2.000,0.664) (3.000,0.337) (4.000,0.281) (5.000,0.282) (6.000,0.062) (7.000,1.076) (8.000,0.574)
+  (9.000,0.140) (10.000,0.370) (11.000,0.005) (12.000,0.481) (13.000,0.206) (14.000,0.295) (15.000,0.751) (16.000,0.689)
+  (17.000,0.134) (18.000,0.455) (19.000,0.582) (20.000,0.638) (21.000,0.438) (22.000,0.769) (23.000,0.497) (24.000,0.060)
+  (25.000,0.685) (26.000,0.668) (27.000,0.994) (28.000,0.092) (29.000,0.228) (30.000,1.268) (31.000,0.670) (32.000,0.388)
+  (33.000,0.569) (34.000,0.369) (35.000,0.083) (36.000,1.425) (37.000,0.463) (38.000,0.097) (39.000,1.016) (40.000,0.701)
+  (41.000,0.954) (42.000,0.292) (43.000,0.319) (44.000,0.892) (45.000,0.697) (46.000,0.094) (47.000,0.363) (48.000,0.130)
+  (49.000,0.051) (50.000,0.211) (51.000,0.487) (52.000,0.300) (53.000,0.468) (54.000,0.370) (55.000,0.727) (56.000,0.100)
+  (57.000,0.388) (58.000,0.852) (59.000,0.045) (60.000,0.624) (61.000,0.378) (62.000,0.069) (63.000,0.725) (64.000,0.157)
+  (65.000,0.214) (66.000,0.503) (67.000,0.923) (68.000,0.272) (69.000,1.170) (70.000,0.232) (71.000,0.186) (72.000,0.208)
+  (73.000,0.397) (74.000,0.959) (75.000,1.153) (76.000,0.920) (77.000,1.116) (78.000,0.633) (79.000,0.947) (80.000,0.003)
+  (81.000,1.029) (82.000,1.018) (83.000,0.291) (84.000,0.112) (85.000,0.290) (86.000,0.820) (87.000,0.974) (88.000,0.276)
+  (89.000,0.524) (90.000,0.459) (91.000,0.294) (92.000,1.459) (93.000,0.303) (94.000,0.628) (95.000,0.064) (96.000,1.580)
+  (97.000,0.008) (98.000,1.369) (99.000,2.030) (100.000,0.798) (101.000,1.164) (102.000,0.873) (103.000,0.910) (104.000,0.167)
+  (105.000,1.399) (106.000,0.645) (107.000,0.308) (108.000,0.989) (109.000,0.318) (110.000,1.894) (111.000,0.095) (112.000,0.294)
+  (113.000,0.345) (114.000,1.358) (115.000,0.838) (116.000,1.130) (117.000,1.804) (118.000,0.648) (119.000,0.949) (120.000,0.012)
+  (121.000,0.491) (122.000,0.277) (123.000,2.111) (124.000,1.555) (125.000,0.108) (126.000,1.138) (127.000,0.238) (128.000,0.812)
+  (129.000,0.290) (130.000,0.656) (131.000,0.883) (132.000,0.362) (133.000,1.808) (134.000,0.001) (135.000,0.435) (136.000,0.394)
+  (137.000,0.764) (138.000,2.105) (139.000,1.878) (140.000,1.364)%
+};
+\addlegendentry{$|r_t|$（日收益率绝对值）}
+\addplot[quantblue, very thick] coordinates {
+%  (1.000,0.707) (2.000,0.681) (3.000,0.681) (4.000,0.660) (5.000,0.639) (6.000,0.620) (7.000,0.597) (8.000,0.650)
+  (9.000,0.646) (10.000,0.622) (11.000,0.608) (12.000,0.585) (13.000,0.580) (14.000,0.562) (15.000,0.549) (16.000,0.571)
+  (17.000,0.585) (18.000,0.565) (19.000,0.560) (20.000,0.565) (21.000,0.575) (22.000,0.568) (23.000,0.590) (24.000,0.585)
+  (25.000,0.564) (26.000,0.578) (27.000,0.589) (28.000,0.633) (29.000,0.609) (30.000,0.590) (31.000,0.673) (32.000,0.673)
+  (33.000,0.656) (34.000,0.650) (35.000,0.633) (36.000,0.610) (37.000,0.712) (38.000,0.695) (39.000,0.668) (40.000,0.703)
+  (41.000,0.703) (42.000,0.726) (43.000,0.701) (44.000,0.679) (45.000,0.699) (46.000,0.699) (47.000,0.671) (48.000,0.652)
+  (49.000,0.628) (50.000,0.604) (51.000,0.585) (52.000,0.580) (53.000,0.566) (54.000,0.562) (55.000,0.552) (56.000,0.572)
+  (57.000,0.552) (58.000,0.545) (59.000,0.579) (60.000,0.558) (61.000,0.567) (62.000,0.558) (63.000,0.539) (64.000,0.560)
+  (65.000,0.542) (66.000,0.527) (67.000,0.530) (68.000,0.575) (69.000,0.560) (70.000,0.634) (71.000,0.613) (72.000,0.593)
+  (73.000,0.574) (74.000,0.565) (75.000,0.609) (76.000,0.671) (77.000,0.695) (78.000,0.738) (79.000,0.729) (80.000,0.749)
+  (81.000,0.717) (82.000,0.747) (83.000,0.771) (84.000,0.743) (85.000,0.713) (86.000,0.688) (87.000,0.700) (88.000,0.726)
+  (89.000,0.700) (90.000,0.688) (91.000,0.673) (92.000,0.652) (93.000,0.750) (94.000,0.724) (95.000,0.716) (96.000,0.687)
+  (97.000,0.797) (98.000,0.762) (99.000,0.826) (100.000,0.977) (101.000,0.959) (102.000,0.973) (103.000,0.961) (104.000,0.952)
+  (105.000,0.910) (106.000,0.955) (107.000,0.930) (108.000,0.892) (109.000,0.897) (110.000,0.861) (111.000,0.982) (112.000,0.937)
+  (113.000,0.899) (114.000,0.864) (115.000,0.911) (116.000,0.901) (117.000,0.918) (118.000,1.015) (119.000,0.985) (120.000,0.977)
+  (121.000,0.933) (122.000,0.901) (123.000,0.864) (124.000,1.019) (125.000,1.067) (126.000,1.018) (127.000,1.022) (128.000,0.977)
+  (129.000,0.961) (130.000,0.920) (131.000,0.898) (132.000,0.894) (133.000,0.860) (134.000,0.968) (135.000,0.924) (136.000,0.890)
+  (137.000,0.858) (138.000,0.848) (139.000,1.006) (140.000,1.097)%
+};
+\addlegendentry{$\sigma_t$（条件波动率）}
+\addplot[inkgray, dashed, thick, domain=0:142, samples=2] {0.707};
+\addlegendentry{长期波动率 $\bar\sigma$}
+\end{axis}
+\end{tikzpicture}
+\caption{GARCH(1,1) 模拟：$\omega=0.01$、$\alpha=0.08$、$\beta=0.90$ 下的波动率聚集}
+\label{fig:09-garch-cluster}
+\end{figure}
 
-\subsection{长短期记忆网络 (LSTM)}
+\Cref{fig:09-garch-cluster} 是「波动率聚集」最直接的图示：第 35--50 个交易日附近，
+$|r_t|$ 的散点明显变密变大，而条件波动率 $\sigma_t$ 相应抬升并缓慢回落。
+注意 $\sigma_t$ 是\emph{平滑}的（它由递推产生），而 $|r_t|$ 是\emph{噪声}的——
+这正是「波动率可预测、收益率方向不可预测」这一经验规律的可视化。
 
-LSTM 通过门控机制解决长期依赖问题：
+\subsection{GARCH 族的扩展}
 
+\begin{table}[htbp]
+\centering
+\caption{主要 GARCH 族模型对比}\label{tab:09-garch-family}
+\tablefont
+\begin{tabular}{@{}p{2.5cm}p{5.3cm}p{4.2cm}p{1.8cm}@{}}
+\toprule
+模型 & 方差方程的核心形式 & 主要捕捉的特征 & 额外参数 \\
+\midrule
+ARCH($q$) & $\sigma_t^2=\omega+\sum\alpha_i\varepsilon_{t-i}^2$ & 波动率聚集 & $q$ 个 \\
+GARCH(1,1) & $\sigma_t^2=\omega+\alpha\varepsilon_{t-1}^2+\beta\sigma_{t-1}^2$ & 聚集 + 长记忆 & 0 \\
+EGARCH & $\ln\sigma_t^2=\omega+\beta\ln\sigma_{t-1}^2+\gamma z_{t-1}+\alpha(|z_{t-1}|-\E|z|)$ & 杠杆效应（对数形式，无符号约束） & 1 \\
+GJR-GARCH & $\sigma_t^2=\omega+(\alpha+\gamma\ind{\varepsilon_{t-1}<0})\varepsilon_{t-1}^2+\beta\sigma_{t-1}^2$ & 杠杆效应（直接形式） & 1 \\
+FIGARCH & $(1-\phi L)(1-L)^{d}\varepsilon_t^2=\omega+(1-\beta L)v_t$ & 长记忆（$d$ 分数阶） & 1 \\
+DCC-GARCH & 分两步：单变量 GARCH + 动态相关矩阵 $Q_t$ & 时变相关性（多资产） & 多于 1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:09-garch-family} 中的非对称模型针对的是「杠杆效应」：股价下跌时波动率上升的幅度
+大于同等幅度上涨时的上升。在 GJR 形式下，$\gamma>0$ 表示负冲击的额外影响；
+其平稳性条件相应改为 $\alpha+\gamma/2+\beta<1$（若 $z_t$ 对称，负冲击概率为 $1/2$）。
+EGARCH 用对数方差建模，天然保证 $\sigma_t^2>0$，且无需对参数施加非负约束，
+但代价是 $\sigma_t^2$ 的解析多步预测不可得，需要模拟。FIGARCH 通过分数阶差分 $d\in(0,1)$
+刻画「长记忆」：冲击的自相关以 $k^{2d-1}$ 的幂律速度衰减而非几何速度衰减，
+半衰期的概念在此不再适用（记忆长度是尺度依赖的）。
+
+\begin{warningbox}[GARCH 的三条失效边界]
+（1）\textbf{结构突变}：GARCH 把波动率水平的变化解释为「持续性冲击」，
+但若真实原因是机制切换（如 2020 年 3 月的流动性危机、波动率目标型基金的被动抛售），
+估计出的 $\alpha+\beta$ 会接近 1（伪高持续性），而模型对下一次突变毫无预警。
+Lamoureux 与 Lastrapes（1990）证明，忽略结构突变会系统性高估持续性。
+（2）\textbf{非对称与跳跃}：GARCH 的方差方程只含 $\varepsilon^2$，天生对称；
+遇到跳跃型事件（单日 $\pm10\%$）时，一次巨大残差会把 $\sigma_t$ 抬得很高并缓慢衰减，
+而这与真实的「事件驱动、快速回落」形态不符。
+（3）\textbf{数据频率}：参数估计高度依赖采样频率。日频估出的 $\alpha+\beta$ 与 5 分钟频
+估出的值不可直接比较；把日频参数套用到日内波动率预测上会严重高估日内方差。
+\end{warningbox}
+
+\section{已实现波动率与 HAR 模型}
+
+\subsection{已实现波动率}
+
+当高频数据可得时，我们不必再「用模型推断波动率」，而可以直接\emph{度量}它。
+把一天分成 $M$ 个等间隔区间，第 $i$ 个区间的高频收益率为 $r_{t,i}$，则\term{已实现波动率}
+（realized volatility, RV）定义为
+\begin{equation}\label{eq:09-rv}
+  \mathrm{RV}_t=\sum_{i=1}^{M}r_{t,i}^{2}\ \xrightarrow[M\to\infty]{}\
+  \int_{t}^{t+1}\sigma_s^{2}\,\dd s=:\mathrm{IV}_t
+\end{equation}
+其中 $\mathrm{IV}_t$ 为积分方差（integrated variance）。收敛的数学依据是二次变差理论
+（详见第 10 章）：连续半鞅的已实现二次变差依概率收敛到其二次变差过程。
+在理想的无摩擦、无跳跃市场里，$\mathrm{RV}_t$ 是 $\mathrm{IV}_t$ 的一致估计量。
+
+现实中 $M$ 的选择是一个偏差--方差权衡：$M$ 太小则度量误差大（方差高），
+$M$ 太大则微观结构噪声（买卖价差跳动、不同步报价、离散价格）主导，使 RV 上偏且自相关被
+污染。实用折中通常是 5 分钟采样（$M\approx 78$，对应 6.5 小时交易时段），
+或采用 5 分钟 RV 加「已实现核」「预平均」等噪声稳健估计量。
+
+\subsection{HAR 模型}
+
+HAR（Heterogeneous AutoRegressive）模型由 Corsi（2009）提出，用一个简单的线性回归
+概括「不同时间尺度的市场参与者」这一直觉：
+\begin{equation}\label{eq:09-har}
+  \mathrm{RV}_t^{(d)}=c+\beta_d\,\mathrm{RV}_{t-1}^{(d)}
+   +\beta_w\,\mathrm{RV}_{t-1}^{(w)}
+   +\beta_m\,\mathrm{RV}_{t-1}^{(m)}+u_t
+\end{equation}
+其中 $\mathrm{RV}^{(d)}$ 为日度 RV、$\mathrm{RV}^{(w)}=\frac{1}{5}\sum_{j=1}^{5}\mathrm{RV}_{t-j}^{(d)}$
+为周度均值、$\mathrm{RV}^{(m)}=\frac{1}{22}\sum_{j=1}^{22}\mathrm{RV}_{t-j}^{(d)}$ 为月度均值、
+$u_t$ 为扰动项。三类参与者（日内投机者、周度调仓者、月度机构）分别对应三个尺度，
+因此模型只需三个参数就能逼近长记忆行为。
+
+\begin{table}[htbp]
+\centering
+\caption{HAR 模型的三个时间尺度}\label{tab:09-har}
+\tablefont
+\begin{tabular}{@{}llll@{}}
+\toprule
+频率 & 记号 & 计算方式 & 经济含义 \\
+\midrule
+日 & $\mathrm{RV}^{(d)}$ & 当日 5 分钟收益平方和 & 日内交易者的当日信息 \\
+周 & $\mathrm{RV}^{(w)}$ & 过去 5 日 RV 均值 & 周度调仓者的风险预算 \\
+月 & $\mathrm{RV}^{(m)}$ & 过去 22 日 RV 均值 & 长期机构的波动率目标 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:09-har} 中的三个成分相加构成了「波动率的三层记忆」。典型估计结果满足
+$\beta_w$ 与 $\beta_m$ 都显著为正，且三者之和接近 1（如 $0.36+0.42+0.20=0.98$），
+这正是长记忆特征的参数化体现；日度回归的 $R^2$ 通常在 0.5--0.65 区间，
+远高于收益率方向预测的 $R^2$（后者常在 0.01 以下，见后文关于低信噪比的讨论）。
+由于 $u_t$ 存在异方差与序列相关，HAR 的推断必须使用 HAC（Newey--West）稳健标准误。
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={用 \texttt{arch} 拟合 GARCH(1,1) 并做波动率预测},
+                   label={lst:09-garch}]
+import numpy as np
+from arch import arch_model
+
+rng = np.random.default_rng(42)
+n, omega, alpha, beta = 2000, 0.01, 0.08, 0.90
+sigma2 = np.empty(n)
+eps = np.empty(n)
+sigma2[0] = omega / (1.0 - alpha - beta)
+z = rng.standard_normal(n)
+for t in range(1, n):
+    sigma2[t] = omega + alpha * eps[t - 1] ** 2 + beta * sigma2[t - 1]
+    eps[t] = np.sqrt(sigma2[t]) * z[t]
+
+am = arch_model(eps, mean="Constant", vol="Garch", p=1, q=1, dist="t")
+res = am.fit(disp="off")
+print(res.params)
+
+persistence = res.params["alpha[1]"] + res.params["beta[1]"]
+print("persistence =", round(persistence, 4))
+print("half life   =", round(np.log(0.5) / np.log(persistence), 2))
+print("long run sd =", round(np.sqrt(res.params["omega"] / (1 - persistence)), 4))
+
+fc = res.forecast(horizon=10, reindex=False)
+print(np.sqrt(fc.variance.values[-1]))
+\end{lstlisting}
+
+\cref{lst:09-garch} 中的长期波动率由 $\sqrt{\hat\omega/(1-\hat\alpha-\hat\beta)}$ 计算，
+与 \cref{eq:09-garch-longrun} 一致；参数 \texttt{dist="t"} 让新息服从标准化学生 $t$ 分布，
+这对金融收益率是必要的——正态新息会低估尾部风险，也会使 $\omega$ 的估计有偏。
+注意代码用的是模拟数据，便于复现；换成真实收益率序列时，只需把 \texttt{eps} 替换为
+\texttt{100 * np.diff(np.log(prices))}（乘以 100 是为了数值稳定）。
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={HAR 回归与 HAC 稳健标准误},
+                   label={lst:09-har}]
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+
+rng = np.random.default_rng(7)
+n = 1500
+r = 0.01 * rng.standard_normal(n)
+rv = np.abs(r) + 0.2 * rng.random(n)          # daily realized volatility proxy
+
+df = pd.DataFrame({"rv": rv})
+df["rv_d"] = df["rv"].shift(1)
+df["rv_w"] = df["rv"].rolling(5).mean().shift(1)
+df["rv_m"] = df["rv"].rolling(22).mean().shift(1)
+df = df.dropna()
+
+y = np.log(df["rv"])                          # log transform keeps rv positive
+X = sm.add_constant(df[["rv_d", "rv_w", "rv_m"]])
+res = sm.OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": 10})
+print(res.params)
+print(res.bse)
+print(res.rsquared)
+\end{lstlisting}
+
+\cref{lst:09-har} 用对数变换保证预测值非负，并用 \texttt{maxlags=10} 的 HAC 协方差
+修正残差自相关导致的低估标准误。若要复现 \cref{eq:09-har} 中「三尺度」的解释，
+可把 \texttt{rv\_w} 与 \texttt{rv\_m} 换成用真实高频数据构造的周、月均值；若只关心预测精度，
+把被解释变量换成 $\mathrm{RV}_t$ 与「已实现半方差」（上涨与下跌分开）往往还能再提升。
+
+\section{状态空间模型与卡尔曼滤波}
+
+线性均值与波动率模型都假定参数在样本期内固定。但很多金融关系本身是时变的：
+对冲比率随市场状态漂移、因子暴露随风格轮动变化、潜在增长率缓慢漂移。
+状态空间模型把这类「不可观测的时变参数」显式写成状态变量，卡尔曼滤波则给出在线递推解。
+
+\subsection{局部水平模型}
+
+最简单也最常用的状态空间模型是\term{局部水平模型}（local level model）：
 \begin{align}
-  f_t &= \sigma(W_f \cdot [h_{t-1}, x_t] + b_f) \quad \text{（遗忘门）} \\
-  i_t &= \sigma(W_i \cdot [h_{t-1}, x_t] + b_i) \quad \text{（输入门）} \\
-  \tilde{C}_t &= \tanh(W_C \cdot [h_{t-1}, x_t] + b_C) \quad \text{（候选记忆）} \\
-  C_t &= f_t \odot C_{t-1} + i_t \odot \tilde{C}_t \quad \text{（记忆单元更新）} \\
-  o_t &= \sigma(W_o \cdot [h_{t-1}, x_t] + b_o) \quad \text{（输出门）} \\
-  h_t &= o_t \odot \tanh(C_t) \quad \text{（隐状态）}
+  y_t&=\underbrace{x_t}_{\text{潜在水平}}+\;v_t, & v_t&\sim \N(0,R)\label{eq:09-ss-obs}\\
+  x_t&=x_{t-1}+w_t, & w_t&\sim \N(0,Q)\label{eq:09-ss-state}
 \end{align}
+其中 $y_t$ 为观测值（如某只 ETF 的每日对数价格）、$x_t$ 为不可观测的随机游走水平、
+$v_t$ 为观测噪声（波动率 $R$）、$w_t$ 为状态噪声（波动率 $Q$）、二者相互独立。
+信号--噪声比 $Q/R$ 决定滤波器对观测的信任程度。
 
-\textbf{金融应用}：
-\begin{itemize}[leftmargin=*]
-  \item 波动率预测：LSTM-GARCH 混合模型，LSTM 捕捉非线性动态
-  \item Alpha 信号生成：多变量金融时间序列 $\to$ LSTM $\to$ 收益预测
-  \item 高频交易：订单簿数据 $\to$ LSTM $\to$ 短期价格方向
-\end{itemize}
+\subsection{卡尔曼滤波递推的推导}
 
-\subsection{门控循环单元 (GRU)}
-
-GRU 是 LSTM 的简化变体（合并记忆单元和隐状态）：
-
-\begin{align}
-  z_t &= \sigma(W_z \cdot [h_{t-1}, x_t]) \quad \text{（更新门）} \\
-  r_t &= \sigma(W_r \cdot [h_{t-1}, x_t]) \quad \text{（重置门）} \\
-  \tilde{h}_t &= \tanh(W \cdot [r_t \odot h_{t-1}, x_t]) \\
-  h_t &= (1 - z_t) \odot h_{t-1} + z_t \odot \tilde{h}_t
-\end{align}
-
-\subsection{Transformer 时间序列模型}
-
-Transformer 的自注意力机制为金融时间序列带来了范式创新：
-
-\textbf{缩放点积注意力}：
-\begin{equation}
-  \text{Attention}(Q,K,V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+记 $x_{t|t-1}=\E[x_t\mid y_1,\dots,y_{t-1}]$、$P_{t|t-1}=\Var(x_t\mid y_1,\dots,y_{t-1})$，
+带 $t|t$ 的量同理。由式 \eqref{eq:09-ss-state} 与全期望、全方差公式立即得到\term{预测步}：
+\begin{equation}\label{eq:09-kalman-pred}
+  x_{t|t-1}=x_{t-1|t-1},\qquad P_{t|t-1}=P_{t-1|t-1}+Q
 \end{equation}
-
-\textbf{多头注意力}：
-\begin{equation}
-  \text{MultiHead}(Q,K,V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)W^O
+关键在于\term{更新步}。给定 $y_1,\dots,y_{t-1}$，条件联合分布中
+$(x_t,y_t)$ 是二维正态，其中 $y_t=x_t+v_t$，故 $\Cov(x_t,y_t\mid \Fm_{t-1})=P_{t|t-1}$，
+$\Var(y_t\mid\Fm_{t-1})=P_{t|t-1}+R$。对联合正态而言，条件期望就是线性回归，
+回归系数为 $\Cov/\Var$，于是
+\begin{equation}\label{eq:09-kalman-update}
+  K_t=\frac{P_{t|t-1}}{P_{t|t-1}+R},\qquad
+  x_{t|t}=x_{t|t-1}+K_t\underbrace{(y_t-x_{t|t-1})}_{\text{新息}},\qquad
+  P_{t|t}=(1-K_t)P_{t|t-1}
 \end{equation}
+其中 $K_t$ 为\term{卡尔曼增益}（Kalman gain）。第二式的含义是：把预测误差按增益比例
+回写到状态上；第三式是「条件方差 = 先验方差 $\times$ 残差比例」。
+式 \eqref{eq:09-kalman-pred} 与 \eqref{eq:09-kalman-update} 交替迭代即得整个滤波路径。
 
-其中 $\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)$。
+\begin{example}[卡尔曼增益的稳态解]\label{ex:09-kalman}
+设 $Q=R=1$。稳态时 $P_{t|t-1}=P$ 为常数，代入 \cref{eq:09-kalman-update}
+的第三式并以式 \eqref{eq:09-kalman-pred} 更新一步，得
+$P=\bigl(1-\frac{P}{P+R}\bigr)(P+Q)=\frac{PR}{P+R}+Q$。
+以 $Q=R=1$ 代入得 $P^2+P-1=0$，取正根 $P=(\sqrt{5}-1)/2\approx 0.618$。
+于是稳态增益 $K^\ast=P/(P+R)=0.618/1.618\approx 0.382$。
+经济含义：当状态噪声与观测噪声等大时，滤波器每次只把 38.2\% 的新息写进状态，
+其余 61.8\% 视为噪声丢弃。$Q/R$ 越大（状态越活跃）$K^\ast$ 越接近 1；
+$Q/R\to 0$（状态近乎常数）时 $K^\ast\to 0$，滤波器退化为「取全样本平均」。
+\end{example}
 
-\textbf{位置编码}：
-\begin{align}
-  PE_{(pos, 2i)} &= \sin(pos / 10000^{2i/d_{\text{model}}}) \\
-  PE_{(pos, 2i+1)} &= \cos(pos / 10000^{2i/d_{\text{model}}})
-\end{align}
+\Cref{ex:09-kalman} 中的 $0.382$ 与 $0.618$ 恰是黄金分割的两个倒数关系，
+这并非巧合，而是二次方程 $P^2+QP-QR=0$ 在 $Q=R$ 时的自然结果。
+滤波的另一个副产品是似然函数：新息 $y_t-x_{t|t-1}$ 的方差为 $P_{t|t-1}+R$，
+把各期新息的对数密度相加即得预测误差分解（prediction error decomposition）形式的
+对数似然，从而可以极大似然估计 $Q$ 与 $R$，也可以用 EM 算法迭代。
 
-\textbf{金融 Transformer 变体}：
-\begin{itemize}[leftmargin=*]
-  \item \textbf{Informer}：ProbSparse 自注意力，$O(L\log L)$ 复杂度，适合长序列
-  \item \textbf{Autoformer}：自相关机制替代自注意力，分解季节性和趋势成分
-  \item \textbf{PatchTST}：将时间序列分割为 Patch（类似 ViT），独立通道建模
-  \item \textbf{Temporal Fusion Transformer (TFT)}：可解释的多水平时间序列预测，支持静态协变量
-\end{itemize}
+\begin{appbox}[状态空间模型在量化中的三类用法]
+（1）\textbf{时变贝塔}：把 CAPM 的 $\beta_t$ 设为随机游走状态，观测方程为
+$r_t=\alpha+\beta_t r_{m,t}+v_t$，得到随市场状态漂移的对冲比率；
+（2）\textbf{动态因子}：把多个资产的共同成分设为状态，观测方程为因子载荷矩阵，
+即 Kalman 滤波版本的 PCA/动态因子模型，可处理缺失值与不定期发布的数据；
+（3）\textbf{配对交易的时变价差}：把协整向量 $\beta_t$ 设为状态，比固定窗口 OLS
+更能适应协整关系的缓慢漂移。三类用法的共同前提是 $Q$、$R$ 的结构设定正确，
+$Q$ 设得过大会让状态追逐噪声（等价于过拟合）。
+\end{appbox}
 
-\subsection{金融时间序列的 Transformer 应用}
+\section{协整、误差修正与格兰杰因果}
 
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{多资产收益预测}：跨资产注意力捕捉资产间的领先-滞后关系
-  \item \textbf{组合管理}：Attention 权重解释资产间的时变相关性
-  \item \textbf{异常检测}：Transformer 重构误差用于识别市场异常
-  \item \textbf{文本驱动的预测}：融合新闻/社交媒体与价格数据（跨模态 Transformer）
-\end{enumerate}
+\subsection{协整与配对交易}
 
-\section{协整与误差修正模型}
-
-\subsection{协整 (Cointegration)}
-
-若 $y_t$ 和 $x_t$ 均为 $I(1)$（一阶单整），但存在 $\beta$ 使得：
-
-\begin{equation}
-  u_t = y_t - \beta x_t \sim I(0)
+\begin{definition}[协整]\label{def:09-cointegration}
+若两个序列 $y_t$ 与 $x_t$ 都是 $I(1)$（一阶单整，即需差分一次才平稳），
+且存在非零常数 $\beta$ 使得
+\begin{equation}\label{eq:09-coint}
+  u_t=y_t-\beta x_t-\mu\ \sim\ I(0)
 \end{equation}
+则称 $y_t$ 与 $x_t$ \term{协整}（cointegrated），向量 $(1,-\beta)$ 为协整向量，
+$u_t$ 为均衡误差。其中 $\mu$ 为长期均衡的截距。
+\end{definition}
 
-则 $y_t$ 和 $x_t$ 协整，具有长期均衡关系。这是配对交易策略的数学基础。
+\Cref{def:09-cointegration} 的关键在于「两个非平稳序列的某个线性组合变平稳」。
+经济上它是套利机制存在的数学表达：只要价差偏离均衡，套利者就会交易把它拉回。
+注意协整与「高相关」是两件不同的事：两条独立的随机游走可以因为共同趋势而高度相关，
+但价差是随机游走而非平稳的，做价差回归会落到伪回归陷阱。
 
-\subsection{误差修正模型 (ECM)}
+Engle--Granger 两步法把检验与估计分开：第一步用 OLS 估计 $y_t=\mu+\beta x_t+u_t$，
+第二步对残差 $\hat u_t$ 做 ADF 检验，但临界值必须用 Engle--Granger 专用临界值
+（比普通 ADF 更负，因为 $\hat\beta$ 是估计出来的）；拒绝单位根即支持协整。
 
-\begin{align}
-  \Delta y_t &= \alpha_y (y_{t-1} - \beta x_{t-1}) + \sum \gamma_i \Delta y_{t-i} + \sum \delta_i \Delta x_{t-i} + \varepsilon_t
-\end{align}
+\subsection{误差修正模型}
 
-其中误差修正项 $\alpha_y (y_{t-1} - \beta x_{t-1})$ 将短期动态拉回长期均衡。
+由 Granger 表示定理，若存在协整关系，则一定存在\term{误差修正模型}（error correction model, ECM）：
+\begin{equation}\label{eq:09-ecm}
+  \Delta y_t=\varphi_0+\alpha_y\bigl(y_{t-1}-\beta x_{t-1}\bigr)
+  +\sum_{i=1}^{k}\gamma_i\Delta y_{t-i}
+  +\sum_{i=1}^{k}\delta_i\Delta x_{t-i}+\varepsilon_t
+\end{equation}
+其中 $\alpha_y$ 为调整速度（误差修正系数）、$\gamma_i$ 与 $\delta_i$ 刻画短期动态。
+为使偏离被拉回均衡，要求 $-2<\alpha_y<0$；$\alpha_y$ 越负，回归速度越快。
+偏离均衡后的衰减遵循 $(1+\alpha_y)^{h}$，故偏离的半衰期为
+\begin{equation}\label{eq:09-ecm-halflife}
+  h_{1/2}=\frac{\ln 0.5}{\ln(1+\alpha_y)}
+\end{equation}
+例如 $\alpha_y=-0.15$ 给出 $\ln 0.5/\ln 0.85\approx 4.3$ 期，即价差偏离约四天后回到一半。
+实践中应把 ECM 的截距与结构突变虚拟变量一并纳入，否则「均衡」本身的漂移会被误当成调整速度。
+
+\begin{appbox}[配对交易的执行清单]
+用协整做统计套利的标准流程是：筛选同行业、同驱动因子的资产对 $\to$ 用滚动窗口估计
+$(\beta,\mu)$ $\to$ 计算价差 $z_t=(y_t-\hat\mu-\hat\beta x_t)/\hat\sigma_u$ $\to$
+在 $|z_t|>2$ 建仓、回到 $|z_t|<0.5$ 平仓 $\to$ 对 $|z_t|>4$ 触发强制止损。
+两个必须的纪律：其一，滚动窗口长度决定 $\hat\beta$ 的偏差--方差权衡（窗口越长越稳、
+越短越适应），常用 60--120 个交易日；其二，必须用 ECM 的 $\alpha_y$ 估计持仓时间，
+若半衰期大于可承受的持仓期，则该组合的收益无法覆盖资金成本与交易成本。
+\end{appbox}
 
 \subsection{Johansen 检验}
 
-向量误差修正模型（VECM）：
-\begin{equation}
-  \Delta Y_t = \Pi Y_{t-1} + \sum_{i=1}^{p-1} \Gamma_i \Delta Y_{t-i} + \varepsilon_t
+当变量多于两个时，可能存在多个协整关系，Engle--Granger 的做法（指定一个被解释变量）
+不适用。Johansen 方法从向量误差修正模型（VECM）出发：
+\begin{equation}\label{eq:09-vecm}
+  \Delta Y_t=\Pi Y_{t-1}+\sum_{i=1}^{p-1}\Gamma_i\Delta Y_{t-i}+\varepsilon_t,\qquad
+  \Pi=\alpha\beta^{\top}
 \end{equation}
-
-$\Pi = \alpha\beta^T$ 的秩决定了协整关系的数量。迹检验和最大特征值检验是最常用的 Johansen 检验。
-
-\section{模型评估}
-
-\subsection{预测评估指标}
-
+其中 $Y_t$ 为 $n$ 维向量、$\Pi$ 为 $n\times n$ 的长期影响矩阵、$\Gamma_i$ 为短期动态矩阵、
+$\alpha$ 为调整速度矩阵、$\beta$ 为协整向量矩阵。核心结论是：
+$\rank(\Pi)=r$ 就等于协整关系的个数，且 $r\le n-1$；$r=n$ 说明所有变量本身平稳，
+$r=0$ 说明不存在协整。检验通过 $\Pi$ 的降秩回归实现，统计量是其特征值 $\hat\lambda_i$ 的函数：
 \begin{align}
-  \text{MSE} &= \frac{1}{n}\sum_{i=1}^{n} (y_i - \hat{y}_i)^2 \\
-  \text{MAE} &= \frac{1}{n}\sum_{i=1}^{n} |y_i - \hat{y}_i| \\
-  \text{MAPE} &= \frac{100\%}{n}\sum_{i=1}^{n} \left|\frac{y_i - \hat{y}_i}{y_i}\right|
+  \text{迹检验：}\quad & LR_{\text{trace}}(r)=-T\sum_{i=r+1}^{n}\ln\bigl(1-\hat\lambda_i\bigr)\label{eq:09-trace}\\
+  \text{最大特征值检验：}\quad & LR_{\max}(r)=-T\ln\bigl(1-\hat\lambda_{r+1}\bigr)\label{eq:09-maxeig}
 \end{align}
+两式的原假设都是「协整秩为 $r$」。迹检验是「从少到多」逐层拒绝，
+最大特征值检验逐阶比较，两者结论不一致时应谨慎，并检查样本量是否足够。
 
-\subsection{Diebold-Mariano 检验}
+\begin{example}[二变量 Johansen 检验的数值判读]\label{ex:09-johansen}
+设 $n=2$、$T=500$，估计得特征值 $\hat\lambda_1=0.15$、$\hat\lambda_2=0.008$。
+（1）迹检验 $r=0$：$LR_{\text{trace}}=-500\ln(0.85)\approx 500\times 0.1625\approx 81.3$，
+5\% 临界值约 $19.96$，强烈拒绝「无协整」。
+（2）迹检验 $r=1$：$LR_{\text{trace}}=-500\ln(0.992)\approx 500\times 0.00803\approx 4.0$，
+5\% 临界值约 $9.24$，不能拒绝「秩为 1」。
+（3）最大特征值检验 $r=0$：$-500\ln(0.85)\approx 81.3>$ 临界值 $15.67$，拒绝；
+$r=1$：$4.0<9.24$，不拒绝。两个检验一致地给出 $r=1$。
+结论：两个 $I(1)$ 序列之间存在唯一协整关系，可用 ECM 建模并做配对交易。
+\end{example}
 
-用于比较两个预测模型的准确性差异是否显著：
+\subsection{格兰杰因果}
 
-\begin{equation}
-  DM = \frac{\bar{d}}{\sqrt{\widehat{\text{Var}}(\bar{d})}}
+\begin{definition}[Granger 因果性]\label{def:09-granger}
+在给定信息集 $\Fm_{t-1}$ 下，若
+$\Var\bigl(y_t\mid \Fm_{t-1}\bigr)<\Var\bigl(y_t\mid \Fm_{t-1}\setminus\{x_{s}:s<t\}\bigr)$，
+则称 $x$ \term{Granger 引起} $y$。在 $\mathrm{ARMA}$ 设定下，这等价于 $y$ 的方程中
+所有 $x$ 的滞后项系数联合为零。
+\end{definition}
+
+检验方法是对 $y$ 的方程做两次回归：受约束模型只含 $y$ 的滞后项，无约束模型再加上
+$x$ 的 $q$ 个滞后项，然后用
+\begin{equation}\label{eq:09-granger-f}
+  F=\frac{(\mathrm{RSS}_r-\mathrm{RSS}_u)/q}{\mathrm{RSS}_u/(T-k)}\ \sim\ F(q,\,T-k)
 \end{equation}
+其中 $\mathrm{RSS}_r$ 与 $\mathrm{RSS}_u$ 分别为受约束与无约束残差平方和、$k$ 为无约束模型
+的参数个数。例：$T=200$、$q=4$、$\mathrm{RSS}_r=100$、$\mathrm{RSS}_u=90$ 时
+$F=\frac{2.5}{90/196}\approx 5.44$，超过 $F(4,196)$ 的 5\% 临界值约 $2.42$，
+故拒绝「$x$ 不引起 $y$」。
 
-其中 $d_t$ 为两模型预测误差差异的时间序列。
+\begin{warningbox}[格兰杰因果的三条使用禁忌]
+（1）\textbf{不控制混杂变量}：若 $x$ 与 $y$ 同受第三个变量 $z$ 驱动，
+$x$ 的滞后项会以 $z$ 的代理身份显著，得到的「因果」在加入 $z$ 后消失。
+（2）\textbf{非平稳数据}：若 $y$、$x$ 都是 $I(1)$ 且不平衡（无协整），$F$ 统计量不服从
+$F$ 分布；此时必须改用 VECM 框架下的检验。
+（3）\textbf{线性与同期效应}：式 \eqref{eq:09-granger-f} 只能发现\emph{线性、滞后}
+的可预测性。非线性依赖、同期因果、以及由条件异方差造成的伪依赖都无法识别；
+需要非线性版本或转移熵等工具，但转移熵在小样本下的估计偏差极大，须配合替代数据检验。
+\end{warningbox}
 
-\subsection{回测 VaR (Backtesting)}
+\section{深度学习时间序列模型}
 
-Kupiec 检验（无条件覆盖）：
-\begin{equation}
-  LR_{UC} = -2 \ln\left[\frac{(1-p)^{N-x}p^{x}}{(1-x/N)^{N-x}(x/N)^{x}}\right] \sim \chi^2_1
+\subsection{从 RNN 到 LSTM}
+
+循环神经网络（RNN）用同一个权重矩阵在时间上共享参数：
+\begin{equation}\label{eq:09-rnn}
+  h_t=\tanh\bigl(W_hh_{t-1}+W_xx_t+b\bigr)
 \end{equation}
+其中 $x_t$ 为 $t$ 时刻的输入特征、$h_t$ 为隐状态、$W_h$ 与 $W_x$ 为权重矩阵、$b$ 为偏置。
+反向传播时梯度要经过 $T$ 次 $W_h^{\top}$ 的连乘，其谱半径小于 1 时梯度指数衰减（梯度消失），
+大于 1 时爆炸——这就是 RNN 难以学习长依赖的原因。
 
-Christoffersen 检验还检查异常值的独立性（条件覆盖），防止波动率聚集导致的违规聚类。
+LSTM 用门控与一条\emph{加性}的记忆通道解决该问题：
+\begin{align}
+  f_t&=\sigma\bigl(W_f[h_{t-1},x_t]+b_f\bigr) && \text{（遗忘门）}\label{eq:09-lstm-f}\\
+  i_t&=\sigma\bigl(W_i[h_{t-1},x_t]+b_i\bigr) && \text{（输入门）}\\
+  \tilde{C}_t&=\tanh\bigl(W_C[h_{t-1},x_t]+b_C\bigr) && \text{（候选记忆）}\\
+  C_t&=f_t\odot C_{t-1}+i_t\odot\tilde{C}_t && \text{（记忆单元更新）}\label{eq:09-lstm-c}\\
+  o_t&=\sigma\bigl(W_o[h_{t-1},x_t]+b_o\bigr) && \text{（输出门）}\\
+  h_t&=o_t\odot\tanh(C_t) && \text{（隐状态）}\label{eq:09-lstm-h}
+\end{align}
+其中 $\sigma(\cdot)$ 为 logistic 函数、$\odot$ 为逐元素乘积、$[h_{t-1},x_t]$ 为拼接向量。
+\cref{eq:09-lstm-c} 是 LSTM 的核心：$C_t$ 沿时间的更新是\emph{加法}，
+因此 $\partial C_t/\partial C_{t-1}=f_t$ 不会连乘成指数衰减，梯度可以跨越很多步传回。
+\cref{eq:09-lstm-f} 的遗忘门 $f_t$ 由数据决定「丢弃多少旧记忆」，
+这正是它能处理「波动率机制切换」这类长记忆结构的机制基础。
 
-\section{小结}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm,
+  box/.style={draw=quantblue!70, fill=boxbg, rounded corners=1.2mm,
+              minimum width=1.75cm, minimum height=7mm, font=\scriptsize\sffamily,
+              align=center},
+  gate/.style={draw=quantgold!80, fill=intubg, rounded corners=1.2mm,
+               minimum width=1.55cm, minimum height=6.5mm, font=\scriptsize\sffamily,
+               align=center},
+  op/.style={circle, draw=inkgray!70, fill=white, inner sep=1.0pt,
+             minimum size=4.6mm, font=\scriptsize},
+  ar/.style={-{Stealth[length=1.6mm]}, thick, quantblue}
+]
+\node[box]  (cell) {记忆单元 $C_t$};
+\node[gate, above=10mm of cell] (forget) {遗忘门 $f_t$};
+\node[gate, left=13mm of cell]  (input)  {输入门 $i_t$};
+\node[gate, right=13mm of cell] (output) {输出门 $o_t$};
+\node[op, below=9mm of forget]  (mul1) {$\odot$};
+\node[op, below=9mm of input]   (mul2) {$\odot$};
+\node[op, below=7mm of cell]    (add)  {$+$};
+\node[box, below=13mm of add]   (hidden) {隐状态 $h_t$};
+\node[gate, below=11mm of hidden] (cand) {候选记忆 $\tilde{C}_t$};
+\draw[ar] (forget) -- (mul1);
+\draw[ar] (input)  -- (mul2);
+\draw[ar] (mul1) -- (add);
+\draw[ar] (mul2) -- (add);
+\draw[ar] (cand) -- (mul2);
+\draw[ar] (add) -- (cell);
+\draw[ar] (cell) -- (hidden);
+\draw[ar] (hidden) -- (output);
+\draw[ar, dashed, quantred] (cell.west) -- ++(-9mm,0) |- (mul1.west);
+\node[font=\scriptsize\sffamily, inkgray, below=1mm of hidden, xshift=26mm]
+  {$h_t=o_t\odot\tanh(C_t)$};
+\end{tikzpicture}
+\caption{LSTM 单元的门控结构与加性记忆通道（对应 \cref{eq:09-lstm-c}）}\label{fig:09-lstm}
+\end{figure}
 
-时间序列分析是量化金融的脊椎——从经典的 ARIMA/GARCH 到现代的 LSTM/Transformer，模型复杂度与日俱增，但核心目标不变：提取序列中的可预测信号。传统模型可解释性强、参数少、适合低频宏观数据；深度学习方法适合高维、非线性、多频率的数据环境。实践中应权衡模型复杂度与泛化能力。
+\Cref{fig:09-lstm} 中的关键结构是那条从 $C_{t-1}$ 出发、经过遗忘门与加法节点回到 $C_t$
+的\emph{直通路径}：它没有任何非线性压缩，梯度可以近似无损地回传，
+这是 LSTM 相对朴素 RNN 的根本改进。GRU 是它的简化版本，把记忆单元与隐状态合并：
+\begin{align}
+  z_t&=\sigma\bigl(W_z[h_{t-1},x_t]\bigr) && \text{（更新门）}\\
+  r_t&=\sigma\bigl(W_r[h_{t-1},x_t]\bigr) && \text{（重置门）}\\
+  \tilde{h}_t&=\tanh\bigl(W[r_t\odot h_{t-1},x_t]\bigr), && h_t=(1-z_t)\odot h_{t-1}+z_t\odot\tilde{h}_t
+\end{align}
+其中 $z_t$ 同时承担遗忘与输入的职责。GRU 参数比 LSTM 少约 25\%，
+在中小规模金融数据集上往往表现相当甚至更好，是低信噪比场景下更稳妥的默认选择。
+
+\subsection{Transformer 与面向时间序列的变体}
+
+Transformer 用自注意力替代循环结构：
+\begin{equation}\label{eq:09-attention}
+  \mathrm{Attention}(Q,K,V)=\mathrm{softmax}\!\Bigl(\frac{QK^{\top}}{\sqrt{d_k}}\Bigr)V
+\end{equation}
+其中 $Q$、$K$、$V$ 分别为查询、键、值矩阵、$d_k$ 为键的维度、$\sqrt{d_k}$ 用于防止
+内积随维度增大而饱和 softmax。多头注意力把表示空间切成 $h$ 个子空间并行计算：
+\begin{align}\label{eq:09-multihead}
+  \mathrm{MultiHead}(Q,K,V)&=\mathrm{Concat}(\mathrm{head}_1,\dots,\mathrm{head}_h)\,W^{O}\notag\\
+  \mathrm{head}_i&=\mathrm{Attention}(QW_i^{Q},\,KW_i^{K},\,VW_i^{V})
+\end{align}
+由于注意力本身对序列顺序无感，必须注入位置信息。原版使用正弦位置编码：
+\begin{equation}\label{eq:09-posenc}
+  \mathrm{PE}_{(pos,2i)}=\sin\!\bigl(pos/10000^{2i/d_{\mathrm{model}}}\bigr),\qquad
+  \mathrm{PE}_{(pos,2i+1)}=\cos\!\bigl(pos/10000^{2i/d_{\mathrm{model}}}\bigr)
+\end{equation}
+其中 $pos$ 为时间位置、$i$ 为维度索引、$d_{\mathrm{model}}$ 为模型维度。
+自注意力的复杂度为 $O(L^2)$（$L$ 为序列长度），这直接催生了面向长序列的改进：
+
+\begin{itemize}[leftmargin=*]
+  \item \term{Informer}（2021）：用 ProbSparse 注意力只保留「查询稀疏度」高的键，
+  把复杂度降到 $O(L\log L)$，并配以自注意力蒸馏，适合数百到上千步的长序列预测。
+  \item \term{Autoformer}（2021）：先用自相关函数（ACF）聚集相似子序列，
+  再用序列分解块显式分离趋势与季节成分，擅长强周期数据。
+  \item \term{PatchTST}（2023）：把序列切成 Patch（思路来自 ViT），
+  以通道独立方式建模，参数量与训练成本显著低于逐步建模的方案，
+  对缺失值与多变量异质通道更稳健。
+  \item \term{TFT}（Temporal Fusion Transformer, 2021）：引入静态协变量编码器、
+  门控残差网络与可解释的多头注意力，能输出变量重要性与注意力权重，
+  适合「既要预测又要归因」的风控与需求预测场景。
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\caption{深度学习时间序列模型的能力与适用场景对比}\label{tab:09-dl-compare}
+\tablefont
+\begin{tabular}{@{}p{2.3cm}p{2.1cm}p{2.3cm}p{2.2cm}p{3.1cm}@{}}
+\toprule
+模型 & 计算复杂度 & 长序列能力 & 可解释性 & 适用场景 \\
+\midrule
+RNN & $O(L)$ & 弱（梯度消失） & 低 & 短序列基线 \\
+LSTM & $O(L)$ & 中 & 低（可用门值诊断） & 波动率、订单流 \\
+GRU & $O(L)$ & 中 & 低 & 中小样本的默认选择 \\
+Transformer & $O(L^2)$ & 中 & 中（注意力权重） & 跨资产、多模态 \\
+Informer & $O(L\log L)$ & 强 & 中 & 长序列负荷/价格 \\
+PatchTST & $O(L^2/P^2)$ & 强 & 低 & 多变量、含缺失 \\
+TFT & $O(L^2)$ & 中 & 高 & 需要归因的预测 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{金融场景下的训练技巧}
+
+\Cref{tab:09-dl-compare} 列出的容量优势在金融数据上很容易变成劣势，因为金融序列的
+信噪比极低：日频收益率可预测部分的 $R^2$ 常在 0.01 以下，而模型参数量动辄 $10^5$ 以上。
+因此训练流程的工程细节比网络结构更决定成败：
+
+\begin{enumerate}[leftmargin=*]
+  \item \term{样本权重}：按目标波动率倒数加权（或用样本唯一性加权），
+  避免高波动时期主导损失函数；这本质上是把「波动率聚类」从噪声变成权重结构。
+  \item \term{时序交叉验证}：绝不能用随机 K 折。应使用滚动或扩展窗口，
+  并在训练集与验证集之间留出 embargo 间隔（至少等于标签的前瞻期），
+  否则重叠标签会造成信息泄漏，验证分数虚高。
+  \item \term{特征标准化}：只用训练窗口的均值与标准差做 $z$ 分数变换，
+  再应用到验证集；用全样本标准化是最常见也最隐蔽的泄漏。
+  \item \term{正则化组合}：Dropout（$0.1$--$0.5$）、权重衰减（$10^{-4}$ 量级）、
+  LayerNorm（对时间序列比 BatchNorm 更稳，因为批内样本的时间分布不一致）、
+  以及早停（以验证集损失为准，耐心 5--10 个 epoch）。
+  \item \term{输出层设计}：预测收益率方向时用排序损失或分位数损失代替均方误差，
+  因为 MSE 对大波动样本极度敏感；预测波动率时在 log 空间建模以保证正值。
+  \item \term{集成与不确定性}：用 5--10 个不同随机种子的模型取平均（Deep Ensemble），
+  或用 MC Dropout 给出预测分布，再用其分布而非点估计做仓位与风控。
+\end{enumerate}
+
+\begin{warningbox}[低信噪比下的过拟合：一个必须量化的边界]
+金融数据中「样本量 $\times$ 信噪比」远小于自然语言或图像任务。假设日频数据 2500 个样本
+（约 10 年），标签 $R^2\approx 0.005$，则有效信号的信息量极小，
+而一个含 $10^5$ 参数的 LSTM 在训练集上轻松达到 $R^2=0.3$——这几乎全部是记忆。
+三个具体的防线：（1）要求「样本量 / 参数量 $\ge 10$」，否则先降容量；
+（2）用 Deflated Sharpe Ratio 或 White's Reality Check 校正对多个模型配置的挑拣偏差
+（选了几十个配置中的最优，样本外表现必然被高估）；
+（3）任何深度模型都必须与「$t$ 期均值」和 $\mathrm{AR}(1)$ 两个基线比较，
+若无法稳定超越，则不应上线。此外，模型在结构突变期的失效尤其危险：
+它不会给出警告，只会以更高置信度输出错误预测。
+\end{warningbox}
+
+\section{预测评估与 VaR 回测}
+
+\subsection{点预测指标}
+
+设真实值为 $y_i$、预测值为 $\hat y_i$，常用的三个损失函数为
+\begin{align}
+  \mathrm{MSE}&=\frac{1}{n}\sum_{i=1}^{n}(y_i-\hat y_i)^{2},\qquad
+  \mathrm{MAE}=\frac{1}{n}\sum_{i=1}^{n}\abs{y_i-\hat y_i}\label{eq:09-mse-mae}\\
+  \mathrm{MAPE}&=\frac{100\%}{n}\sum_{i=1}^{n}\abs{\frac{y_i-\hat y_i}{y_i}}\label{eq:09-mape}
+\end{align}
+其中 $n$ 为样本量。MSE 对大误差更敏感（适合关注方差的场景），MAE 更稳健；
+MAPE 在 $y_i$ 接近零时爆炸，因此在收益率预测中几乎不可用，
+对价格或成交量预测才合适。此外还常用 $\mathrm{RMSE}=\sqrt{\mathrm{MSE}}$ 与
+样本外 $R^2=1-\mathrm{MSE}/\Var(y)$。
+
+仅有指标不够，还要检验预测的\emph{无偏性}与\emph{有效性}：
+\begin{equation}\label{eq:09-mz}
+  y_t=a+b\hat y_t+u_t
+\end{equation}
+即 Mincer--Zarnowitz 回归。理想预测应满足 $(a,b)=(0,1)$，可用联合 $F$ 检验（或 Wald 检验）。
+若 $\hat b$ 显著小于 1，说明预测值方差过大（过度反应），把预测向样本均值收缩（乘以 $\hat b$）
+可以改进；若 $a$ 显著非零，说明存在系统性偏差。
+
+\subsection{Diebold--Mariano 检验}
+
+比较两个模型时不能只看平均损失的大小，还要看差异是否显著。令
+$d_t=L(e_{1t})-L(e_{2t})$（$L$ 为平方损失或绝对损失），DM 统计量为
+\begin{equation}\label{eq:09-dm}
+  \mathrm{DM}=\frac{\bar d}{\sqrt{\widehat{\mathrm{LRV}}(d)/T}}
+  \ \xrightarrow{d}\ \N(0,1)
+\end{equation}
+其中 $\bar d$ 为损失差的样本均值、$\widehat{\mathrm{LRV}}(d)$ 为 $d_t$ 的长期方差
+（用 Newey--West 等 HAC 估计量得到，滞后阶数经验取 $T^{1/3}$ 或 $4(T/100)^{2/9}$）。
+原假设是两个模型的期望损失相等。注意小样本下 DM 统计量偏小，
+Harvey 等（1997）建议使用修正版本 $DM^{\ast}=\mathrm{DM}\sqrt{(T+1-2h+h(h-1)/T)/T}$，
+其中 $h$ 为预测步长。
+
+\begin{example}[DM 检验的数值判读]\label{ex:09-dm}
+设 $T=250$，平方损失差的均值 $\bar d=0.021$，经 Newey--West（滞后 5 阶）估计的长期方差
+为 $0.0625$（对应标准差 $0.25$）。则标准误
+$\se(\bar d)=\sqrt{0.0625/250}\approx 0.0158$，
+$\mathrm{DM}=0.021/0.0158\approx 1.33$。由于 $1.33<1.96$，
+在 5\% 水平上不能拒绝「两模型精度相同」。此时即便模型 A 的样本外 MSE 比 B 低 3\%，
+也不足以支持「A 更好」的结论——差异很可能来自噪声。
+\end{example}
+
+\subsection{VaR 回测}
+
+如果 $1\%$ 的在险价值（Value at Risk, VaR）模型是对的，那么大约每 100 天应有 1 天
+损失超过 VaR。回测就是检验这个比例与集中程度。设样本长度 $T$、显著性水平 $p$、
+实际例外次数为 $x$。
+
+\term{Kupiec 无条件覆盖检验}（POF）的似然比统计量为
+\begin{equation}\label{eq:09-kupiec}
+  LR_{UC}=-2\ln\!\left[
+  \frac{(1-p)^{T-x}p^{x}}
+       {(1-x/T)^{T-x}(x/T)^{x}}\right]\ \sim\ \chi^{2}_{1}
+\end{equation}
+分子是「模型正确」时的似然，分母是「真实例外率等于样本例外率」时的似然。
+
+\begin{example}[Kupiec 检验：$T=1000$，$p=1\%$，$x=15$]\label{ex:09-kupiec}
+代入 \cref{eq:09-kupiec}：
+$\ln\bigl[(1-p)^{T-x}p^{x}\bigr]=985\ln 0.99+15\ln 0.01\approx -9.900-69.078=-78.977$；
+$\ln\bigl[(1-\hat p)^{T-x}\hat p^{x}\bigr]=985\ln 0.985+15\ln 0.015
+\approx -14.887-62.996=-77.882$，
+其中 $\hat p=x/T=0.015$。于是 $LR_{UC}=-2(-78.977+77.882)\approx 2.19$。
+$\chi^2_1$ 的 5\% 临界值为 $3.84$，故\emph{不能}拒绝「例外率等于 1\%」。
+但另一方面，$x=15$ 是期望值 $10$ 的 1.5 倍，样本例外率 1.5\% 已经偏高；
+若 $x=20$，则 $LR_{UC}\approx 7.3>3.84$，模型将被拒绝。
+这说明无条件覆盖检验对中等幅度的偏离并不敏感，必须再用独立性检验补足。
+\end{example}
+
+\term{Christoffersen 条件覆盖检验}把例外是否\emph{成簇}纳入检验。
+记 $n_{ij}$ 为「$t$ 日为状态 $i$、$t+1$ 日为状态 $j$」的转移次数（$1$ 表示例外，$0$ 表示未例外），
+$\pi_0=n_{01}/(n_{00}+n_{01})$、$\pi_1=n_{11}/(n_{10}+n_{11})$、$\pi=(n_{01}+n_{11})/T$：
+\begin{equation}\label{eq:09-christoffersen}
+  LR_{ind}=-2\ln\!\left[
+  \frac{(1-\pi)^{n_{00}+n_{10}}\pi^{n_{01}+n_{11}}}
+       {(1-\pi_0)^{n_{00}}\pi_0^{n_{01}}(1-\pi_1)^{n_{10}}\pi_1^{n_{11}}}\right]\sim\chi^{2}_{1}
+\end{equation}
+条件覆盖统计量为 $LR_{CC}=LR_{UC}+LR_{ind}\sim\chi^2_2$。
+以上例的数据结构取 $n_{00}=971$、$n_{01}=14$、$n_{10}=14$、$n_{11}=1$，
+可算得 $LR_{ind}\approx 1.52<3.84$，即例外在时间上未表现出显著聚集；
+若换成一个在危机后才抬升波动率的迟钝模型，例外会连续出现，$n_{11}$ 变大，$LR_{ind}$ 将显著。
+
+除上述两个检验外，\term{动态分位数检验}（dynamic quantile, DQ）把
+$\mathrm{Hit}_t=\ind{y_t<-\VaR_t}-p$ 对常数、滞后 $\mathrm{Hit}$ 与滞后 VaR 做回归，
+联合检验所有系数为零，可同时检出覆盖偏差、聚集与 VaR 对信息的反应迟钝。
+
+\begin{keybox}[评估纪律：样本外、HAC、多模型校正]\label{key:09-eval}
+预测评估必须同时满足三条要求。第一，样本外：所有指标只在从未参与拟合的区间上计算，
+滚动窗口重估是唯一能反映真实部署效果的方式。第二，HAC：DM 与 Mincer--Zarnowitz 的
+标准误必须修正自相关与异方差，否则 $t$ 统计量被系统性高估。第三，多模型校正：
+若从 50 个配置中挑出最优，其样本外表现必然被高估，须用白氏 Reality Check、
+SPA 检验或 Deflated Sharpe Ratio 校正。
+\end{keybox}
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item 弱平稳要求均值恒定、自协方差只依赖滞后；AR 的平稳性与 MA 的可逆性分别由
+  $\phi(z)$、$\theta(z)$ 的根全部落在单位圆外保证，二者互为对偶（\cref{key:09-duality}）。
+  \item Box--Jenkins 四步流程（识别 $\to$ 估计 $\to$ 诊断 $\to$ 预测）的核心是诊断闭环：
+  残差必须既是白噪声、又不含 ARCH 效应（\cref{alg:09-boxjenkins}）。
+  \item GARCH(1,1) 的长期方差为 $\omega/(1-\alpha-\beta)$，冲击半衰期为
+  $\ln 0.5/\ln(\alpha+\beta)$；$\alpha+\beta=0.98$ 对应约 34 个交易日（\cref{ex:09-garch}）。
+  \item 高频数据可用已实现波动率直接度量积分方差，HAR 用日、周、月三层成分逼近长记忆，
+  其预测 $R^2$ 远高于收益率方向预测。
+  \item 状态空间模型把时变参数写成状态，卡尔曼滤波的预测步与更新步可由条件正态回归推出，
+  稳态增益由信号--噪声比决定（\cref{ex:09-kalman}）。
+  \item 协整刻画非平稳序列的长期均衡，误差修正项的系数给出回归速度与半衰期；
+  多变量情形用 Johansen 的迹检验与最大特征值检验确定协整秩（\cref{ex:09-johansen}）。
+  \item 深度学习在金融数据的核心矛盾是低信噪比与高容量，必须依靠时序交叉验证、
+  样本权重、正则化组合与多模型校正来控制过拟合。
+  \item 评估不止看 MSE/MAE，还要做 Mincer--Zarnowitz 无偏性检验与 DM 检验；
+  VaR 回测需同时通过无条件覆盖（Kupiec）与独立性（Christoffersen）检验（\cref{key:09-eval}）。
+\end{itemize}
+\end{summarybox}
+
+\begin{exercises}
+  \item 证明 \cref{eq:09-ar1-moments} 中的 $\gamma_0=\sigma^2/(1-\phi^2)$ 与 $\rho_k=\phi^k$，
+  并推导 \cref{eq:09-halflife-ar}。当 $\phi=0.95$、$\phi=-0.85$ 时半衰期各为多少期？
+  负号会带来怎样的路径形态？
+  \item 设 $\mathrm{MA}(1)$ 的 $\theta=2$。写出 $\rho_1$ 并说明为什么统计软件不会报告
+  $\hat\theta=2$。若强行使用 $\theta=2$ 做预测，与使用等价的可逆表示相比会有什么差别？
+  \item 用 \cref{eq:09-garch-forecast} 计算：$\omega=0.02$、$\alpha=0.10$、$\beta=0.85$、
+  当前 $\sigma_{t+1}^2=3.0$ 时的 1、5、20 步方差预测，以及长期波动率与半衰期。
+  若把模型误设为 $\alpha+\beta=0.999$，长期方差会变成多少？这说明什么？
+  \item 假设你有 5 分钟高频数据，用 $M=78$ 计算 RV，并分别用 $M=13$ 与 $M=468$ 计算。
+  从微观结构噪声的角度解释三者的偏差方向，并说明为什么 5 分钟是常见的折中。
+  \item 用 \cref{eq:09-kalman-pred} 与 \cref{eq:09-kalman-update} 推导稳态方程
+  $P^2+QP-QR=0$，并计算 $Q/R=4$ 时的稳态增益 $K^\ast$。若状态是随机游走，
+  为什么 $K^\ast$ 不随时间趋于零？
+  \item 给定 $n_{00}=950$、$n_{01}=8$、$n_{10}=8$、$n_{11}=4$、$T=1000$、$p=1\%$，
+  分别计算 $LR_{UC}$ 与 $LR_{ind}$，判断该 VaR 模型的缺陷类型
+  （覆盖不足、聚集，或两者兼有）。
+  \item 设计一个实验说明随机 K 折交叉验证如何在金融时间序列上产生信息泄漏：
+  给出标签前瞻期 $h=5$、训练集与验证集随机划分的情形下，泄漏的具体传递路径，
+  并说明 embargo 长度应如何设定。
+  \item 讨论：若某模型在回测区间 2010--2019 年的 $R^2$ 为 0.02，而在 2020 年 3 月为 $-0.35$，
+  这两个数字分别反映了什么问题？你会如何调整上线决策流程？
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Box, G., Jenkins, G., Reinsel, G., and Ljung, G., \emph{Time Series Analysis:
+Forecasting and Control}, 5th ed., Wiley, 2015.
+（Box--Jenkins 流程的原始出处，识别--估计--诊断--预测的方法论源头，第 6--8 章最值得精读。）
+\refitem Hamilton, J., \emph{Time Series Analysis}, Princeton University Press, 1994.
+（单位根、协整、状态空间与卡尔曼滤波的标准参考，第 17--19 章讲清 ECM 与 Johansen 检验的推导。）
+\refitem Engle, R., ``Autoregressive Conditional Heteroscedasticity with Estimates of the
+Variance of United Kingdom Inflation'', \emph{Econometrica}, 1982.
+（ARCH 的开创性论文，理解条件异方差建模动机的必读文献。）
+\refitem Bollerslev, T., ``Generalized Autoregressive Conditional Heteroskedasticity'',
+\emph{Journal of Econometrics}, 1986.
+（GARCH 的提出，含长期方差与持续性条件的完整讨论。）
+\refitem Andersen, T., Bollerslev, T., Diebold, F., and Labys, P., ``Modeling and Forecasting
+Realized Volatility'', \emph{Econometrica}, 2003.
+（已实现波动率与 HAR 家族的理论与实证基础，含高频采样频率的偏差--方差权衡。）
+\refitem Corsi, F., ``A Simple Approximate Long-Memory Model of Realized Volatility'',
+\emph{Journal of Financial Econometrics}, 2009.
+（HAR 模型原文，三尺度成分的经济解释与参数稳定性证据。）
+\refitem Diebold, F., and Mariano, R., ``Comparing Predictive Accuracy'',
+\emph{Journal of Business \& Economic Statistics}, 1995.
+（DM 检验原文；配合 Harvey 等 1997 年的小样本修正一并阅读。）
+\refitem Christoffersen, P., ``Evaluating Interval Forecasts'', \emph{International Economic
+Review}, 1998.
+（条件覆盖检验的原始文献，VaR 回测中独立性检验的标准引用。）
+\refitem Zhou, H., et al., ``Informer: Beyond Efficient Transformer for Long Sequence
+Time-Series Forecasting'', \emph{AAAI}, 2021；Nie, Y., et al., ``A Time Series is Worth
+64 Words: Long-term Forecasting with Transformers'', \emph{ICLR}, 2023.
+（长序列与 Patch 化建模的两篇代表作，适合理解 $O(L^2)$ 瓶颈的工程应对。）
+\end{furtherreading}

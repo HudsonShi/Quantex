@@ -1,0 +1,232 @@
+% ============================================================================
+%  附录 A：数学公式速查
+% ============================================================================
+\chapter{数学公式速查}
+\label{app:math}
+
+本附录汇总全书反复使用的数学结论，便于快速查阅。所有公式均可在正文相应章节找到来源说明。
+
+\section{常用概率分布}
+
+\begin{table}[htbp]
+\centering
+\caption{连续分布的密度函数与矩}\label{tab:dist-cont}
+\scriptsize\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}L{2.0cm}Y L{2.5cm}L{2.6cm}@{}}
+\toprule
+\textbf{分布} & \textbf{密度函数 $f(x)$} & \textbf{均值} & \textbf{方差} \\
+\midrule
+正态 $\N(\mu,\sigma^2)$ & $\dfrac{1}{\sigma\sqrt{2\pi}}\exp\left(-\dfrac{(x-\mu)^2}{2\sigma^2}\right)$ & $\mu$ & $\sigma^2$ \\
+对数正态 & $\dfrac{1}{x\sigma\sqrt{2\pi}}\exp\left(-\dfrac{(\ln x-\mu)^2}{2\sigma^2}\right),\ x>0$ & $\ee^{\mu+\sigma^2/2}$ & $(\ee^{\sigma^2}-1)\ee^{2\mu+\sigma^2}$ \\
+学生 $t$（$\nu$ 自由度） & $\dfrac{\Gamma\!\left(\frac{\nu+1}{2}\right)}{\sqrt{\nu\pi}\,\Gamma\!\left(\frac{\nu}{2}\right)}\left(1+\dfrac{x^2}{\nu}\right)^{-\frac{\nu+1}{2}}$ & $0$（$\nu>1$） & $\dfrac{\nu}{\nu-2}$（$\nu>2$） \\
+指数（速率 $\lambda$） & $\lambda \ee^{-\lambda x},\ x\ge 0$ & $1/\lambda$ & $1/\lambda^2$ \\
+伽马 $(\alpha,\beta)$ & $\dfrac{\beta^{\alpha}}{\Gamma(\alpha)}x^{\alpha-1}\ee^{-\beta x}$ & $\alpha/\beta$ & $\alpha/\beta^2$ \\
+贝塔 $(a,b)$ & $\dfrac{x^{a-1}(1-x)^{b-1}}{B(a,b)},\ x\in(0,1)$ & $\dfrac{a}{a+b}$ & $\dfrac{ab}{(a+b)^2(a+b+1)}$ \\
+帕累托（$\alpha$ 尾指数） & $\dfrac{\alpha x_m^{\alpha}}{x^{\alpha+1}},\ x\ge x_m$ & $\dfrac{\alpha x_m}{\alpha-1}$（$\alpha>1$） & $\dfrac{x_m^2\alpha}{(\alpha-1)^2(\alpha-2)}$（$\alpha>2$） \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[关于 t 分布与金融收益]
+学生 $t$ 分布是刻画金融收益率肥尾的最简模型。自由度 $\nu$ 越小尾部越厚；$\nu\le 2$ 时方差不存在，
+$\nu\le 4$ 时四阶矩不存在——这意味着\textbf{样本峰度在选择 $\nu$ 较小时本身就是不稳定的统计量}。
+实务中股票日收益的拟合值常在 $\nu\in[3,6]$ 之间。
+\end{notebox}
+
+\begin{table}[htbp]
+\centering
+\caption{离散分布与极限定理}\label{tab:dist-disc}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}Y L{2.6cm}@{}}
+\toprule
+\textbf{分布 / 定理} & \textbf{概率函数或结论} & \textbf{关键记号} \\
+\midrule
+二项 $B(n,p)$ & $P(X=k)=\binom{n}{k}p^k(1-p)^{n-k}$ & 均值 $np$，方差 $np(1-p)$ \\
+泊松 $(\lambda)$ & $P(X=k)=\dfrac{\lambda^k \ee^{-\lambda}}{k!}$ & 均值 = 方差 = $\lambda$ \\
+几何（成功概率 $p$） & $P(X=k)=(1-p)^{k-1}p$ & 无记忆性 \\
+中心极限定理 & $\dfrac{\sqrt{n}(\bar X_n-\mu)}{\sigma}\xrightarrow{d}\N(0,1)$ & 独立同分布、方差有限 \\
+大数定律 & $\bar X_n \xrightarrow{p} \mu$ & 弱收敛 / 依概率收敛 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{高斯积分与正态分布结论}
+
+\begin{align}
+  \int_{-\infty}^{\infty} \ee^{-ax^2+bx}\,\dd x &= \sqrt{\frac{\pi}{a}}\,\exp\left(\frac{b^2}{4a}\right), \quad a>0 \\
+  \E[\ee^{\theta Z}] &= \ee^{\theta^2/2}, \quad Z\sim\N(0,1) \\
+  \E[Z\,\ind{Z>c}] &= \phi(c), \qquad \E[\ind{Z>c}] = 1-\Phi(c) \\
+  \E[(Z-c)^+] &= \phi(c) - c\,(1-\Phi(c))
+\end{align}
+
+最后一行是 Black--Scholes 公式中「看涨期权期望收益」的核心积分，也是
+$\E[(Z-c)^+] = \phi(c)-c\Phi(-c)$ 这一常用形式的来源。
+
+\begin{keybox}[正态尾部的 Mills 比率]
+当 $c\to\infty$ 时
+\[
+  1-\Phi(c) \sim \frac{\phi(c)}{c}\left(1-\frac{1}{c^2}+\frac{3}{c^4}-\cdots\right),
+\]
+因此在深度虚值区域，期权价格的相对误差对波动率极为敏感：这是隐含波动率在极端行权价上
+不稳定、以及方差互换复制需要在尾部做外推的根本原因。
+\end{keybox}
+
+\section{矩阵代数与向量求导}
+
+\begin{align}
+  (AB)^{-1} &= B^{-1}A^{-1} \\
+  (A+UCV)^{-1} &= A^{-1}-A^{-1}U\left(C^{-1}+VA^{-1}U\right)^{-1}VA^{-1} \quad \text{（Woodbury 恒等式）} \\
+  \pd{}{x}\left(a^T x\right) &= a, \qquad \pd{}{x}\left(x^T A x\right) = (A+A^T)x \\
+  \pd{}{X}\ln\det X &= \left(X^{-1}\right)^T, \qquad \pd{}{X}\tr(AX) = A^T \\
+  \pd{}{X}\tr\left(X^{-1}A\right) &= -\left(X^{-1}AX^{-1}\right)^T
+\end{align}
+
+对协方差矩阵求导是组合优化与多元统计的核心运算。若 $\Sigmamat$ 对称，则
+$\pd{}{\wvec}\left(\wvec^T\Sigmamat\wvec\right)=2\Sigmamat\wvec$，
+这正是最小方差组合一阶条件 $2\Sigmamat\wvec=\lambda\mathbf{1}$ 的来源。
+
+\begin{table}[htbp]
+\centering
+\caption{常用矩阵分解与用途}\label{tab:matrix-decomp}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}Y L{4.2cm}@{}}
+\toprule
+\textbf{分解} & \textbf{形式} & \textbf{金融用途} \\
+\midrule
+Cholesky & $\Sigmamat = LL^T$（$\Sigmamat$ 正定） & 生成相关随机数、蒙特卡洛路径 \\
+特征分解 & $\Sigmamat = Q\Lambda Q^T$（对称） & 主成分分析、风险因子提取 \\
+奇异值分解 & $X = U\Sigma V^T$ & 因子模型降维、条件数诊断 \\
+谱条件数 & $\kappa = \lambda_{\max}/\lambda_{\min}$ & 判断 $\Sigmamat^{-1}$ 是否放大估计误差 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{概率论常用结论}
+
+\subsection*{条件期望的性质}
+
+\begin{align}
+  \E[X \mid \Fm] &= X \quad \text{若 } X \text{ 为 } \Fm\text{-可测} \\
+  \E\left[\E[X\mid\Fm]\right] &= \E[X] \quad \text{（全期望公式）} \\
+  \E\left[\E[X\mid\Fm_2]\mid\Fm_1\right] &= \E\left[X\mid\Fm_1\right], \quad \Fm_1\subseteq\Fm_2 \quad \text{（塔性质）} \\
+  \Var(X) &= \E\left[\Var(X\mid\Fm)\right] + \Var\left(\E[X\mid\Fm]\right) \quad \text{（方差分解）}
+\end{align}
+
+塔性质是鞅论一切结论的起点：它说明「用更少的信息做预测，等于先用更多信息预测再取平均」。
+
+\subsection*{常用不等式}
+
+\begin{itemize}[leftmargin=1.8em]
+  \item \textbf{Jensen 不等式}：$\varphi$ 为凸函数时 $\varphi(\E[X])\le \E[\varphi(X)]$。
+        由 $\ln$ 的凹性可得几何平均不超过算术平均；由凸性可得
+        $\E[\max(X,0)] \ge \max(\E[X],0)$。
+  \item \textbf{Cauchy--Schwarz}：$\left|\E[XY]\right|\le\sqrt{\E[X^2]\E[Y^2]}$，
+        因此相关系数满足 $\abs{\rho}\le 1$。
+  \item \textbf{Markov}：$P(X\ge a)\le \E[X]/a$（$X\ge 0$）。
+  \item \textbf{Chebyshev}：$P(\abs{X-\mu}\ge k\sigma)\le 1/k^2$——与真实肥尾分布相比，
+        该界在金融数据上通常\textbf{过于乐观}，这正是极值理论存在的理由。
+  \item \textbf{Hölder}：$\E[\abs{XY}]\le\left(\E[\abs{X}^p]\right)^{1/p}\left(\E[\abs{Y}^q]\right)^{1/q}$，
+        $\frac1p+\frac1q=1$。
+\end{itemize}
+
+\section{随机分析核心公式}
+
+\begin{align}
+  \text{伊藤引理：}\quad \dd f(t,X_t) &= \left(\pd{f}{t}+\mu_t\pd{f}{x}+\frac12\sigma_t^2\pdd{f}{x}\right)\dd t+\sigma_t\pd{f}{x}\dd W_t \\
+  \text{乘积法则：}\quad \dd(X_tY_t) &= X_t\,\dd Y_t + Y_t\,\dd X_t + \dd\langle X,Y\rangle_t \\
+  \text{分部积分：}\quad \int_0^T X_t\,\dd Y_t &= X_TY_T-X_0Y_0-\int_0^T Y_t\,\dd X_t-\langle X,Y\rangle_T \\
+  \text{伊藤等距：}\quad \E\left[\left(\int_0^T \phi_t\,\dd W_t\right)^2\right] &= \E\left[\int_0^T \phi_t^2\,\dd t\right] \\
+  \text{二次变差：}\quad \langle W\rangle_T &= \lim_{\abs{\Pi}\to 0}\sum_{i}\left(W_{t_{i+1}}-W_{t_i}\right)^2 = T
+\end{align}
+
+几何布朗运动 $S_t=S_0\exp\left((\mu-\tfrac12\sigma^2)t+\sigma W_t\right)$ 的推导，
+以及风险中性漂移替换 $\mu\to r$ 的过程，见第 10 章与第 6 章。
+
+\section{常用泰勒展开与近似}
+
+\begin{align}
+  \ee^{x} &\approx 1+x+\frac{x^2}{2}, &
+  \ln(1+x) &\approx x-\frac{x^2}{2} \\
+  (1+x)^{n} &\approx 1+nx+\frac{n(n-1)}{2}x^2, &
+  \sqrt{1+x} &\approx 1+\frac{x}{2}-\frac{x^2}{8} \\
+  \frac{1}{1-x} &\approx 1+x+x^2, &
+  N(d+h) &\approx N(d)+\phi(d)h
+\end{align}
+
+\begin{appbox}[用这些近似做什么]
+\begin{itemize}[leftmargin=1.4em]
+  \item 对数收益与简单收益的关系：$r_{\text{simple}}\approx r_{\text{log}}+\tfrac12 r_{\text{log}}^2$，
+        因此用对数收益做回归会系统性低估高波动期的真实收益；
+  \item 凸性调整：$\Delta P/P\approx -D^*\Delta y+\frac12 C_{\text{conv}}(\Delta y)^2$，
+        利率大幅变动时二阶项不可忽略；
+  \item 期权希腊字母的局部线性近似：$\Delta V\approx \Delta\cdot\Delta S+\frac12\Gamma(\Delta S)^2+\nu\,\Delta\sigma+\Theta\,\Delta t$，
+        这是风险系统日常 PnL 归因（PnL attribution）的基础。
+\end{itemize}
+\end{appbox}
+
+\section{希腊字母表}
+
+\begin{table}[htbp]
+\centering
+\caption{希腊字母与常用含义}\label{tab:greek}
+\tablefont
+\begin{tabular}{@{}llllll@{}}
+\toprule
+小写 & 大写 & \LaTeX & 读音 & 金融中的常见用法 \\
+\midrule
+$\alpha$ & $A$ & \verb|\alpha| & alpha & 超额收益（Jensen's alpha）、显著性水平 \\
+$\beta$ & $B$ & \verb|\beta| & beta & 因子暴露、系统性风险、第一类错误 \\
+$\gamma$ & $\Gamma$ & \verb|\gamma| & gamma & 风险厌恶系数；$\Gamma$ 为期权 Gamma \\
+$\delta$ & $\Delta$ & \verb|\delta| & delta & 收缩强度；$\Delta$ 为期权 Delta \\
+$\varepsilon$ & $E$ & \verb|\varepsilon| & epsilon & 扰动项、特质收益 \\
+$\theta$ & $\Theta$ & \verb|\theta| & theta & 参数向量；$\Theta$ 为期权时间损耗 \\
+$\kappa$ & $K$ & \verb|\kappa| & kappa & 均值回复速度 \\
+$\lambda$ & $\Lambda$ & \verb|\lambda| & lambda & 风险价格、违约强度、风险厌恶、特征值 \\
+$\mu$ & $M$ & \verb|\mu| & mu & 期望收益 / 漂移率 \\
+$\nu$ & $N$ & \verb|\nu| & nu & 自由度；期权 Vega（$\nu$） \\
+$\xi$ & $\Xi$ & \verb|\xi| & xi & 波动率的波动率（vol-of-vol） \\
+$\rho$ & $P$ & \verb|\rho| & rho & 相关系数；期权 Rho（利率敏感度） \\
+$\sigma$ & $\Sigma$ & \verb|\sigma| & sigma & 波动率；$\Sigma$ 为协方差矩阵 \\
+$\tau$ & $T$ & \verb|\tau| & tau & 剩余期限、违约时间 \\
+$\phi$ & $\Phi$ & \verb|\phi| & phi & 标准正态密度 / 累积分布函数 \\
+$\chi$ & $X$ & \verb|\chi| & chi & 卡方分布 \\
+$\psi$ & $\Psi$ & \verb|\psi| & psi & 特征函数 \\
+$\omega$ & $\Omega$ & \verb|\omega| & omega & 观点不确定性矩阵、长期方差 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}
+$\nu$、$\rho$、$\lambda$、$\theta$ 是全书中\textbf{多义}最严重的四个符号：
+$\nu$ 既是自由度又是 Vega，$\rho$ 既是相关系数又是期权 Rho，$\lambda$ 既可以是风险价格
+也可以是风险厌恶系数，$\theta$ 既可以是参数向量也可以是长期均值。
+阅读时务必以\textbf{当章正文的定义}为准，不要跨章套用。
+\end{warningbox}
+
+\section{数值方法速查}
+
+\begin{table}[htbp]
+\centering
+\caption{核心数值方法的收敛性质}\label{tab:numerical}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.4cm}L{2.6cm}Y@{}}
+\toprule
+\textbf{方法} & \textbf{收敛阶} & \textbf{要点} \\
+\midrule
+二分法 & 线性 $(1/2)^n$ & 稳健但慢；只要求连续性与符号变化 \\
+Newton--Raphson & 二次 & 需要导数；用于隐含波动率反解（用 Vega 作导数） \\
+割线法 & 超线性 $\approx 1.618$ & 无需导数，用于曲线 bootstrap 求根 \\
+蒙特卡洛 & $O(N^{-1/2})$ & 与维数无关，误差 $\propto\sd/\sqrt{N}$ \\
+拟蒙特卡洛（Sobol） & 约 $O(N^{-1})$ & 低差异序列，高维时优势衰减 \\
+二叉树（CRR） & $O(1/M)$ & $M$ 为步数；美式期权可直接向后递推 \\
+Crank--Nicolson & $O(\Delta t^2+\Delta x^2)$ & 无条件稳定，但可能出现振荡（需 Rannacher 启动） \\
+快速傅里叶变换 & 一次算出全行权价 & 需求出特征函数解析式（仿射模型） \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{intuitionbox}[为什么蒙特卡洛在高维下胜出]
+二叉树与有限差分在 $d$ 维问题上的计算量按 $M^d$ 增长（维数灾难），而蒙特卡洛的误差
+几乎与 $d$ 无关（只依赖被估量的方差）。这解释了为什么带随机波动率、多标的、路径依赖的
+结构化产品几乎只能靠蒙特卡洛定价。
+\end{intuitionbox}

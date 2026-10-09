@@ -1,200 +1,833 @@
 \chapter{P Quant：统计方法与量化策略}
 
-\section{P Quant 的哲学}
+Q Quant 在风险中性测度 $\Qm$ 下为衍生品定价，P Quant 则在真实测度 $\Prob$ 下回答一个更朴素、也更难的问题：
+未来实际会发生什么？本章沿「数据 $\to$ 信号 $\to$ 因子 $\to$ 组合 $\to$ 执行 $\to$ 验证」这条主线展开，
+把因子投资、机器学习选股、回测统计校验与市场微观结构串成一个完整工作流，并始终追问同一个问题：
+这个结论在样本外还剩多少。
 
-P Quant 得名于真实世界测度 $\mathbb{P}$。其核心关注是：利用历史数据和统计模型来预测未来、发现 Alpha、管理风险。
+\section{P Quant 的工作面}
 
-\begin{keybox}
-P Quant 问的是"实际会发生什么"，而非"在无套利世界应该值多少"。它对标的是买方量化研究员、量化交易员和风险管理师的需求。
+P Quant 得名于真实世界测度 $\Prob$。它不假定无套利已经把所有价格钉死，而是承认价格里既有风险补偿，
+也有错误定价，并用统计方法把其中可重复的部分提取出来。
+
+\begin{keybox}[P Quant 与 Q Quant 的分工]
+P Quant 问的是“实际会发生什么”，因此它的核心资产是\emph{可重复的预测}与\emph{可控制的风险暴露}；
+Q Quant 问的是“在无套利世界应该值多少”，核心资产是\emph{复制组合}与\emph{校准精度}。
+两者的失效条件不同：P Quant 死于样本外失效，Q Quant 死于模型设定与流动性假设。
 \end{keybox}
 
-\section{因子模型}
+\begin{intuitionbox}[为什么 P Quant 更依赖统计纪律]
+在风险中性世界里，只要复制组合正确，价格就是唯一的；在真实测度下不存在这样的唯一性定理，
+任何“我发现了一个规律”的结论都必须与“我试了多少次才找到它”一起汇报。这正是本章后半部分
+反复讨论多重检验与回测过拟合的原因。
+\end{intuitionbox}
 
-\subsection{CAPM 与单因子模型}
+\begin{table}[htbp]
+\centering
+\caption{P Quant 工作流的六个环节与产出物}\label{tab:07-pipeline}
+\tablefont
+\begin{tabular}{@{}llll@{}}
+\toprule
+环节 & 输入 & 产出物 & 主要失效模式 \\
+\midrule
+数据清洗 & 原始行情与财务 & 干净面板 & 幸存者偏差、复权错误 \\
+信号构建 & 面板数据 & 原始信号 & 前视偏差、极端值污染 \\
+中性化 & 原始信号与风险暴露 & 纯净因子 & 过度中性化削减 Alpha \\
+组合优化 & 因子与协方差 & 目标权重 & 估计误差放大 \\
+执行 & 目标权重与订单簿 & 成交明细 & 冲击成本、时滞 \\
+验证 & 全部历史 & 可信的绩效结论 & 数据窥探、过拟合 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-资本资产定价模型：
+\cref{tab:07-pipeline} 的第三列提醒我们：每一步都有明确的交付物，而不是“感觉不错”的曲线。
+后文各节依次深入这六个环节。
+
+\section{因子构建全流程}
+
+\subsection{从原始信号到可用因子}
+
+一个因子在进入组合之前，必须走完一条标准化流水线。缺失这三步中的任何一步，
+都可能让一个真实有效的信号在实证中表现平庸，或让一个无效信号表现得过于优秀。
+
+\begin{definition}[因子构建流水线]\label{def:07-pipeline}
+给定 $t$ 时刻的横截面信号 $\{s_{i,t}\}_{i=1}^{n}$，因子构建流水线依次执行：
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{去极值}（Winsorize）：把 $s_{i,t}$ 截断到 $[\mathrm{med} - k\cdot\mathrm{MAD},\ \mathrm{med} + k\cdot\mathrm{MAD}]$；
+  \item \textbf{标准化}（Standardize）：减去横截面均值、除以横截面标准差，得到 $z_{i,t}$；
+  \item \textbf{缺失值处理}：剔除停牌与无数据股票，或按行业均值填补；
+  \item \textbf{中性化}（Neutralize）：对 $z_{i,t}$ 回归掉行业哑变量与风格暴露，取残差。
+\end{enumerate}
+其中 $\mathrm{med}$ 为横截面中位数，$\mathrm{MAD}$ 为中位数绝对偏差，$k$ 常取 $3$；
+$i$ 为股票编号，$t$ 为交易日。
+\end{definition}
+
+\begin{warningbox}[为什么必须先去极值]
+若先标准化再去极值，一个 $10$ 倍标准差的观测会把横截面标准差本身抬高约 $\sqrt{1 + 100/n}$，
+在 $n=500$ 时约抬高 $10\%$，于是同一天内其余 $499$ 只股票的标准分被系统性压缩，
+因子横截面分布的形状被单只股票扭曲。顺序错误引入的不是随机噪声，而是可预测的偏差。
+\end{warningbox}
+
+\subsection{行业与风格中性化}
+
+中性化的目的是把一个“可能只是市值或行业押注”的信号，还原成纯粹的特质信息。
+做法是横截面回归
 
 \begin{equation}
-  \mathbb{E}[R_i] = R_f + \beta_i (\mathbb{E}[R_m] - R_f)
+  z_{i,t} = \alpha_t + \sum_{g=1}^{G} \beta_{g,t} I_{i,g} + \sum_{j=1}^{K} \gamma_{j,t} x_{i,j,t} + \tilde{z}_{i,t}
+  \label{eq:07-neutralize}
 \end{equation}
 
-其中 $\beta_i = \text{Cov}(R_i, R_m) / \text{Var}(R_m)$。
+其中 $z_{i,t}$ 为标准化后的原始信号，$I_{i,g}$ 为股票 $i$ 属于行业 $g$ 的哑变量（共 $G$ 个行业），
+$x_{i,j,t}$ 为第 $j$ 个风格暴露（如对数市值、$60$ 日波动率），$\tilde{z}_{i,t}$ 为回归残差，
+也就是中性化后的因子值。若采用加权最小二乘，权重常取 $\sqrt{\text{自由流通市值}}$，
+理由是大市值股票的因子暴露估计更稳定，而市值本身又是最重要的风格维度。
 
-\subsection{Fama-French 三因子模型}
+\begin{notebox}[中性化的代价]
+行业与风格暴露合计可能解释原始信号方差的 $30\%$ 至 $60\%$。中性化在削掉这些“搭车”收益的同时，
+也削掉了与它们相关的真实 Alpha。实务中的做法是保留两版因子（原始版与中性版）分别回测，
+只有当两版的 IC 同号且中性版的信息比率更高时，才认定信号本身有效。
+\end{notebox}
+
+\begin{table}[htbp]
+\centering
+\caption{Barra 风格因子的经济含义与典型构建方式}\label{tab:07-barra}
+\tablefont
+\begin{tabular}{@{}llL{6.2cm}@{}}
+\toprule
+因子 & 方向 & 经济含义与构建要点 \\
+\midrule
+Size & 负 & 对数自由流通市值。小盘股长期有溢价，但流动性与容量受限 \\
+Value & 正 & 账面市值比、盈利收益率、现金流价格比的合成，需行业中性 \\
+Momentum & 正 & 过去 $12$ 个月收益剔除最近 $1$ 个月，短期反转会污染该因子 \\
+Volatility & 负 & 残差波动率与日收益标准差，低波动异象在多数市场存在 \\
+Liquidity & 负 & 换手率与 Amihud 非流动性，高流动性股票风险调整收益更高 \\
+Leverage & 负 & 资产负债率与账面杠杆，高杠杆公司在信用收缩期表现更差 \\
+Growth & 负 & 盈利与营收增速，高成长预期往往伴随估值回落 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\cref{tab:07-barra} 中七个风格因子构成多数商业风险模型的主干。它们的共同特征是：暴露可由公开数据
+在每月末一次性计算，因此可以被所有参与者同时观测，属于“共同知识型”风险维度。
+
+\subsection{风险模型的截面估计}
+
+Barra 型风险模型假设个股收益由因子收益与特质收益线性生成
 
 \begin{equation}
-  R_i - R_f = \alpha_i + \beta_{i,M} (R_m - R_f) + \beta_{i,SMB} \cdot SMB + \beta_{i,HML} \cdot HML + \varepsilon_i
+  r_{i,t} = \sum_{j=1}^{K} X_{i,j,t-1} f_{j,t} + u_{i,t}
+  \label{eq:07-riskmodel}
 \end{equation}
 
-其中：
+其中 $r_{i,t}$ 为股票 $i$ 在 $t$ 期的收益，$X_{i,j,t-1}$ 为期初已知的因子暴露，$f_{j,t}$ 为待估因子收益，
+$u_{i,t}$ 为特质收益。写成矩阵形式 $r_t = X_{t-1} f_t + u_t$，加权最小二乘估计为
+
+\begin{equation}
+  \hat{f}_t = \left(X_{t-1}^{\top} W_t X_{t-1}\right)^{-1} X_{t-1}^{\top} W_t\, r_t
+  \label{eq:07-wls}
+\end{equation}
+
+其中 $W_t = \diag(w_{1,t},\dots,w_{n,t})$ 为权重矩阵。当 $W_t$ 正比于特质方差矩阵的逆
+时，\cref{eq:07-wls} 即为广义最小二乘，估计量达到最小方差；实务中用市值平方根近似这一理想权重。
+
+因子收益序列存在自相关与异方差，因此因子协方差矩阵的估计需要稳健化。Newey--West 估计量为
+
+\begin{equation}
+  \hat{\Sigmamat}_f = \hat{\Gamma}_0 + \sum_{l=1}^{L} \left(1 - \frac{l}{L+1}\right)\left(\hat{\Gamma}_l + \hat{\Gamma}_l^{\top}\right)
+  \label{eq:07-neweywest}
+\end{equation}
+
+其中 $\hat{\Gamma}_l = \frac{1}{T}\sum_{t=l+1}^{T} \hat{f}_t \hat{f}_{t-l}^{\top}$ 为滞后 $l$ 阶自协方差，
+$L$ 为带宽（月度数据常取 $L=2$ 至 $5$）。括号内的线性衰减是 Bartlett 核，
+它保证 $\hat{\Sigmamat}_f$ 半正定。最后仍需做特征值调整，把过小的特征值抬到安全下界，
+因为组合优化器会精确地利用任何被低估的风险方向。
+
+\section{信息系数与因子评价}
+
+\subsection{IC、Rank IC 与衰减}
+
+信息系数度量因子在横截面上的预测能力
+
+\begin{equation}
+  IC_t = \Corr\!\left(s_{i,t},\ r_{i,t+1}\right), \qquad
+  RankIC_t = \Corr\!\left(\mathrm{rank}(s_{i,t}),\ \mathrm{rank}(r_{i,t+1})\right)
+  \label{eq:07-ic}
+\end{equation}
+
+其中 $s_{i,t}$ 为 $t$ 期末已知的因子值，$r_{i,t+1}$ 为下一期收益，$\mathrm{rank}(\cdot)$ 为横截面秩。
+Rank IC 即 Spearman 秩相关，对极端值稳健，因此是行业内的默认报告口径。
+
+单期 IC 是极不稳定的统计量。若横截面有 $n$ 只股票，$IC_t$ 的标准误约为 $1/\sqrt{n-3}$；
+在 $n=500$ 时约为 $0.045$。这意味着单日 $IC=0.05$ 完全可能是噪声。
+判断因子有效性应看长期平均
+
+\begin{equation}
+  \overline{IC} = \frac{1}{T}\sum_{t=1}^{T} IC_t, \qquad
+  \se(\overline{IC}) = \frac{\sd(IC_t)}{\sqrt{T/\tau}}
+  \label{eq:07-icse}
+\end{equation}
+
+其中 $\tau$ 为 IC 序列的自相关时间（自相关衰减到 $1/\ee$ 所需的期数），
+$T/\tau$ 可理解为\emph{有效独立期数}。例：月度 $IC$ 均值 $0.04$、月度标准差 $0.09$、
+自相关半衰期约 $1$ 个月，则 $\tau \approx 1.44$，十年 $120$ 期的有效样本约 $83$，
+$\se(\overline{IC}) \approx 0.0099$，$t$ 值约 $4.0$，在 $1\%$ 水平显著。
+若忽略自相关直接取 $\se = 0.09/\sqrt{120} = 0.0082$，会把 $t$ 值夸大到 $4.9$。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm, grid=major,
+  xlabel={预测期 $h$（交易日）}, ylabel={IC 与 IC 信息比率},
+  legend pos=north east, legend style={font=\scriptsize},
+  ymin=-0.1, ymax=1.0, xmin=0.5, xmax=21
+]
+\addplot[quantblue, very thick, domain=1:20, samples=60] {0.06*exp(-0.12*(x-1))};
+\addlegendentry{$\overline{IC}_h$（左轴比例）}
+\addplot[quantred, very thick, dashed, domain=1:20, samples=60] {0.9*exp(-0.18*(x-1))};
+\addlegendentry{$\overline{IC}_h/\sd(IC_h)$}
+\addplot[quantgold, only marks, mark=*, mark size=1.6pt, domain=1:20, samples=20] {0.06*exp(-0.12*(x-1))};
+\end{axis}
+\end{tikzpicture}
+\caption{因子 IC 与 IC 信息比率随预测期的衰减：指数衰减意味着半衰期约 $5.8$ 个交易日，持仓周期应与衰减速度匹配}\label{fig:07-icdecay}
+\end{figure}
+
+\cref{fig:07-icdecay} 画出一条典型量价因子的衰减曲线。IC 从 $h=1$ 的 $0.06$ 衰减到 $h=10$ 的
+$0.020$ 左右，半衰期 $h_{1/2} = \ln 2/0.12 \approx 5.8$ 个交易日。若持仓周期取 $20$ 天，
+虽然单次交易的信号仍在，但信号已衰减到峰值的约 $10\%$，大部分持仓期是在“无信息”状态下承担风险。
+这解释了为什么高换手因子必须配高频调仓，也解释了交易成本为什么会吃掉大部分毛收益。
+
+\subsection{分层回测与多空组合}
+
+把股票按因子值排序等分为 $Q$ 层，计算每层等权或市值加权的下期收益，
+若因子有效则单调性应当明显。用最高层与最低层构造多空组合
+
+\begin{equation}
+  r_t^{\text{LS}} = \frac{1}{|Q^{+}|}\sum_{i \in Q^{+}} r_{i,t} - \frac{1}{|Q^{-}|}\sum_{i \in Q^{-}} r_{i,t}
+  \label{eq:07-longshort}
+\end{equation}
+
+其中 $Q^{+}$ 与 $Q^{-}$ 分别为因子值最高与最低的一层。多空收益序列的年化信息比率为
+
+\begin{equation}
+  IR^{\text{LS}} = \frac{\E\!\left[r_t^{\text{LS}}\right]}{\sd\!\left(r_t^{\text{LS}}\right)}\sqrt{A}
+  \label{eq:07-irls}
+\end{equation}
+
+其中 $A$ 为年化期数（日频取 $252$，月频取 $12$）。注意这里用总波动而非超额收益跟踪误差，
+因此 $IR^{\text{LS}}$ 是可比的“因子强度”指标，与组合层面的 IR 并不等价。
+
+\begin{example}[单调性与换手率的联合判读]\label{ex:07-monotone}
+某月频因子在 $3000$ 只股票上分为五层，过去十年（$120$ 期）的年化超额收益依次为
+$Q_1 = -6.1\%$、$Q_2 = -1.8\%$、$Q_3 = 0.4\%$、$Q_4 = 3.6\%$、$Q_5 = 7.9\%$，
+多空组合年化收益 $14.0\%$、年化波动 $7.5\%$，故 $IR^{\text{LS}} = 1.87$。
+同时统计因子换手率：期均单边换手率 $28\%$，按 $10$ 个基点的双边成本计，
+年成本约 $0.28 \times 2 \times 12 \times 0.0010 = 6.7\%$，扣费后多空收益降至约 $7.3\%$，
+$IR^{\text{LS}}$ 降至约 $0.98$。若分层单调性存在但换手率超过 $60\%$，
+则成本将吞掉全部多空收益，此时应先做信号平滑降低换手，而不是加杠杆放大毛收益。
+\end{example}
+
+\subsection{因子评价清单}
+
+\begin{table}[htbp]
+\centering
+\caption{因子评价指标与判读门槛}\label{tab:07-factormetrics}
+\tablefont
+\begin{tabular}{@{}llL{5.6cm}@{}}
+\toprule
+指标 & 典型门槛 & 判读要点 \\
+\midrule
+平均 IC & $\abs{\overline{IC}} > 0.02$ & 日频 $0.02$ 已属可用，月频可达 $0.04$ \\
+IC 信息比率 & $> 0.3$ & 均值与标准差之比，衡量信号稳定性 \\
+分层单调性 & 五层单调 & 非单调常意味着信号与风险暴露纠缠 \\
+换手率 & 与衰减匹配 & 日频 $< 30\%$、月频 $< 50\%$ 较现实 \\
+容量 & 覆盖多只股票 & 容量受流动性与冲击成本约束 \\
+多空最大回撤 & 小于年化收益 & 回撤深于年化收益说明尾部风险集中 \\
+因子相关性 & 与已知因子 $< 0.5$ & 相关性过高只是重复暴露，不贡献增量信息 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{appbox}[因子拥挤度的三种度量]
+业界常用三种信号判断因子是否过度拥挤：一是该因子多空组合的管理规模估算，
+二是因子收益与因子波动率之比在近两年的异常抬升，三是同因子不同数据供应商版本的收益相关性上升。
+三者同时触发时，通常意味着该因子的 Alpha 已被套利掉大半，应降低暴露并提高分散度。
+\end{appbox}
+
+\section{主动管理基本定律}
+
+\subsection{定律的推导}
+
+主动管理基本定律把信息质量、下注广度与信息比率联系起来。设组合由 $N$ 个相互独立的下注构成，
+第 $k$ 个下注的主动权重为 $w_k$，残差收益为 $r_k$，并假定每个下注具备相同的预测能力：
+$\Corr(w_k, r_k) = IC$，且各下注收益的残差波动为 $\sigma$。
+
+在主动风险预算 $\sigma_{\text{active}}$ 的约束下，最大化 $\sum_k w_k \E[r_k]$。
+把残差收益分解为可预测部分与噪声 $r_k = \E[r_k] + \varepsilon_k$，
+预测误差方差为 $\omega^2$，则最优下注为 $w_k = \E[r_k]/\omega$，即对残差收益的贝叶斯收缩。
+
+\begin{proposition}[主动管理基本定律]\label{prop:07-flam}
+在上述独立同分布假设下，最优组合的信息比率为
+\begin{equation}
+  IR \approx IC \cdot \sqrt{N}
+  \label{eq:07-flam}
+\end{equation}
+其中 $IC$ 为单个下注的信息系数，$N$ 为独立下注次数（Breadth）。
+\end{proposition}
+
+\begin{proof}
+记第 $k$ 个下注的主动收益为 $w_k r_k$。预测能力 $IC$ 意味着
+$\E[r_k \mid s_k] = IC \cdot \sigma \cdot \tilde{s}_k$，其中 $\tilde{s}_k$ 为标准化信号，$\sigma$ 为残余波动。
+选择 $w_k = \E[r_k\mid s_k]/\sigma^2$ 以最大化 $\sum_k \E[w_k r_k]$，
+主动收益均值为 $\sum_k \E[w_k r_k] = \sum_k \E\big[(\E[r_k\mid s_k]/\sigma^2)\E[r_k\mid s_k]\big] = N \cdot IC^2$。
+主动风险为 $\sqrt{\sum_k w_k^2 \sigma^2} = \sqrt{N \cdot IC^2} = IC\sqrt{N}$。
+两者相除即得 $IR \approx IC\sqrt{N}$。
+\end{proof}
+
+\subsection{现实修正}
+
+\cref{eq:07-flam} 的两个假设都不成立：下注并非独立，约束也阻止我们把所有信念表达出来。修正形式为
+
+\begin{equation}
+  IR \approx IC \cdot \sqrt{N_{\text{eff}}} \cdot TC
+  \label{eq:07-flamfix}
+\end{equation}
+
+其中 $N_{\text{eff}} = N/(1 + (N-1)\bar{\rho})$ 为有效下注数，$\bar{\rho}$ 为下注间平均相关系数，
+$TC$ 为转移系数（Transfer Coefficient），即组合权重与理想主动权重的相关系数，
+取值于 $[-1,1]$，反映约束、行业限制与做空限制带来的损耗。
+
+\begin{intuitionbox}[广度的数量级直觉]
+$\bar{\rho} = 0.1$ 且 $N = 500$ 时，$N_{\text{eff}} \approx 500/50.9 \approx 9.8$，
+$\sqrt{N_{\text{eff}}} \approx 3.1$，仅为 $\sqrt{500} \approx 22.4$ 的 $14\%$。
+这说明“多下注”必须真的独立；在同一风格内增加 $100$ 只股票，
+并不提供 $100$ 份独立信息，只提供约 $2$ 份。
+\end{intuitionbox}
+
+\begin{example}[年化 IR 的完整推算]\label{ex:07-ir}
+某日频多因子模型的单期 $IC = 0.03$，每日持有 $400$ 只股票的横截面信号，
+调仓 $20$ 次因此 $N = 400 \times 20 = 8000$。取 $\bar{\rho} = 0.15$，
+则 $N_{\text{eff}} = 8000/(1 + 7999 \times 0.15) \approx 6.7$，$\sqrt{N_{\text{eff}}} \approx 2.58$。
+设 $TC = 0.7$，代入 \cref{eq:07-flamfix} 得 $IR \approx 0.03 \times 2.58 \times 0.7 \approx 0.054$，
+这是单期（约 $12.6$ 个交易日）的信息比率。按每年约 $20$ 个这样的持有期折算，
+年化 $IR \approx 0.054 \times \sqrt{20} \approx 0.24$。
+若天真地用 $IR \approx IC\sqrt{N}$，会得到 $0.03 \times 89.4 \approx 2.68$，
+夸大十倍以上——这正是许多内部研究报告中“理论 IR”与实际绩效差距的主要来源。
+\end{example}
+
+\section{机器学习选股}
+
+\subsection{适用场景与模型选择}
+
+机器学习在量化选股中的价值不在于替代经济学直觉，而在于用高维特征去逼近非线性条件期望
+$\E[r_{i,t+1} \mid \mathbf{x}_{i,t}]$。三类模型各有明确的适用场景。
+
+\begin{table}[htbp]
+\centering
+\caption{机器学习选股模型的适用场景与注意事项}\label{tab:07-ml}
+\tablefont
+\begin{tabular}{@{}llL{5.4cm}@{}}
+\toprule
+模型 & 适用场景 & 主要风险 \\
+\midrule
+线性回归 & 少量经济含义明确的因子 & 无法捕捉交互项与非线性 \\
+GBDT & 截面样本多、特征含类别变量 & 对时序漂移敏感，需频繁重训 \\
+随机森林 & 特征噪声大、需要稳健基线 & 外推能力弱，难以预测极端收益 \\
+神经网络 & 特征维度极高、样本量足够 & 参数量大，样本外衰减快 \\
+集成组合 & 追求稳定性与低相关性 & 训练与维护成本高 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{样本权重与标签设计}
+
+金融面板数据的样本并非等质量，可用三类权重区分。
+
 \begin{itemize}[leftmargin=*]
-  \item SMB（Small Minus Big）：小市值组合收益 - 大市值组合收益
-  \item HML（High Minus Low）：高账面市值比组合 - 低账面市值比组合
+  \item \textbf{唯一性权重}：重叠标签（如持有期为 $20$ 天但每日采样）会重复使用同一段收益，
+  应给每个标签按重叠次数倒数赋权；
+  \item \textbf{时间衰减权重}：越久远的样本市场结构差异越大，用半衰期 $1$ 至 $2$ 年的指数权重降权；
+  \item \textbf{收益幅度权重}：以绝对收益或波动率倒数加权，可降低高波动期的杠杆式主导。
 \end{itemize}
 
-\subsection{扩展因子模型}
+标签设计同样重要。回归标签（下一期收益）保留幅度信息但受极端值支配；
+分类标签（收益三分位或是否跑赢基准）稳健但丢失幅度；三重障碍法（Triple Barrier）
+同时设定止盈、止损与时间上限，把路径信息纳入标签，更适合日内与短周期策略。
 
-Fama-French 五因子：三因子 + RMW（盈利因子）+ CMA（投资因子）
+\subsection{时序交叉验证与泄漏防控}
 
-Carhart 四因子：三因子 + MOM（动量因子）
+标准 $k$-折交叉验证在金融面板上必然泄漏：训练集与测试集在时间上交错，
+而标签本身跨越多个交易日。正确做法是 Purged $k$-折加 embargo：
+先按时间切分为 $k$ 个连续块，然后把与测试块标签区间重叠的训练样本剔除（Purging），
+再在测试块之后额外丢弃 $h$ 天的样本（Embargo），其中 $h$ 为标签持有期。
 
-\begin{equation}
-  \text{MOM} = \text{Winners} - \text{Losers}
-\end{equation}
+\begin{algorithm}[htbp]
+\caption{Purged $k$-折交叉验证与 embargo}\label{alg:07-purged}
+\begin{algorithmic}[1]
+\Require 样本时间戳 $t_i$，标签区间 $[t_i, t_i + h]$，折数 $k$，禁运长度 $e$
+\Ensure 每折的训练索引与测试索引
+\State 按时间排序样本，等分为 $k$ 个连续块 $B_1,\dots,B_k$
+\For{$j = 1$ \textbf{到} $k$}
+  \State 测试集置为 $B_j$
+  \State 对每个候选训练样本，若其标签区间与 $B_j$ 的时间区间相交则剔除
+  \State 再剔除时间落在 $B_j$ 结束之后 $e$ 天内的样本
+  \State \Return 该折的（训练集，测试集）
+\EndFor
+\end{algorithmic}
+\end{algorithm}
 
-\subsection{Barra 多因子风险模型}
-
-Barra 模型将资产收益分解为因子暴露和特质收益：
-
-\begin{equation}
-  r = X \cdot f + u
-\end{equation}
-
-其中 $X$ 为因子暴露矩阵（$n \times k$），$f$ 为因子收益向量（$k \times 1$），$u$ 为特质收益。协方差矩阵分解为：
-
-\begin{equation}
-  \Sigma = X \Sigma_f X^T + \Delta
-\end{equation}
-
-其中 $\Sigma_f$ 为因子协方差矩阵，$\Delta$ 为对角特质风险矩阵。
-
-常见 Barra 因子：Value、Growth、Momentum、Size、Volatility、Liquidity、Leverage。
-
-\section{Alpha 研究框架}
-
-\subsection{Alpha 信号的生命周期}
-
-数据 $\to$ 信号（Signal）$\to$ 因子（Factor）$\to$ Alpha 模型 $\to$ 组合构建 $\to$ 执行
-
-\subsection{信息系数 (IC) 和信息比率 (IR)}
-
-信息系数度量因子与未来收益的相关性：
-
-\begin{equation}
-  IC = \text{Corr}(\text{Rank}(S_t), \text{Rank}(R_{t+1}))
-\end{equation}
-
-信息比率是衡量风险调整后超额收益的核心指标：
-
-\begin{equation}
-  IR = \frac{\mathbb{E}[R - R_b]}{\sigma(R - R_b)}
-\end{equation}
-
-\begin{keybox}
-基本定律 (Fundamental Law of Active Management):
-\begin{equation}
-  IR \approx IC \cdot \sqrt{\text{Breadth}}
-\end{equation}
-高 $IC$（信号质量）和高广度（独立下注次数）共同决定主动收益的质量。
-\end{keybox}
-
-\subsection{因子评估体系}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{IC} 和 \textbf{Rank IC}：横截面预测能力
-  \item \textbf{分位数收益}：Top/Bottom 分位数组合的表现差异
-  \item \textbf{因子换手率}（Turnover）：信号稳定性
-  \item \textbf{因子拥挤度}（Crowding）：同质化风险
-  \item \textbf{最大回撤}（Max Drawdown）：极端情况评估
-\end{itemize}
-
-\section{量化交易策略类型}
-
-\subsection{趋势跟踪 (Trend Following)}
-
-移动平均交叉、通道突破（Donchian Channel）、时间序列动量（Moskowitz et al., 2012）：
-
-\begin{itemize}[leftmargin=*]
-  \item 信号：过去 $L$ 个月收益为正 $\implies$ 做多；为负 $\implies$ 做空
-  \item 广泛应用于 CTA 策略，横跨股票、债券、商品、外汇
-\end{itemize}
-
-\subsection{统计套利 (Statistical Arbitrage)}
-
-配对交易（Pairs Trading）：寻找协整的资产对，在价差偏离均值时交易。若 $y_t$ 和 $x_t$ 协整：
-
-\begin{equation}
-  \text{Spread}_t = y_t - \hat{\beta}x_t \sim \text{mean-reverting}
-\end{equation}
-
-当 $\text{Spread}_t$ 偏离均值超过 $k$ 个标准差时开仓，回归时平仓。
-
-\subsection{事件驱动 (Event-Driven)}
-
-并购套利（Merger Arbitrage）：$P_{\text{target}}$ vs $P_{\text{offer}}$ 的差价反映市场对交易成功概率的定价。
-
-\subsection{高频交易 (HFT)}
-
-做市策略、延迟套利、订单流预测。关键在于：
-\begin{itemize}[leftmargin=*]
-  \item 市场微观结构（订单簿动态、价差模式）
-  \item 低延迟基础设施（FPGA、微波传输）
-  \item 存货风险管理
-\end{itemize}
+\begin{warningbox}[特征重要性不等于因果关系]
+用 GBDT 的增益或置换重要性排序特征，很容易被前视型特征主导。典型例子：
+用当日收盘价与当日成交量之比构造“量价背离”特征，再用当日收益作标签，
+重要性极高但完全无法交易。检查方法是对每个高重要性特征追问两个问题：
+该特征在 $t$ 时刻的真实可得时间戳是什么？把它整体滞后一天后重要性还剩多少？
+\end{warningbox}
 
 \section{回测方法论}
 
-\subsection{回测陷阱}
+\subsection{偏差清单}
 
-\begin{warningbox}
-回测是量化策略开发中最危险的阶段——几乎所有看起来太好的回测结果都是错误的。
+回测是量化研究中最容易产生虚假结论的环节。下表把常见偏差按可检测性排列。
+
+\begin{table}[htbp]
+\centering
+\caption{回测偏差清单与检测方法}\label{tab:07-biases}
+\tablefont
+\begin{tabular}{@{}llL{5.8cm}@{}}
+\toprule
+偏差 & 后果 & 检测与修正 \\
+\midrule
+幸存者偏差 & 高估收益 & 使用含退市股票的完整历史成分 \\
+前视偏差 & 严重高估 & 特征打时间戳，财报按公告日而非报告期对齐 \\
+复权错误 & 收益失真 & 用前复权价计算收益，除权日用总收益口径 \\
+数据窥探 & 显著性失效 & 记录全部试验次数，做多重检验校正 \\
+交易成本忽视 & 高估净收益 & 加入冲击成本与延迟，做容量测试 \\
+参数过拟合 & 样本外崩塌 & Purged $k$-折、DSR、PBO 检验 \\
+不可交易性 & 收益不可实现 & 剔除涨跌停、停牌与低流动性标的 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{多重检验的三个层次}
+
+假设我们测试了 $m$ 个策略变体，得到一个 Sharpe 比率最高的版本。问题是：
+这个最大值有多少来自真实信号，多少来自噪声？
+
+\textbf{第一层：Bonferroni 校正}把单次显著性水平除以试验次数，
+$p_i^{\text{Bonf}} = \min(m p_i, 1)$，控制族错误率（FWER）。它过于保守，
+当 $m = 100$ 时要求单个 $p$ 值小于 $0.0005$。
+
+\textbf{第二层：Benjamini--Hochberg FDR}控制假发现比例。把 $p$ 值升序排列 $p_{(1)} \le \dots \le p_{(m)}$，
+取最大的 $i$ 满足
+
+\begin{equation}
+  p_{(i)} \le \frac{i}{m}\,\alpha
+  \label{eq:07-bh}
+\end{equation}
+
+并拒绝前 $i$ 个假设。其中 $\alpha$ 为目标 FDR 水平（常取 $5\%$）。
+当 $m = 100$、$\alpha = 0.05$ 时，最小的 $p$ 值只需小于 $0.0005$ 看似相同，
+但第 $10$ 个只需小于 $0.005$，比 Bonferroni 宽松得多，因此在因子筛选中更实用。
+
+\textbf{第三层：对最大 Sharpe 比率本身做校正}。Deflated Sharpe Ratio 给出
+
+\begin{equation}
+  DSR = \Phi\!\left(\frac{\left(\widehat{SR} - SR_0\right)\sqrt{T-1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^{2}}}\right)
+  \label{eq:07-dsr}
+\end{equation}
+
+其中 $\widehat{SR}$ 为观测到的（非年化）Sharpe 比率，$T$ 为样本长度，
+$\hat{\gamma}_3$ 为收益偏度，$\hat{\gamma}_4$ 为收益峰度，$SR_0$ 为多重检验下的期望最大值
+
+\begin{equation}
+  SR_0 = \sqrt{\Var(\widehat{SR})}\left[(1-\gamma)\,\Phi^{-1}\!\left(1 - \frac{1}{m}\right) + \gamma\,\Phi^{-1}\!\left(1 - \frac{1}{m\ee}\right)\right]
+  \label{eq:07-sr0}
+\end{equation}
+
+其中 $\gamma \approx 0.5772$ 为 Euler--Mascheroni 常数，$\Var(\widehat{SR})$ 为不同试验间 Sharpe 比率的方差。
+
+\begin{example}[DSR 的实际杀伤力]\label{ex:07-dsr}
+设某策略日频 Sharpe 比率 $\widehat{SR} = 0.08$（年化约 $1.27$），样本 $T = 1000$ 天，
+偏度 $\hat{\gamma}_3 = -0.3$，峰度 $\hat{\gamma}_4 = 6$。研究者共试验 $m = 50$ 个变体，
+变体间 Sharpe 比率的标准差为 $0.05$。代入 \cref{eq:07-sr0}：
+$\Phi^{-1}(1 - 1/50) = 2.054$，$\Phi^{-1}(1 - 1/(50\ee)) = \Phi^{-1}(0.99264) = 2.44$，
+故 $SR_0 = 0.05 \times (0.4228 \times 2.054 + 0.5772 \times 2.44) = 0.05 \times (0.868 + 1.409) = 0.114$。
+由于 $\widehat{SR} < SR_0$，\cref{eq:07-dsr} 的分子为负，$DSR \approx \Phi(-2.2) \approx 1.4\%$。
+也就是说，在 $50$ 次试验的背景下，这个看起来年化 Sharpe $1.27$ 的策略连 $5\%$ 的显著性都达不到。
+\end{example}
+
+\textbf{补充工具}：White's Reality Check 用 bootstrap 检验“最优策略的真实绩效是否为零”，
+对策略集合的最大值做数据挖掘矫正；PBO（Probability of Backtest Overfitting）
+则用组合对称交叉验证（CSCV）估计“样本内最优策略在样本外落到中位数以下”的概率，
+$PBO > 0.5$ 是明确的过拟合警报。
+
+\begin{warningbox}[回测过拟合的数学本质]
+若研究者测试 $m$ 个真实绩效为零的策略，最优样本 Sharpe 比率的期望约为
+$\sqrt{\Var(\widehat{SR})}\cdot\E[\max_m Z] \approx 0.05 \times 2.1 = 0.105$（$m=50$ 时），
+对应年化 $1.66$。也就是说，只要试验次数足够多，\emph{在完全没有 Alpha 的数据上}
+也能稳定找到年化 Sharpe 超过 $1.6$ 的策略。回测报告若不披露试验次数，
+其 Sharpe 比率没有统计意义。
 \end{warningbox}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{幸存者偏差 (Survivorship Bias)}：当前存在的股票不代表历史全貌
-  \item \textbf{前视偏差 (Look-Ahead Bias)}：使用了未来信息
-  \item \textbf{过拟合 (Overfitting)}：参数过多、样本外测试不足
-  \item \textbf{数据挖掘偏差 (Data Snooping)}：多次测试同一数据集的统计显著性失效
-  \item \textbf{交易成本忽视}：滑点、佣金、市场冲击
-\end{itemize}
+\subsection{实施缺口与交易成本}
 
-\subsection{交叉验证}
-
-时间序列数据下，标准 $k$-折交叉验证失效（时间依赖）。正确方法：
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{样本外 (OOS)}：训练集 $\to$ 验证集 $\to$ 测试集 按时间顺序划分
-  \item \textbf{前向滚动 (Walk-Forward)}：增量扩展训练窗口
-  \item \textbf{Purged $k$-Fold}：在每折间留出间隔以消除信息泄漏
-\end{itemize}
-
-\subsection{显著性检验}
-
-多重测试下的显著性调整：
+回测与实盘的差距称为实施缺口（Implementation Shortfall），由四部分组成：
+决策价格与下单价格之间的延迟成本、买卖价差成本、市场冲击成本与机会成本（未成交部分）。
+冲击成本的常用模型为平方根律
 
 \begin{equation}
-  p_{\text{Bonferroni}} = \min(m \cdot p_i, 1)
+  \text{Impact} \approx \eta\,\sigma_{\text{daily}}\,\sqrt{\frac{Q}{V_{\text{daily}}}}
+  \label{eq:07-sqrtimpact}
 \end{equation}
 
-更好的方法：Benjamini-Hochberg FDR 控制（False Discovery Rate）。
+其中 $Q$ 为下单股数，$V_{\text{daily}}$ 为该股票日均成交量，$\sigma_{\text{daily}}$ 为日波动率，
+$\eta$ 为经验常数（美股大盘股常用 $0.3$ 至 $0.8$）。例：$\eta = 0.5$、
+$\sigma_{\text{daily}} = 2\%$、$Q/V = 10\%$，则冲击成本约 $0.5 \times 0.02 \times 0.316 = 0.32\%$，
+单边成本已超过日频因子单期预期收益 $IC \cdot \sigma = 0.03 \times 2\% = 0.06\%$ 的五倍。
+这是容量约束的核心来源：规模越大，越只能交易低频、低换手的因子。
 
-Deflated Sharpe Ratio (DSR) 公式：
+\section{市场微观结构与最优执行}
+
+\subsection{订单簿与价差分解}
+
+限价订单簿（Limit Order Book）在每个价位维护价格、数量与队列优先级。由它派生的三个量最常用：
+买卖价差 $s = p^{a} - p^{b}$；中间价 $m = (p^{a} + p^{b})/2$；
+订单流不平衡 $\mathrm{OFI}_t = \Delta V^{b}_t - \Delta V^{a}_t$，
+其中 $V^b$、$V^a$ 为最优买卖档的挂单量。OFI 对短期价格变动有显著预测力，
+是日内做市与执行算法的核心输入。
+
+价差可分解为三部分：订单处理成本、存货持有成本与逆向选择成本。
+在 Glosten--Milgrom 模型里，做市商面对一部分知情交易者，
+每笔成交都包含信息含量，因此必须用价差补偿与知情者交易的损失，均衡价差满足
+
 \begin{equation}
-  \text{DSR} = \Phi\left(\frac{\widehat{SR} - \mathbb{E}[\max SR]}{\sqrt{\text{Var}[\max SR]}}\right)
+  s = \frac{2\mu}{1-\mu}\,(\theta - \bar{v})
+  \label{eq:07-gmspread}
 \end{equation}
 
-\section{市场微观结构}
+其中 $\mu$ 为知情交易者比例，$\theta$ 为知情者眼中的资产价值，
+$\bar{v}$ 为做市商的先验均值。当 $\mu \to 0$ 时价差趋于零，市场近似无摩擦。
 
-\subsection{订单簿 (LOB)}
+\subsection{Kyle 模型的均衡推导}
 
-限价订单簿是市场微观结构的核心数据结构：
+Kyle（1985）模型用一个交易日刻画信息如何被逐步定价。设资产清算价值
+$v \sim \N(v_0, \Sigma_0)$，知情交易者知道 $v$，提交市价单数量 $x$；
+噪声交易者提交 $u \sim \N(0, \sigma_u^2)$，与 $v$ 独立；做市商只观测到总订单流 $y = x + u$，
+并按线性规则定价，且赚取零期望利润。
 
+\begin{theorem}[Kyle 模型的线性均衡]\label{thm:07-kyle}
+若做市商定价 $p = v_0 + \lambda y$，知情交易者提交 $x = \beta (v - v_0)$，
+则唯一线性均衡为
+\begin{equation}
+  \beta = \frac{\sigma_u}{\sqrt{\Sigma_0}}, \qquad
+  \lambda = \frac{1}{2\,\sigma_u^{2}}\sqrt{\Sigma_0\,\sigma_u^{2}} = \frac{1}{2\sigma_u}, \qquad
+  \E\!\left[\pi_{\text{insider}}\right] = \frac{1}{2}\sigma_u\sqrt{\Sigma_0}
+  \label{eq:07-kyle}
+\end{equation}
+其中 $\lambda$ 为价格冲击系数（Kyle's Lambda），即每单位订单流引起的价格变动。
+\end{theorem}
+
+\begin{proof}
+先给定 $\lambda$，求解知情者的最优下单量。其期望利润为
+\begin{equation*}
+  \E[\pi \mid v] = \E\big[(v - v_0 - \lambda(x+u))\,x \mid v\big] = x(v - v_0) - \lambda x^{2}
+\end{equation*}
+对 $x$ 求导并令其为 $0$，得 $x^{*} = (v - v_0)/(2\lambda)$，故 $\beta = 1/(2\lambda)$。
+
+再做市商的零利润条件要求 $p = \E[v \mid y]$。由正态投影公式
+$\E[v \mid y] = v_0 + \frac{\Cov(v,y)}{\Var(y)}(y - \E[y])$，
+且 $\Cov(v,y) = \Cov\big(v, \beta(v-v_0)+u\big) = \beta\Sigma_0$，
+$\Var(y) = \beta^{2}\Sigma_0 + \sigma_u^{2}$，因此
+$\lambda = \dfrac{\beta \Sigma_0}{\beta^{2}\Sigma_0 + \sigma_u^{2}}$。
+把 $\beta = 1/(2\lambda)$ 代入并化简：分母为
+$\frac{\Sigma_0}{4\lambda^{2}} + \sigma_u^{2}$，故
+$\lambda = \dfrac{\Sigma_0/(2\lambda)}{\Sigma_0/(4\lambda^{2}) + \sigma_u^{2}}$，
+两边同乘分母得 $\frac{\Sigma_0}{4\lambda} + \lambda\sigma_u^{2} = \frac{\Sigma_0}{2\lambda}$，
+即 $\lambda\sigma_u^{2} = \frac{\Sigma_0}{4\lambda}$，于是 $\lambda^{2} = \frac{\Sigma_0}{4\sigma_u^{2}}$，
+取正根得 $\lambda = \frac{1}{2}\sqrt{\Sigma_0/\sigma_u^{2}} = 1/(2\sigma_u)$，
+从而 $\beta = \sigma_u/\sqrt{\Sigma_0}$。最后把 $x^{*}$ 代回期望利润即得
+$\E[\pi] = \frac{\beta\Sigma_0}{2} = \frac{1}{2}\sigma_u\sqrt{\Sigma_0}$。
+\end{proof}
+
+\begin{intuitionbox}[Kyle's Lambda 的读法]
+$\lambda$ 同时是三个东西：市场的价格冲击系数（每 $1$ 单位订单流推动价格多少）、
+流动性深度的倒数（$\lambda$ 越小越深）、以及知情者信息的“税率”。
+当噪声交易量 $\sigma_u$ 上升时 $\lambda$ 下降，因为知情者的订单更容易被噪声淹没；
+当信息不确定性 $\sqrt{\Sigma_0}$ 上升时 $\lambda$ 上升，因为做市商更怕与知情者成交。
+\end{intuitionbox}
+
+\begin{example}[Kyle 均衡的数值计算]\label{ex:07-kyle}
+设 $v_0 = 50$ 元、$\Sigma_0 = 4$（即事前价格标准差 $2$ 元）、
+噪声订单量标准差 $\sigma_u = 10000$ 股。代入 \cref{eq:07-kyle} 得
+$\lambda = \frac{1}{2}\sqrt{4/10^{8}} = \frac{1}{2}\times 2\times 10^{-4} = 1.0\times 10^{-4}$ 元/股，
+即每 $1$ 万股净买入推动价格上涨 $1$ 元；$\beta = 10^{4}/2 = 5000$ 股/元。
+若真实价值高于事前均值 $1$ 元，知情者最优下单 $x^{*} = 1/(2\lambda) = 5000$ 股，
+期望利润 $\E[\pi] = \frac{1}{2}\times 10^{4}\times 2 = 10^{4}$ 元。
+注意知情者的期望利润只依赖于 $\sigma_u$ 与 $\sqrt{\Sigma_0}$，
+与其私有信息的实现值无关——这是竞争性噪声环境下的一个反直觉但深刻的结论。
+\end{example}
+
+\subsection{Almgren--Chriss 最优执行}
+
+执行问题问的是：给定要在 $T$ 时间内卖出 $X_0$ 股，如何分配下单节奏？
+卖掉越快，冲击成本越高；卖得越慢，价格波动风险越大。Almgren--Chriss 把这个权衡写成
+期望成本加风险惩罚的最小化问题。设 $t_k = k\tau$，持仓 $x_k$，每期卖出 $n_k = x_{k-1} - x_k$，
+价格满足
+
+\begin{equation}
+  S_k = S_{k-1} + \sigma\sqrt{\tau}\,\xi_k - \gamma\, n_k, \qquad
+  \tilde{S}_k = S_{k-1} - \frac{1}{2}s\,\sign(n_k) - \eta\,\frac{n_k}{\tau}
+  \label{eq:07-acexec}
+\end{equation}
+
+其中 $\sigma$ 为价格波动率，$\gamma$ 为永久冲击系数，$\eta$ 为临时冲击系数，$s$ 为买卖价差，
+$\tilde{S}_k$ 为实际成交价。实现价差为
+$C = \sum_{k=1}^{N} n_k (S_0 - \tilde{S}_k)$，目标是最小化
+$\E[C] + \kappa_r \Var(C)$，其中 $\kappa_r$ 为风险厌恶系数。
+
+\begin{theorem}[线性冲击下的最优执行轨迹]\label{thm:07-ac}
+在上述设定下，若忽略价差项 $s$，最优持仓路径为指数衰减
+\begin{equation}
+  x_k = X_0\,\frac{\sinh\!\big(\kappa (T - t_k)\big)}{\sinh(\kappa T)}, \qquad
+  \kappa \approx \sqrt{\frac{\kappa_r \sigma^{2}}{\eta}}
+  \label{eq:07-actraj}
+\end{equation}
+其中 $\sinh$ 为双曲正弦，$\kappa$ 为执行速率（单位 $1/$时间）。
+当 $\kappa T \to 0$ 时轨迹退化为匀速卖出（TWAP），即最小化冲击成本；
+当 $\kappa T$ 很大时轨迹前重后轻，即优先压缩风险暴露。
+\end{theorem}
+
+\begin{proof}[证明思路]
+把 $x_k$ 视为决策变量，期望成本可写成二次型
+$\E[C] = \frac{1}{2}\gamma X_0^{2} + \eta\sum_{k=1}^{N}\frac{n_k^{2}}{\tau}$，
+方差为 $\Var(C) = \sigma^{2}\tau \sum_{k=1}^{N} x_{k-1}^{2}$。
+目标函数对 $x_k$ 是凸二次函数，一阶条件给出二阶线性差分方程
+$\frac{\eta}{\tau}(x_{k+1} - 2x_k + x_{k-1}) = \kappa_r\sigma^{2}\tau\, x_k$，
+边界条件为 $x_0 = X_0$、$x_N = 0$。该方程的通解为 $x_k = A\ee^{\kappa t_k} + B\ee^{-\kappa t_k}$，
+代入边界条件即得 \cref{eq:07-actraj}，其中
+$\cosh(\kappa\tau) = 1 + \frac{\kappa_r\sigma^{2}\tau^{2}}{2\eta}$，
+在小步长下近似为 $\kappa \approx \sqrt{\kappa_r\sigma^{2}/\eta}$。
+\end{proof}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm, grid=major,
+  xlabel={执行时间占比 $t/T$}, ylabel={剩余持仓 $x_t/X_0$},
+  legend pos=north east, legend style={font=\scriptsize},
+  ymin=0, ymax=1.05, xmin=0, xmax=1
+]
+\addplot[quantblue, very thick, domain=0:1, samples=80] {1-x};
+\addlegendentry{$\kappa T = 0$（TWAP）}
+\addplot[quantgreen, very thick, domain=0:1, samples=80] {(exp(3*(1-x))-exp(-3*(1-x)))/(exp(3)-exp(-3))};
+\addlegendentry{$\kappa T = 3$（中等风险厌恶）}
+\addplot[quantred, very thick, dashed, domain=0:1, samples=80] {(exp(6*(1-x))-exp(-6*(1-x)))/(exp(6)-exp(-6))};
+\addlegendentry{$\kappa T = 6$（高冲击成本则相反）}
+\end{axis}
+\end{tikzpicture}
+\caption{Almgren--Chriss 最优执行轨迹：$\kappa$ 越大越前重后轻，把风险暴露集中在执行早期}\label{fig:07-ac}
+\end{figure}
+
+\cref{fig:07-ac} 给出三条轨迹。$\kappa T = 0$ 是 TWAP，最小化冲击成本但全程承担价格风险；
+$\kappa T = 6$ 时前 $20\%$ 的时间就完成了约 $70\%$ 的卖出量。
+决定 $\kappa$ 大小的关键是比率 $\kappa_r\sigma^{2}/\eta$：
+波动率越高、风险厌恶越强、临时冲击越便宜，就越应当快速执行。
+
+\begin{example}[五年期对冲基金的执行成本权衡]\label{ex:07-ac}
+某基金需在 $5$ 个交易日内卖出 $X_0 = 10^{6}$ 股某美股，当前价 $S_0 = 50$ 元，
+日波动率 $\sigma_{\text{daily}} = 2\%$，临时冲击 $\eta = 2.0\times 10^{-6}$ 元$\cdot$日/股$^2$，
+永久冲击 $\gamma = 1.0\times 10^{-7}$ 元/股。取风险厌恶 $\kappa_r$ 使 $\kappa_r\sigma^{2} = 0.4$（单位：元/股$^2$/日），
+则 $\kappa = \sqrt{0.4/2.0\times 10^{-6}} \approx 447$ /日，$\kappa T \approx 2235 \gg 1$。
+这意味着在纯二次冲击模型下，最优解会把绝大部分股票在极短时间内抛出。
+现实中这种情况不会发生，因为冲击成本函数在快速交易时迅速非线性上升，
+因此实务上必须在 \cref{eq:07-acexec} 中加入幂律冲击项或参与率上限约束，
+把 $\kappa T$ 压回 $1$ 至 $5$ 的区间，再按 \cref{eq:07-actraj} 生成日内曲线。
+\end{example}
+
+\begin{table}[htbp]
+\centering
+\caption{执行算法比较}\label{tab:07-exec}
+\tablefont
+\begin{tabular}{@{}llll@{}}
+\toprule
+算法 & 目标 & 优点 & 主要缺陷 \\
+\midrule
+TWAP & 均匀成交 & 简单、低冲击 & 不响应流动性变化 \\
+VWAP & 跟随成交量 & 降低冲击 & 需成交量预测，易被识别 \\
+POV & 固定参与率 & 控制冲击 & 完成时间不确定 \\
+IS & 最小化实施缺口 & 显式权衡风险 & 需波动率与冲击参数标定 \\
+自适应 & 动态学习 & 应对流动性突变 & 参数不稳定，过拟合风险 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warningbox}[微观结构模型的失效条件]
+Kyle 与 Almgren--Chriss 的共同假设是：冲击对订单流近似线性、噪声交易量平稳、
+做市商竞争充分。在以下情形它们会显著低估成本：一是订单流本身包含大量同向的机构订单
+（“订单流毒性”上升，$\lambda$ 非线性放大）；二是市场出现跳跃或新闻冲击，
+波动率参数突然抬升数倍；三是标的流动性极差（小盘股、部分转债），
+此时冲击函数近似阶跃而非线性，模型给出的 TWAP 曲线会造成严重的价格崩塌。
+\end{warningbox}
+
+\section{代码实现：中性化与 IC 计算}
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={因子去极值、标准化、行业与风格中性化及 IC 计算},
+                   label={lst:07-neutralize}]
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from scipy.stats import spearmanr
+
+rng = np.random.default_rng(7)
+dates = pd.date_range("2020-01-01", periods=60, freq="B")
+industries = ["tech", "fin", "health", "energy", "cons"]
+
+rows = []
+for d in dates:
+    n = 300
+    ind = rng.choice(industries, size=n)
+    logmcap = rng.normal(10.0, 1.2, size=n)
+    vol60 = np.abs(rng.normal(0.25, 0.06, size=n))
+    signal = 0.3 * logmcap - 0.5 * vol60 + rng.normal(0, 1.0, size=n)
+    fwd_ret = 0.01 * signal + 0.02 * logmcap + rng.normal(0, 0.03, size=n)
+    rows.append(pd.DataFrame({"date": d, "industry": ind, "logmcap": logmcap,
+                              "vol60": vol60, "signal": signal, "fwd_ret": fwd_ret}))
+panel = pd.concat(rows, ignore_index=True)
+
+def winsorize(s, k=3.0):
+    med = s.median()
+    mad = (s - med).abs().median()
+    lo, hi = med - k * 1.4826 * mad, med + k * 1.4826 * mad
+    return s.clip(lo, hi)
+
+def neutralize(df):
+    z = winsorize(df["signal"])
+    z = (z - z.mean()) / z.std()
+    dummies = pd.get_dummies(df["industry"], drop_first=True).astype(float)
+    X = pd.concat([dummies, df[["logmcap", "vol60"]]], axis=1)
+    X = sm.add_constant(X)
+    res = sm.OLS(z.values, X.values).fit()
+    return z.values - res.fittedvalues
+
+panel["factor"] = panel.groupby("date", group_keys=False).apply(neutralize)
+ic = panel.groupby("date").apply(
+    lambda g: spearmanr(g["factor"], g["fwd_ret"])[0])
+print("mean rank IC = %.4f" % ic.mean(), "| IC IR = %.3f" % (ic.mean() / ic.std()))
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={分层回测与多重检验（Benjamini--Hochberg FDR）调整},
+                   label={lst:07-backtest}]
+import numpy as np
+import pandas as pd
+from scipy.stats import norm, spearmanr
+
+rng = np.random.default_rng(11)
+
+def layered_backtest(factor, fwd_ret, n_layers=5):
+    df = pd.DataFrame({"factor": factor, "fwd_ret": fwd_ret})
+    df["layer"] = pd.qcut(df["factor"].rank(method="first"), n_layers, labels=False)
+    layer_ret = df.groupby("layer")["fwd_ret"].mean()
+    ls = layer_ret.iloc[-1] - layer_ret.iloc[0]
+    return layer_ret, ls
+
+n_days, n_stocks = 800, 400
+panel_factor = rng.normal(size=(n_days, n_stocks))
+panel_ret = 0.03 * panel_factor + rng.normal(scale=0.03, size=(n_days, n_stocks))
+layer_hist = np.array([layered_backtest(panel_factor[t], panel_ret[t])[1]
+                       for t in range(n_days)])
+ir = layer_hist.mean() / layer_hist.std() * np.sqrt(252)
+print("long-short annualized IR = %.2f" % ir)
+
+def bh_fdr(pvals, alpha=0.05):
+    pvals = np.asarray(pvals)
+    order = np.argsort(pvals)
+    m = pvals.size
+    thresh = alpha * (np.arange(1, m + 1)) / m
+    passed = pvals[order] <= thresh
+    k = np.max(np.flatnonzero(passed)) + 1 if passed.any() else 0
+    rejected = np.zeros(m, dtype=bool)
+    rejected[order[:k]] = True
+    return rejected
+
+# 200 trials with a genuinely zero signal: report how many look significant
+pvals = []
+for _ in range(200):
+    noise = rng.normal(size=(n_days, n_stocks))
+    ret = rng.normal(scale=0.03, size=(n_days, n_stocks))
+    ics = [spearmanr(noise[t], ret[t])[0] for t in range(n_days)]
+    tstat = np.mean(ics) / (np.std(ics, ddof=1) / np.sqrt(n_days))
+    pvals.append(2 * (1 - norm.cdf(abs(tstat))))
+print("raw p<0.05 count =", int(np.sum(np.array(pvals) < 0.05)),
+      "| BH FDR survivors =", int(bh_fdr(pvals).sum()))
+\end{lstlisting}
+
+\cref{lst:07-neutralize,lst:07-backtest} 给出两段可直接运行的实现。
+前者展示了 \cref{def:07-pipeline} 的完整流水线，注意中性化必须按交易日分组进行，
+绝不能在全样本上做标准化，否则会用未来信息估计横截面均值与标准差。
+后者的最后一段刻意用纯噪声生成 $200$ 个策略：在 $5\%$ 水平上通常有 $8$ 至 $12$ 个“显著”，
+而 Benjamini--Hochberg 调整后基本全部被剔除。这是 \cref{eq:07-bh} 最直观的演示。
+
+\begin{keybox}[P Quant 的两条铁律]
+第一，任何信号在进入组合之前必须完成去极值、标准化与中性化，并且按日分组计算，
+否则回测结果不可解释。第二，任何绩效结论必须与试验次数、成本假设和样本外检验方式一起报告；
+缺少这三项的 Sharpe 比率不能作为决策依据。
+\end{keybox}
+
+\begin{summarybox}
 \begin{itemize}[leftmargin=*]
-  \item Bid/Ask 队列：价格、数量、订单优先级
-  \item 订单流不平衡 (OFI)：$\text{OFI} = \Delta \text{Bid} - \Delta \text{Ask}$
-  \item 信息不对称模型：Glosten-Milgrom、Kyle (1985)
+  \item 因子构建流水线为去极值、标准化、缺失值处理、行业与风格中性化四步，顺序不可调换；
+  中性化用横截面回归 \cref{eq:07-neutralize} 取残差，权重常取市值平方根。
+  \item Barra 型风险模型把收益分解为 $X f + u$，因子收益用加权最小二乘估计 \cref{eq:07-wls}，
+  因子协方差需用 Newey--West 与特征值调整稳健化。
+  \item IC 与 Rank IC 衡量横截面预测能力，其信噪比必须用有效独立期数折算；
+  持仓周期应与 IC 半衰期匹配。
+  \item 主动管理基本定律 $IR \approx IC\sqrt{N}$，现实修正为 $IC\sqrt{N_{\text{eff}}}\,TC$，
+  下注相关性会摧毁广度带来的全部优势。
+  \item 机器学习选股必须配 Purged $k$-折与 embargo、样本权重与标签区间管理，
+  否则特征重要性与样本外绩效均不可信。
+  \item 回测的三层多重检验校正分别是 Bonferroni、Benjamini--Hochberg FDR 与 DSR/PBO；
+  不披露试验次数的回测报告没有统计意义。
+  \item 微观结构层面，Kyle 模型给出 $\lambda = \frac{1}{2}\sqrt{\Sigma_0/\sigma_u^{2}}$，
+  Almgren--Chriss 给出指数衰减的最优执行轨迹，二者共同决定策略的容量上限。
 \end{itemize}
+\end{summarybox}
 
-\subsection{Kyle 模型}
+\begin{exercises}
+  \item 设某月频因子在 $2000$ 只股票上的月均 Rank IC 为 $0.035$，IC 序列标准差为 $0.08$，
+  自相关时间 $\tau = 1.5$ 个月。样本共 $96$ 个月。请计算 $\overline{IC}$ 的标准误与 $t$ 值，
+  并判断该因子在 $5\%$ 水平上是否显著。若不考虑自相关，$t$ 值会被高估多少？
+  \item 推导 \cref{prop:07-flam} 时假定各下注收益独立。若下注分为 $10$ 个行业组，
+  组内相关系数 $0.3$、组间相关系数 $0$，每组 $50$ 个下注，求 $N_{\text{eff}}$ 与
+  信息比率相对独立情形的衰减比例。
+  \item 在 Kyle 模型中，取 $\Sigma_0 = 9$、$\sigma_u = 30000$。
+  求 $\lambda$、$\beta$ 与知情者期望利润；若噪声交易量翻倍，$\lambda$ 与期望利润各如何变化？
+  请解释为什么知情者的期望利润会随噪声交易量上升。
+  \item 用 \cref{eq:07-actraj} 计算 $X_0 = 2\times10^{6}$ 股、$T = 1$ 日、
+  $\kappa = 5$ /日条件下的最优持仓路径（取 $N = 5$ 段），
+  并与 TWAP 比较前两段的卖出量差异。
+  \item 编写代码复现 \cref{lst:07-backtest} 中 $200$ 个纯噪声策略的检验，
+  分别统计未校正、Bonferroni 与 Benjamini--Hochberg 三种方法下的“显著”策略数，
+  并解释三者差异。
+  \item 某策略在 $60$ 次参数试验中取得最优年化 Sharpe $1.5$，样本 $750$ 天，
+  试验间 Sharpe 标准差 $0.06$。用 \cref{eq:07-sr0} 与 \cref{eq:07-dsr} 计算 DSR，
+  并讨论该策略是否值得实盘配置。
+\end{exercises}
 
-Kyle (1985) 框架下，知情交易者（Insider）、噪声交易者（Noise Trader）和做市商（Market Maker）三方博弈。均衡价格影响函数：
-
-\begin{equation}
-  \lambda = \frac{2\sigma_v}{\sigma_u} \sqrt{\frac{\Sigma_0}{\rho}}
-\end{equation}
-
-其中 $\lambda$ 为 Kyle's Lambda（价格对订单流的敏感度），是衡量市场深度和逆向选择风险的关键参数。
-
-\section{小结}
-
-P Quant 是数据驱动、注重实证的量化范式。从因子构建到回测验证，从统计套利到市场微观结构分析，P Quant 的工作将统计推断和机器学习方法与金融市场的现实约束结合起来。与 Q Quant 互补，两者共同构成现代量化金融的完整图景。
+\begin{furtherreading}
+\refitem Grinold, R., and Kahn, R., \emph{Active Portfolio Management}, 2nd ed., McGraw-Hill, 2000.
+（第 6 章给出主动管理基本定律的完整推导与转移系数的实务讨论）
+\refitem Ang, A., \emph{Asset Management: A Systematic Approach to Factor Investing}, Oxford University Press, 2014.
+（把因子投资、风险模型与组合构建放在统一框架下，适合建立全局图景）
+\refitem Kyle, A., ``Continuous Auctions and Insider Trading'', \emph{Econometrica}, 1985.
+（微观结构领域的奠基论文，模型虽短但均衡推导值得逐行复现）
+\refitem Almgren, R., and Chriss, N., ``Optimal Execution of Portfolio Transactions'', \emph{Journal of Risk}, 2000.
+（最优执行的经典参考，含离散与连续两种推导与成本分解）
+\refitem López de Prado, M., \emph{Advances in Financial Machine Learning}, Wiley, 2018.
+（Purged $k$-折、DSR 与 PBO 的原始出处，回测方法论章节最实用）
+\refitem Bailey, D., and López de Prado, M., ``The Deflated Sharpe Ratio'', \emph{Journal of Portfolio Management}, 2014.
+（多重检验下绩效显著性校正的标准文献，附完整公式与数值示例）
+\end{furtherreading}

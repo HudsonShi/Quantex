@@ -2,194 +2,652 @@
 
 \section{Q Quant 的哲学}
 
-Q Quant 得名于风险中性测度 $\mathbb{Q}$。其核心理念是：在无套利假设下，存在一个等价鞅测度，使得所有资产价格的折现过程为鞅。
+Q Quant 得名于风险中性测度 $\Qm$。其核心理念是：在无套利假设下，
+存在一个与真实测度 $\Prob$ 等价的测度 $\Qm$，使得所有资产的\textbf{折现价格过程都是鞅}。
+一旦完成测度变换，衍生品定价就退化为一个纯粹的积分问题。
 
 \begin{keybox}
-Q Quant 关心的是"相对定价"：给定市场上已有产品的价格，如何一致地（无套利地）为相关衍生品定价。核心工具是鞅方法、测度变换和随机分析。
+Q Quant 关心的是\textbf{相对定价}：给定市场上已有产品的价格，如何\textbf{一致地}（无套利地）
+为其他衍生品定价。因此 Q Quant 的答案不依赖任何对未来收益的主观预测，
+只依赖「市场已经给出的价格」与「复制关系的数学结构」。
+核心工具是鞅论、测度变换与随机分析。
 \end{keybox}
 
-\section{测度论基础}
+\begin{intuitionbox}[Q Quant 与 P Quant 的分工]
+同一个资产，在 $\Qm$ 下的期望收益率\textbf{恒等于无风险利率} $r$，
+因此 $\Qm$ 下的时间序列\textbf{不含任何 Alpha 信息}——这正是「用 $\Qm$ 测度回测策略」毫无意义的原因。
+反过来，$\Prob$ 下的期望收益率包含风险溢价，用它给奇异期权报价则会产生可以被无风险套利的错误价格。
+\textbf{测度不是「哪个更真实」的问题，而是「要回答什么问题」的问题}。
+\end{intuitionbox}
 
-\subsection{概率空间与测度}
+\section{测度论要点}
 
-概率空间 $(\Omega, \mathcal{F}, \mathbb{P})$：
-\begin{itemize}[leftmargin=*]
-  \item $\Omega$：样本空间
-  \item $\mathcal{F}$：$\sigma$-代数（事件集合）
-  \item $\mathbb{P}$：概率测度
+\subsection{概率空间、信息流与可测性}
+
+概率空间 $(\Omega,\Fm,\Prob)$ 由样本空间、事件集合（$\sigma$-代数）与概率测度构成。
+\textbf{信息流（filtration）} $\{\Fm_t\}_{t\ge0}$ 是一族递增的 $\sigma$-代数，$\Fm_t$ 表示 $t$ 时刻可得的全部信息。
+
+两个技术概念在定价中反复出现：
+
+\begin{itemize}[leftmargin=1.8em]
+  \item \textbf{适应（adapted）}：$X_t$ 是 $\Fm_t$-可测的，即 $t$ 时刻的值不依赖未来信息；
+  \item \textbf{可料（predictable）}：$X_t$ 由 $t^-$ 时刻的信息决定。\textbf{交易策略必须是可料的}——
+        否则就等价于允许利用未来信息套利。
 \end{itemize}
 
-\subsection{Radon-Nikodym 导数}
+\begin{definition}[条件期望的关键性质]\label{def:06-cond}
+设 $\Fm\subseteq\Gm\subseteq\mathcal{H}$ 为 $\sigma$-代数，$X$ 可积，则
+\begin{align}
+  \E\left[\E[X\mid\Gm]\mid\Fm\right] &= \E\left[X\mid\Fm\right] && \text{（塔性质）}\\
+  \E\left[Y\E[X\mid\Gm]\mid\Fm\right] &= Y\,\E\left[X\mid\Fm\right] && (\text{$Y$ 为 } \Fm\text{-可测})\\
+  \E\left[\E[X\mid\Fm]\right] &= \E[X] && \text{（全期望公式）}
+\end{align}
+塔性质是鞅论一切结论的起点：它说明\textbf{用更少的信息做预测，等于先用更多信息预测再取平均}。
+\end{definition}
 
-若 $\mathbb{Q} \ll \mathbb{P}$（$\mathbb{Q}$ 关于 $\mathbb{P}$ 绝对连续），则存在 $\frac{d\mathbb{Q}}{d\mathbb{P}}$ 使得：
+\subsection{鞅、局部鞅与平方可积鞅}
 
-\begin{equation}
-  \mathbb{E}^{\mathbb{Q}}[X] = \mathbb{E}^{\mathbb{P}}\left[\frac{d\mathbb{Q}}{d\mathbb{P}} X\right]
-\end{equation}
-
-在连续时间，Radon-Nikodym 导数过程为指数鞅：
-
-\begin{equation}
-  \frac{d\mathbb{Q}}{d\mathbb{P}}\bigg|_{\mathcal{F}_t} = \exp\left(-\frac{1}{2}\int_0^t \lambda_s^2 ds + \int_0^t \lambda_s dW_s^{\mathbb{P}}\right)
-\end{equation}
-
-其中 $\lambda_t$ 为风险的市场价格（Market Price of Risk）。
-
-\subsection{Girsanov 定理}
-
-若 $\frac{d\mathbb{Q}}{d\mathbb{P}} = \mathcal{E}\left(\int_0^T \lambda_t dW_t\right)$，则：
+称适应过程 $M_t$ 为\textbf{鞅}，若 $\E\abs{M_t}<\infty$ 且
 
 \begin{equation}
-  W_t^{\mathbb{Q}} = W_t^{\mathbb{P}} - \int_0^t \lambda_s ds
+  \E\left[M_{t}\mid\Fm_s\right] = M_s, \qquad \forall\, s \le t
+  \label{eq:06-martingale}
 \end{equation}
 
-是 $\mathbb{Q}$ 下的标准布朗运动。这提供了漂移变换的数学基础。
+三个层次的鞅概念在技术上是必要的：
 
-\section{鞅定价方法}
+\begin{table}[htbp]
+\centering
+\caption{鞅的三个层次与用途}\label{tab:06-mart}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.0cm}Y L{4.2cm}@{}}
+\toprule
+\textbf{概念} & \textbf{定义要点} & \textbf{为什么需要} \\
+\midrule
+鞅 & $\E[M_t\mid\Fm_s]=M_s$ 且 $\E\abs{M_t}<\infty$ & 公平博弈；折现价格过程的原型 \\
+局部鞅 & 存在停时序列 $\tau_n\uparrow\infty$ 使 $M^{\tau_n}$ 为鞅 & 伊藤积分 $\int H\,\dd W$ 一般只是局部鞅 \\
+平方可积鞅 & $\sup_t\E[M_t^2]<\infty$ & 保证伊藤等距与鞅表示定理可用 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\subsection{基本资产定价定理}
+\begin{warningbox}[局部鞅不是鞅：这不是技术细节]
+一个经典的例子是「双倍下注」策略：它看起来能保证盈利，但所需资金无上限，
+其财富过程是局部鞅而非鞅，因此\textbf{不能对之使用可选停止定理}。
+在定价中，这对应着「策略看起来无风险套利，实际需要无限融资或无限次交易」的情形。
+\textbf{实务含义是：任何依赖「无限制加仓」或「无限次调仓」的策略，
+在真实市场中都可能因为资金或流动性约束而失败}——LTCM 与若干期权卖方爆仓案例的本质都在这里。
+\end{warningbox}
 
-\begin{theorem}[第一基本定理]
-市场无套利 $\iff$ 存在等价鞅测度 $\mathbb{Q}$。
+\subsection{Radon--Nikodym 导数}
+
+若测度 $\Qm$ 关于 $\Prob$ 绝对连续（$\Qm\ll\Prob$），则存在密度 $\dd\Qm/\dd\Prob$ 使得
+
+\begin{equation}
+  \E^{\Qm}[X] = \E^{\Prob}\left[\frac{\dd\Qm}{\dd\Prob}X\right]
+  \label{eq:06-rn}
+\end{equation}
+
+在连续时间中，该密度通常写成指数鞅（随机指数）形式：
+
+\begin{equation}
+  \left.\frac{\dd\Qm}{\dd\Prob}\right|_{\Fm_t}
+  = \mathcal{E}\left(-\int_0^{\cdot}\lambda_s\,\dd W_s^{\Prob}\right)_t
+  = \exp\left(-\int_0^{t}\lambda_s\,\dd W_s^{\Prob}-\frac12\int_0^{t}\lambda_s^2\,\dd s\right)
+  \label{eq:06-density}
+\end{equation}
+
+其中 $\lambda_t$ 为\textbf{风险的市场价格（market price of risk）}。
+本书统一采用 \cref{eq:06-density} 的符号约定（第 10 章使用同一约定）。
+
+\section{Girsanov 定理与测度变换}
+
+\begin{theorem}[Girsanov]\label{thm:06-girsanov}
+设 $\lambda_t$ 满足 Novikov 条件
+$\E^{\Prob}\!\left[\exp\left(\frac12\int_0^T\lambda_s^2\,\dd s\right)\right]<\infty$，
+并令 $\dd\Qm/\dd\Prob$ 如 \cref{eq:06-density} 所定义。则
+\begin{equation}
+  W_t^{\Qm} = W_t^{\Prob} + \int_0^{t}\lambda_s\,\dd s
+  \label{eq:06-girsanov-w}
+\end{equation}
+是 $\Qm$ 下的标准布朗运动。
 \end{theorem}
 
-\begin{theorem}[第二基本定理]
-市场完备（所有未定权益可复制）$\iff$ 等价鞅测度唯一。
+\begin{proof}[证明思路]
+对 $W_t^{\Qm}$ 应用伊藤引理可以验证 $Z_t = \exp\left(\ii u W_t^{\Qm}+\frac12u^2t\right)$
+在 $\Qm$ 下是鞅（即 $\E^{\Qm}[Z_t\mid\Fm_s]=Z_s$），
+从而 $W_t^{\Qm}$ 在 $\Qm$ 下的特征函数为 $\ee^{-u^2t/2}$，
+这正是标准正态的特征函数。由 Lévy 刻画定理即得结论。
+\end{proof}
+
+\subsection{从真实测度到风险中性测度}
+
+设标的在 $\Prob$ 下服从几何布朗运动 $\dd S_t = \mu S_t\dd t+\sigma S_t\dd W_t^{\Prob}$。
+取 $\lambda = (\mu-r)/\sigma$（即夏普比率），由 \cref{eq:06-girsanov-w} 有
+$\dd W_t^{\Prob} = \dd W_t^{\Qm}-\lambda\,\dd t$，代入得
+
+\begin{equation}
+  \dd S_t = \left(\mu-\sigma\lambda\right)S_t\,\dd t+\sigma S_t\,\dd W_t^{\Qm}
+          = rS_t\,\dd t+\sigma S_t\,\dd W_t^{\Qm}
+  \label{eq:06-rn-sde}
+\end{equation}
+
+\begin{keybox}
+Girsanov 定理的金融含义可以概括为一句话：\textbf{测度变换只改变漂移率，不改变波动率}。
+因此从 $\Prob$ 换到 $\Qm$ 时，我们不需要知道 $\mu$（它是不可靠的、依赖主观预期的），
+只需要知道 $r$（市场可观测量）与 $\sigma$（可从期权价格反解）。
+这是 BSM 公式能被广泛使用的根本原因，也是它被称为「偏好无关」定价的原因。
+\end{keybox}
+
+\begin{example}[测度变换下的漂移修正]\label{ex:06-drift}
+设 $\mu = 10\%$、$r = 3\%$、$\sigma = 20\%$，则 $\lambda = (0.10-0.03)/0.20 = 0.35$。
+在 $\Prob$ 下，一年后 $\ln S_T$ 的期望为 $\ln S_0 + (\mu-\tfrac12\sigma^2) = \ln S_0+0.08$；
+在 $\Qm$ 下为 $\ln S_0 + (r-\tfrac12\sigma^2) = \ln S_0+0.01$。
+\textbf{两者的差异 $0.07$ 完全来自漂移项的替换，波动率项的 $0.20$ 完全不变}。
+这也解释了为什么期货价格（在 $\Qm$ 下无漂移）不能用来估计真实预期收益率。
+\end{example}
+
+\section{鞅定价方法与基本定理}
+
+\subsection{两个基本定理}
+
+\begin{theorem}[第一基本资产定价定理]\label{thm:06-ftap1}
+市场无套利机会 $\iff$ 存在与 $\Prob$ 等价的鞅测度 $\Qm$（使得所有折现资产价格为 $\Qm$-鞅）。
 \end{theorem}
+
+\begin{theorem}[第二基本资产定价定理]\label{thm:06-ftap2}
+市场完备（所有未定权益都可复制）$\iff$ 等价鞅测度\textbf{唯一}。
+\end{theorem}
+
+\begin{notebox}[不完备市场意味着什么]
+当市场不完备时（例如随机波动率模型中有两个风险源但只有一个可交易的风险资产），
+等价鞅测度有无穷多个，对应\textbf{无穷多个「无套利」价格区间}。
+此时定价需要额外准则：校准到市场波动率曲面（第 4 章的 Heston、SABR 做法）、
+效用无差异定价、或最小方差对冲。\textbf{「理论上无唯一价格」正是不完备市场模型必须校准的原因}。
+\end{notebox}
 
 \subsection{风险中性定价公式}
 
-对于任意未定权益 $H_T$：
+以货币市场账户 $B_t = \ee^{rt}$ 为计价单位，任意未定权益 $H_T$ 的价格为
 
 \begin{equation}
-  V_t = B_t \mathbb{E}^{\mathbb{Q}}\left[\frac{H_T}{B_T} \mid \mathcal{F}_t\right]
+  V_t = B_t\,\E^{\Qm}\!\left[\left.\frac{H_T}{B_T}\right|\Fm_t\right]
+      = \ee^{-r(T-t)}\,\E^{\Qm}\!\left[H_T\mid\Fm_t\right]
+  \label{eq:06-rn-formula}
 \end{equation}
 
-其中 $B_t = e^{rt}$ 为货币市场账户（假设常数利率）。
+\subsection{计价单位变换与远期测度}
 
-\subsection{计价单位变换}
-
-任意正资产 $N_t$ 可作为计价单位（Num\'eraire）。在对应的远期测度 $\mathbb{Q}^N$ 下：
+\textbf{任意正的可交易资产} $N_t$ 都可以作为计价单位。在对应的测度 $\Qm^{N}$ 下，
+以 $N$ 计价的相对价格过程是鞅：
 
 \begin{equation}
-  \frac{V_t}{N_t} = \mathbb{E}^{\mathbb{Q}^N}\left[\frac{H_T}{N_T} \mid \mathcal{F}_t\right]
+  \frac{V_t}{N_t} = \E^{\Qm^{N}}\!\left[\left.\frac{H_T}{N_T}\right|\Fm_t\right]
+  \label{eq:06-numeraire}
 \end{equation}
 
-\begin{example}[$T$-远期测度]
-取零息债券 $P(t,T)$ 为计价单位，则远期利率 $f(t,T)$ 在 $\mathbb{Q}^T$ 下为鞅，LIBOR 利率在对应远期测度下为鞅。这简化了利率衍生品定价。
+\begin{example}[$T$-远期测度：为什么远期利率是鞅]\label{ex:06-forward-measure}
+取零息债券为计价单位 $N_t = P(t,T)$，得到 $T$-远期测度 $\Qm^{T}$。
+此时\textbf{任何在 $T$ 时刻支付 1 元的资产的远期价格在 $\Qm^{T}$ 下都是鞅}。
+具体地，远期利率与远期 LIBOR 在对应测度下是鞅：
+\[
+  L(t;T_i,T_{i+1}) = \E^{\Qm^{T_{i+1}}}\!\left[L(T_i;T_i,T_{i+1})\mid\Fm_t\right].
+\]
+\textbf{这一结论的实际威力在于：它让利率衍生品的定价不再需要模拟贴现因子的联合分布，
+而只需处理一个鞅}——这是 LIBOR 市场模型（\cref{sec:06-lmm}）能够落地的理论基础。
 \end{example}
 
 \section{利率模型}
 
 \subsection{短期利率模型}
 
-Vasicek 模型：
-\begin{equation}
-  dr_t = \kappa(\theta - r_t)dt + \sigma dW_t
-\end{equation}
+\begin{table}[htbp]
+\centering
+\caption{三个主要短期利率模型的对比}\label{tab:06-shortrate}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.3cm}L{3.5cm}Y L{2.6cm}@{}}
+\toprule
+\textbf{模型} & \textbf{动态} & \textbf{优点与局限} & \textbf{曲线拟合} \\
+\midrule
+Vasicek & $\dd r_t = \kappa(\theta-r_t)\dd t+\sigma\dd W_t$ & 有解析解、仿射结构；\textbf{利率可能为负} & 只能拟合部分曲线 \\
+CIR & $\dd r_t = \kappa(\theta-r_t)\dd t+\sigma\sqrt{r_t}\dd W_t$ & 保证非负（Feller 条件 $2\kappa\theta\ge\sigma^2$）；无解析债券期权解 & 只能拟合部分曲线 \\
+Hull--White & $\dd r_t = \left(\theta(t)-a r_t\right)\dd t+\sigma\dd W_t$ & \textbf{精确拟合初始曲线}；有解析解，实务主流 & 完全拟合 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-Cox-Ingersoll-Ross (CIR) 模型：
-\begin{equation}
-  dr_t = \kappa(\theta - r_t)dt + \sigma\sqrt{r_t} dW_t
-\end{equation}
-
-CIR 保证了利率非负（当 $2\kappa\theta \geq \sigma^2$），是更现实的短期利率模型。
-
-\begin{keybox}
-Vasicek 的零息债券价格具有解析形式：$P(t,T) = A(t,T)e^{-B(t,T)r_t}$，其中 $A$ 和 $B$ 为确定性的函数。这种\textit{仿射期限结构}特性使得校准和定价非常高效。
-\end{keybox}
-
-\subsection{Heath-Jarrow-Morton (HJM) 框架}
-
-HJM 直接对远期利率曲线建模：
+Vasicek 模型的解与分布为
 
 \begin{equation}
-  df(t,T) = \alpha(t,T)dt + \sigma(t,T)dW_t
+  r_t = \theta+(r_0-\theta)\ee^{-\kappa t}+\sigma\int_0^{t}\ee^{-\kappa(t-s)}\,\dd W_s,
+  \qquad
+  r_t\sim\N\!\left(\theta+(r_0-\theta)\ee^{-\kappa t},\ \frac{\sigma^2}{2\kappa}\left(1-\ee^{-2\kappa t}\right)\right)
+  \label{eq:06-vasicek}
 \end{equation}
 
-无套利条件要求：
-\begin{equation}
-  \alpha(t,T) = \sigma(t,T)\int_t^T \sigma(t,s)ds
-\end{equation}
-
-即漂移项完全由波动率结构决定。
-
-\subsection{LIBOR 市场模型 (LMM / BGM)}
-
-LMM 对远期 LIBOR 利率直接建模，是业界利率衍生品定价的主流框架：
+其中均值回复的\textbf{半衰期}为 $\ln 2/\kappa$。零息债券价格具有\textbf{仿射形式}：
 
 \begin{equation}
-  \frac{dL_k(t)}{L_k(t)} = \mu_k(t)dt + \sigma_k(t)dW_t^{k}
+  P(t,T) = A(t,T)\,\ee^{-B(t,T)r_t},
+  \qquad B(t,T) = \frac{1-\ee^{-\kappa(T-t)}}{\kappa}
+  \label{eq:06-vasicek-bond}
 \end{equation}
+
+$A(t,T)$ 的具体表达式可由求解 PDE 得到。仿射结构意味着\textbf{债券价格的对数是状态变量的线性函数}，
+因此校准与定价可以化为线性代数问题，这是短率模型在实务中高效的原因。
+
+\begin{example}[均值回复速度的直观含义]\label{ex:06-vasicek}
+设 $\kappa = 0.5$、$\theta = 5\%$、$r_0 = 2\%$、$\sigma = 1.5\%$。
+半衰期为 $\ln2/0.5 = 1.39$ 年，即偏离长期均值的一半会在约 1.4 年内被消除。
+10 年后 $r$ 的期望为 $0.05+(0.02-0.05)\ee^{-5} = 4.98\%$，几乎完全回到长期均值。
+\textbf{参数 $\kappa$ 直接决定了「利率冲击的记忆长度」}：$\kappa$ 越大，
+曲线短端对冲击越不敏感（因为很快回归），这也是为什么 $\kappa$ 的估计值会显著影响
+利率衍生品的对冲比率。
+\end{example}
+
+\subsection{Heath--Jarrow--Morton 框架}
+
+HJM 直接对整条远期利率曲线建模：
+
+\begin{equation}
+  \dd f(t,T) = \alpha(t,T)\,\dd t+\sigma(t,T)\,\dd W_t
+  \label{eq:06-hjm}
+\end{equation}
+
+\begin{theorem}[HJM 无套利漂移条件]\label{thm:06-hjm}
+在风险中性测度 $\Qm$ 下，为使债券价格无套利，漂移项\textbf{完全由波动率结构决定}：
+\begin{equation}
+  \alpha(t,T) = \sigma(t,T)\int_t^{T}\sigma(t,s)\,\dd s
+  \label{eq:06-hjm-drift}
+\end{equation}
+\end{theorem}
+
+\begin{proof}[证明思路]
+从债券价格与远期利率的关系 $P(t,T)=\exp\left(-\int_t^T f(t,s)\dd s\right)$ 出发，
+对 $t$ 求导并应用伊藤引理，得到 $\dd P/P$ 的漂移与波动率表达式。
+再要求 $\dd P/P = r_t\dd t+\text{鞅项}$（即在 $\Qm$ 下折现债券价格为鞅），
+对比漂移项即可解出 \cref{eq:06-hjm-drift}。
+\end{proof}
+
+\begin{warningbox}[HJM 的两个实务陷阱]
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{漂移条件是非线性约束}：$\alpha = \sigma\int\sigma$ 意味着不能独立地指定漂移与波动率。
+        一旦波动率结构被设定，漂移就被锁死；若校准后的波动率结构不与市场一致，
+        模型会产生「不可能」的远期曲线动态（例如所有远期利率同时向同一方向漂移而无套利机会）。
+  \item \textbf{维度爆炸}：HJM 对连续统的远期利率建模，直接用蒙特卡洛模拟整条曲线在计算上不可行。
+        实务中必须通过主成分分析（PCA）降到 2--3 个因子。\textbf{这是 HJM 从理论走向实践的必经一步}。
+\end{enumerate}
+\end{warningbox}
+
+\subsection{LIBOR 市场模型}\label{sec:06-lmm}
+
+LMM（又称 BGM）对离散的远期 LIBOR/SOFR 利率直接建模：
+
+\begin{equation}
+  \frac{\dd L_k(t)}{L_k(t)} = \mu_k(t)\,\dd t+\sigma_k(t)\,\dd W_t^{k}
+  \label{eq:06-lmm}
+\end{equation}
+
+其关键优势在于\textbf{每个 $L_k$ 在对应的远期测度 $\Qm^{T_{k+1}}$ 下是鞅}（漂移为零），
+因此可以直接用 Black 公式给 Caplet 定价，市场报价的波动率可以直接作为模型输入：
+
+\begin{equation}
+  \text{Caplet}_k = \tau_k\,P(0,T_{k+1})\Big[L_k(0)N(d_1)-KN(d_2)\Big]
+  \label{eq:06-caplet}
+\end{equation}
+
+\begin{appbox}[市场模型为什么赢了]
+LMM 的成功不是数学上更优美，而是\textbf{工程上可校准}：它把模型参数直接对应到市场可交易的
+Cap/Floor 报价，校准结果可以被交易台直接检验，定价结果与市场报价的差异可以归因到具体合约。
+\textbf{在金融工程中，「能被市场数据检验」往往比「理论上更一般」更有价值}。
+LIBOR 退出历史舞台后，同一套方法论被移植到 SOFR 期限利率与 OIS 曲线上。
+\end{appbox}
 
 \section{信用衍生品定价}
 
-\subsection{约化形式模型 (Reduced-Form Models)}
+\subsection{强度模型与生存概率}
 
-违约时间 $\tau$ 建模为具有强度 $\lambda_t$ 的首跳时间：
-
-\begin{equation}
-  \mathbb{Q}(\tau > T \mid \mathcal{F}_t) = \mathbb{E}^{\mathbb{Q}}\left[\exp\left(-\int_t^T \lambda_s ds\right) \mid \mathcal{F}_t\right]
-\end{equation}
-
-\subsection{Copula 与相关违约}
-
-高斯 Copula（因子形式）：
+在约化形式模型中，违约时间 $\tau$ 是强度为 $\lambda_t$ 的\textbf{首跳时间}（Cox 过程），
+生存概率为
 
 \begin{equation}
-  X_i = \sqrt{\rho} Z + \sqrt{1-\rho} \varepsilon_i
+  \Qm(\tau>T\mid\Fm_t) = \E^{\Qm}\!\left[\left.\exp\left(-\int_t^{T}\lambda_s\,\dd s\right)\right|\Fm_t\right]
+  \label{eq:06-survival}
 \end{equation}
 
-其中 $Z$ 为系统性因子，$\varepsilon_i$ 为特质因子，均由标准正态分布驱动。违约发生在 $X_i$ 超过阈值时。
+在常数强度下简化为 $Q(T)=\ee^{-\lambda T}$，即\textbf{违约强度就是风险率（hazard rate）}。
 
-\begin{warningbox}
-高斯 Copula 因其过度简化尾部依赖而备受批评——这正是 2008 年金融危机中 CDO 定价模型失败的数学根源。现代实践更倾向于使用 $t$-Copula 或 Clayton Copula 来捕捉尾部依赖。
+\subsection{CDS 定价}
+
+CDS 的保本价差由「保护现值 = 保费现值」给出：
+
+\begin{equation}
+  s = \frac{(1-R)\sum_{i}B(0,t_i)\left[Q(t_{i-1})-Q(t_i)\right]}
+           {\sum_{i}\tau_i B(0,t_i)Q(t_i)}
+  \label{eq:06-cds}
+\end{equation}
+
+\begin{example}[从违约强度到 CDS 价差]\label{ex:06-cds}
+设违约强度 $\lambda = 2\%$、回收率 $R = 40\%$、平坦贴现率 $5\%$、5 年期年付一次。
+生存概率 $Q(t)=\ee^{-0.02t}$ 给出 $Q(1)=0.9802,\dots,Q(5)=0.9048$；
+保护现值 $= 0.6\sum \ee^{-0.05t_i}\left[Q(t_{i-1})-Q(t_i)\right] = 0.6\times0.08227 = 0.04936$；
+保费年金 $=\sum \ee^{-0.05t_i}Q(t_i) = 4.0729$。于是
+\[
+  s = \frac{0.04936}{4.0729} = 1.212\% \approx 121 \text{ bp},
+\]
+与近似式 $s\approx(1-R)\lambda = 0.6\times2\% = 120$ bp 非常接近。
+\textbf{这个近似式的实用价值在于：它允许交易员在脑中把 CDS 价差直接翻译成违约强度}，
+例如「5 年期 CDS 报价 300bp、回收率 40\%」意味着市场隐含的年度违约概率约 5\%。
+\end{example}
+
+\subsection{相关违约与 Copula}
+
+分层产品（CDO、篮子）的定价核心是违约相关性。高斯因子 Copula 模型假设
+
+\begin{equation}
+  X_i = \sqrt{\rho}\,Z+\sqrt{1-\rho}\,\varepsilon_i,
+  \qquad Z,\varepsilon_i\stackrel{\text{i.i.d.}}{\sim}\N(0,1)
+  \label{eq:06-gaussian-copula}
+\end{equation}
+
+违约发生在 $X_i$ 低于阈值 $c_i = \Phi^{-1}(p_i)$ 时，其中 $p_i$ 为个体违约概率。
+
+\begin{warningbox}[Gaussian Copula 的失败：不是数学错，而是模型错]
+高斯 Copula 有两个致命缺陷：
+(1) \textbf{尾部独立}——高斯分布的相关结构在极端分位数上趋于独立，
+因此 \textbf{它系统性地低估了「同时违约」的概率}，而这正是分层产品最关心的风险；
+(2) \textbf{相关性被当作常数}——现实中违约相关性在压力期急剧上升，
+且回收率会同时下降（与违约率负相关），模型无法捕捉这种联动。
+现代实践使用 $t$-Copula（更厚的联合尾部）或双因子/多因子结构，
+并对相关性做敏感性区间分析，而不是给出一个点估计。
+\textbf{2008 年的教训可以表述为：当模型的唯一关键参数无法可靠估计时，评级结果就是脆弱的。}
 \end{warningbox}
 
 \section{波动率衍生品}
 
-\subsection{方差互换 (Variance Swap)}
+\subsection{方差互换}
 
 方差互换的收益取决于实现方差与执行方差的差额：
 
 \begin{equation}
-  \text{Payoff} = N \times (\sigma_{\text{realized}}^2 - K^2)
+  \text{Payoff} = N\times\left(\sigma_{\text{realized}}^2-K_{\text{var}}\right)
+  \label{eq:06-varswap}
 \end{equation}
 
-复制公式（Carr-Madan）：
+其核心结果是\textbf{方差可以用一整条期权价格曲线静态复制}：
 
 \begin{equation}
-  \mathbb{E}^{\mathbb{Q}}[\sigma_{\text{realized}}^2] = \frac{2}{T}\left[\int_0^{F_0} \frac{P(K)}{K^2}dK + \int_{F_0}^{\infty} \frac{C(K)}{K^2}dK\right]
+  \E^{\Qm}\!\left[\sigma_{\text{realized}}^2\right]
+  = \frac{2\ee^{rT}}{T}\left[
+      \int_0^{F_0}\frac{P(K)}{K^2}\,\dd K
+      + \int_{F_0}^{\infty}\frac{C(K)}{K^2}\,\dd K
+    \right]
+  \label{eq:06-varswap-rep}
 \end{equation}
 
-即方差互换可用全部行权价的期权静态复制。
+\begin{intuitionbox}[为什么方差可以被静态复制]
+关键在于\textbf{对数合约}：由伊藤引理，
+$\dd\ln S_t = \frac{\dd S_t}{S_t}-\frac12\sigma_t^2\dd t$，
+因此 $\frac1T\int_0^T\sigma_t^2\dd t = \frac2T\left[\int\frac{\dd S_t}{S_t}-\ln\frac{S_T}{S_0}\right]$。
+左边是我们想复制的实现方差，右边第一项是动态交易标的的损益（可以用 Delta 对冲实现），
+第二项是 $\ln S_T$ 的函数——\textbf{而任何关于 $S_T$ 的光滑函数都可以用行权价连续的期权组合静态复制}。
+把 $-\ln(S_T/F_0)$ 按 $1/K^2$ 的权重展开，就得到 \cref{eq:06-varswap-rep}。
+\textbf{这解释了为什么方差互换不需要动态对冲，只要一次性买入整条虚值期权带}。
+\end{intuitionbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.95, every node/.style={font=\small\sffamily}]
+  \draw[->, thick, inkgray] (0,0) -- (10.6,0) node[right] {$K$};
+  \draw[->, thick, inkgray] (0,0) -- (0,3.2) node[above] {复制权重 $\propto 1/K^2$};
+  \draw[dashed, inkgray!55] (5.2,0) -- (5.2,3.0);
+  \node[below, inkgray] at (5.2,-0.06) {$F_0$};
+  % 虚值看跌带
+  \foreach \i/\h in {0.6/2.90, 1.4/2.10, 2.2/1.55, 3.0/1.15, 3.8/0.88, 4.6/0.70}{
+    \fill[quantred, opacity=0.55] (\i-0.32,0) rectangle (\i+0.32,\h);
+  }
+  \node[quantred] at (2.5,2.45) {虚值看跌 $P(K)$};
+  % 虚值看涨带
+  \foreach \i/\h in {5.8/0.60, 6.6/0.50, 7.4/0.42, 8.2/0.36, 9.0/0.30, 9.8/0.25}{
+    \fill[quantblue, opacity=0.55] (\i-0.32,0) rectangle (\i+0.32,\h);
+  }
+  \node[quantblue] at (7.9,1.05) {虚值看涨 $C(K)$};
+  \draw[quantgold, very thick] (0.3,3.05) -- (4.6,0.72) -- (9.9,0.26);
+  \node[quantgold, right] at (9.9,0.26) {\small $1/K^2$};
+\end{tikzpicture}
+\caption{方差互换的静态复制：以 $1/K^2$ 为权重买入整条虚值期权带}\label{fig:06-varswap}
+\end{figure}
 
 \subsection{VIX 指数}
 
-VIX 是 S\&P 500 30 天预期波动率的度量，通过 OTM 期权价格加权计算，本质上是方差互换的离散化。
+VIX 是 S\&P 500 未来 30 天预期波动率的度量，其计算本质上是 \cref{eq:06-varswap-rep} 的离散化：
+
+\begin{equation}
+  \text{VIX}^2 = \frac{2\ee^{rT}}{T}\sum_i\frac{\Delta K_i}{K_i^{2}}\,\ee^{rT}Q(K_i)
+              - \frac{1}{T}\left(\frac{F}{K_0}-1\right)^{2}
+  \label{eq:06-vix}
+\end{equation}
+
+其中 $Q(K_i)$ 为虚值期权中间价，$K_0$ 为低于并最接近远期价格 $F$ 的行权价，
+最后一项来自离散行权价对连续积分的修正。
+
+\begin{appbox}[VIX 交易的三条实务要点]
+\begin{itemize}[leftmargin=1.4em]
+  \item VIX \textbf{不可直接交易}：可交易的是 VIX 期货与期权，而期货价格包含了
+        从当前到到期日的波动率预期路径，因此 VIX 期货曲线通常是向上倾斜的（正向市场）；
+  \item \textbf{做空波动率有正期望但尾部风险极大}：VIX ETN（如 VXX）在低波动期持续阴跌，
+        但在 2018 年 2 月 5 日「波动率末日」单日跌幅超过 80\%，
+        杠杆型产品几乎归零；
+  \item \textbf{复制需要滚动}：由于 \cref{eq:06-varswap-rep} 需要整条期权带，
+        而 VIX 期货只覆盖一个 30 天窗口，长期做空波动率必须不断滚动期货合约，
+        承担展期成本（roll cost）。
+\end{itemize}
+\end{appbox}
+
+\section{傅里叶变换方法}
+
+\subsection{特征函数与 Carr--Madan 公式}
+
+对很多模型（Heston、方差 Gamma、NIG、CGMY），期权价格没有初等解析式，
+但\textbf{对数价格的特征函数有解析式}：
+
+\begin{equation}
+  \psi_T(u) = \E^{\Qm}\!\left[\ee^{\ii u\ln S_T}\right]
+  \label{eq:06-cf}
+\end{equation}
+
+Carr--Madan（1999）利用傅里叶逆变换给出看涨期权价格：
+
+\begin{equation}
+  C(k,T) = \frac{\ee^{-\alpha k}}{\pi}\int_0^{\infty}\ee^{-\ii vk}\,
+           \psi_T\!\left(v-\ii(\alpha+1)\right)\dd v,
+  \qquad k = \ln K
+  \label{eq:06-carr-madan}
+\end{equation}
+
+其中 $\alpha>0$ 为阻尼因子，用于保证积分收敛（要求 $\E[S_T^{\alpha+1}]<\infty$）。
+由于该积分对所有行权价 $k$ 形式相同，可以用\textbf{一次 FFT 同时算出整条期权价格曲线}，
+这正是傅里叶方法在实务中极具吸引力的原因。
+
+\subsection{Heston 模型的特征函数}
+
+Heston 模型的特征函数（采用 Albrecher 等「little trap」的数值稳定形式）为
+
+\begin{align}
+  \psi_T(u) &= \exp\Big\{\ii u\left(\ln S_0+rT\right)\Big\}\notag\\
+  &\quad\times\exp\left\{\frac{\kappa\theta}{\xi^{2}}
+     \left[\left(\kappa-\rho\xi\ii u-d\right)T-2\ln\frac{1-g\ee^{-dT}}{1-g}\right]\right\}\notag\\
+  &\quad\times\exp\left\{\frac{v_0}{\xi^{2}}\cdot
+     \frac{\left(\kappa-\rho\xi\ii u-d\right)\left(1-\ee^{-dT}\right)}{1-g\ee^{-dT}}\right\}
+  \label{eq:06-heston-cf}
+\end{align}
+
+其中
+
+\begin{equation}
+  d = \sqrt{\left(\rho\xi\ii u-\kappa\right)^{2}+\xi^{2}\left(\ii u+u^{2}\right)},
+  \qquad
+  g = \frac{\kappa-\rho\xi\ii u-d}{\kappa-\rho\xi\ii u+d}
+  \label{eq:06-heston-dg}
+\end{equation}
+
+\begin{warningbox}[Heston 特征函数的数值陷阱]
+原始文献中的「标准形式」在某些参数区域会因复对数分支切割而产生\textbf{特征函数不连续}，
+导致数值积分出现伪振荡、价格甚至为负。Albrecher 等指出该问题来自
+$\ln(1-g\ee^{-dT})$ 与 $\ln(1-g)$ 的相位选择，\textbf{改用 \cref{eq:06-heston-cf} 的等价形式可完全避免}。
+这是「公式正确但实现错误」的经典案例，也提醒我们：\textbf{解析公式的数值稳定性必须被验证，
+而不能因为「有闭式解」就假定实现没问题}。
+\end{warningbox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.0cm, grid=major,
+  xlabel={行权价 / 远期（moneyness）}, ylabel={隐含波动率（\%）},
+  domain=0.8:1.2, samples=120,
+  legend pos=north east, legend style={font=\scriptsize},
+  ytick={18,22,26,30}
+]
+\addplot[quantred, very thick] {19 - 30*(x-1) + 260*(x-1)^2};
+\addlegendentry{市场报价（偏斜）}
+\addplot[quantblue, very thick, dashed] {20.5 - 26*(x-1) + 330*(x-1)^2};
+\addlegendentry{Heston 校准后}
+\addplot[quantgreen, thick, dotted] {21.0 - 5*(x-1) + 30*(x-1)^2};
+\addlegendentry{BSM（常数波动率）}
+\end{axis}
+\end{tikzpicture}
+\caption{Heston 模型对市场偏斜的拟合能力：单因子随机波动率能捕捉大部分偏斜，
+但在极短期限的两翼仍存在系统性偏差}\label{fig:06-heston-smile}
+\end{figure}
 
 \section{数值实现专题}
 
-\subsection{蒙特卡洛加速技术}
+\subsection{最小二乘蒙特卡洛}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{Longstaff-Schwartz 算法}（最小二乘蒙特卡洛，LSM）：用于美式/百慕大期权定价，通过回归继续持有价值来确定最优行权策略
-  \item \textbf{多级蒙特卡洛 (MLMC)}：分层模拟以减少计算量
-  \item \textbf{GPU 加速}：利用 CUDA 并行生成随机路径
+美式与百慕大期权的最优行权策略无法解析求解，LSM 方法用\textbf{回归近似继续持有价值}。
+
+\begin{algorithm}[htbp]
+\caption{最小二乘蒙特卡洛（LSM）定价美式期权}\label{alg:06-lsm}
+\begin{algorithmic}[1]
+\Require 模拟路径 $\{S^{(i)}_{t_m}\}$（$i=1,\dots,N$，$m=0,\dots,M$），行权价 $K$，折现因子 $\Delta=\ee^{-r\Delta t}$
+\Ensure 期权价格估计 $\hat{V}_0$
+\State 初始化到期现金流 $V^{(i)} \gets \max(K-S^{(i)}_{T},0)$（看跌）
+\For{$m = M-1$ \textbf{到} $1$}
+  \State 记 $Y^{(i)} \gets V^{(i)}\cdot\Delta$ \Comment{继续持有价值的样本实现}
+  \State 选取基函数 $\phi_1,\dots,\phi_J$（常用 $1,S,S^2$ 或 Laguerre 多项式）
+  \State 仅在\textbf{实值路径}上用最小二乘拟合 $Y^{(i)}\approx\sum_j\beta_j\phi_j(S^{(i)}_{t_m})$
+  \State 记拟合值 $\hat{C}^{(i)}$，行权收益 $H^{(i)}\gets\max(K-S^{(i)}_{t_m},0)$
+  \If{$H^{(i)} > \hat{C}^{(i)}$}
+    \State $V^{(i)}\gets H^{(i)}$ \Comment{行权，记为当前现金流}
+  \Else
+    \State $V^{(i)}\gets Y^{(i)}$ \Comment{继续持有}
+  \EndIf
+\EndFor
+\State \Return $\frac1N\sum_i V^{(i)}\cdot\Delta$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{warningbox}[LSM 的三个实践要点]
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{只在实值路径上回归}：把虚值路径纳入回归会引入严重偏差（它们永远不会被行权）；
+  \item \textbf{得到的是下偏估计}：因为回归给出的是次优行权策略，价格会系统性偏低；
+  \item \textbf{不要在回归中引入未来信息}：必须使用同一时刻的可观测状态变量，
+        否则会得到高于真实价格的上偏结果——这是回测与定价中最危险的一类错误。
+\end{enumerate}
+\end{warningbox}
+
+\subsection{蒙特卡洛加速与傅里叶实现}
+
+\begin{itemize}[leftmargin=1.8em]
+  \item \textbf{多级蒙特卡洛（MLMC）}：把估计量分解为不同步长的层级
+        $\hat{Y}=\sum_{l=0}^{L}\hat{Y}_l$，其中 $\hat{Y}_l$ 为相邻层级之差。
+        由于粗层级的方差大但成本低、细层级的方差小但成本高，
+        最优样本分配 $n_l\propto\sqrt{\text{Var}[Y_l]/C_l}$ 可使总计算量下降一个数量级以上；
+  \item \textbf{GPU 加速}：路径生成与收益计算天然并行，适合向量化到 GPU；
+  \item \textbf{随机数质量}：必须使用可复现的生成器与足够长的周期，
+        并对低差异序列做随机化（scrambling）以获得误差估计。
 \end{itemize}
 
-\subsection{傅里叶变换方法}
+\begin{lstlisting}[style=pythonstyle, caption={Heston 特征函数与 Carr-Madan 数值积分}, label={lst:06-heston}]
+import numpy as np
+from scipy.integrate import quad
 
-Carr-Madan 方法利用特征函数进行期权定价：
+def heston_cf(u, S0, r, T, v0, kappa, theta, xi, rho):
+    """Characteristic function of log S_T under Q (Albrecher et al. form)."""
+    u = np.asarray(u, dtype=complex)
+    d = np.sqrt((rho * xi * 1j * u - kappa) ** 2 + xi ** 2 * (1j * u + u ** 2))
+    g = (kappa - rho * xi * 1j * u - d) / (kappa - rho * xi * 1j * u + d)
+    exp_dT = np.exp(-d * T)
+    c1 = (kappa * theta / xi ** 2) * ((kappa - rho * xi * 1j * u - d) * T
+                                      - 2.0 * np.log((1 - g * exp_dT) / (1 - g)))
+    c2 = (v0 / xi ** 2) * ((kappa - rho * xi * 1j * u - d)
+                           * (1 - exp_dT) / (1 - g * exp_dT))
+    return np.exp(1j * u * (np.log(S0) + r * T)) * np.exp(c1 + c2)
 
-\begin{equation}
-  C(K,T) = \frac{e^{-\alpha k}}{\pi} \int_0^{\infty} e^{-ivk} \psi_T(v - i(\alpha+1)) dv
-\end{equation}
+def carr_madan_call(K, S0, r, T, v0, kappa, theta, xi, rho, alpha=1.5, n=2000):
+    """Carr-Madan integration over v in [0, v_max] with a trapezoid rule."""
+    k = np.log(K)
+    v_max, dv = 200.0, 200.0 / n
+    v = np.linspace(dv, v_max, n)
+    psi = heston_cf(v - 1j * (alpha + 1), S0, r, T, v0, kappa, theta, xi, rho)
+    integrand = np.real(np.exp(-1j * v * k) * psi)
+    return np.exp(-alpha * k) / np.pi * np.trapezoid(integrand, dx=dv)
 
-其中 $\psi_T(u) = \mathbb{E}^{\mathbb{Q}}[e^{iu\log S_T}]$ 为对数价格的特征函数，$k = \log K$。
+# A typical calibrated parameter set (equity index, T = 1y)
+p = dict(S0=100.0, r=0.03, T=1.0, v0=0.04, kappa=1.8, theta=0.045,
+         xi=0.6, rho=-0.75)
+for K in (80, 90, 100, 110, 120):
+    print(f"K={K:>3d}  C={carr_madan_call(K, **p):8.4f}")
+\end{lstlisting}
 
-该方法在 L\'evy 过程和仿射模型中特别高效（利用 FFT）。
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em]
+  \item Q Quant 的语言是等价鞅测度：无套利 $\iff$ 存在 $\Qm$（第一基本定理），
+        完备 $\iff$ $\Qm$ 唯一（第二基本定理）。
+  \item Girsanov 定理说明测度变换只改漂移、不改波动率；风险的市场价格
+        $\lambda=(\mu-r)/\sigma$ 是两者之间的桥梁。
+  \item 计价单位变换是利率与外汇衍生品定价的通用工具：在 $T$-远期测度下远期利率是鞅，
+        这使 LMM 可以直接校准到 Caplet 报价。
+  \item 短期利率模型（Vasicek、CIR、Hull--White）以仿射结构换取解析性；
+        HJM 用波动率结构决定漂移，代价是维度爆炸；LMM 以市场可校准性取胜。
+  \item 信用定价的核心是违约强度与相关性；高斯 Copula 的失效在于尾部独立与常数相关性。
+  \item 方差互换可以被整条虚值期权带静态复制（\cref{eq:06-varswap-rep}），VIX 是它的离散化。
+  \item 傅里叶定价（Carr--Madan）用特征函数一次算出整条价格曲线，
+        但必须注意 Heston 特征函数的复对数分支问题。
+  \item LSM 用回归近似最优行权策略，是美式/百慕大期权的主流方法，
+        但只能在实值路径上回归，且结果天然下偏。
+\end{itemize}
+\end{summarybox}
 
-\section{小结}
+\begin{exercises}
+\item 设 $\Prob$ 下 $\dd S_t = 0.12S_t\dd t+0.25S_t\dd W_t^{\Prob}$，$r = 4\%$。
+求风险的市场价格 $\lambda$，写出 $\Qm$ 下 $S_t$ 的 SDE，并计算 $\E^{\Qm}[\ln S_T]$ 与 $\E^{\Prob}[\ln S_T]$ 之差。
 
-Q Quant 的工作围绕风险中性世界展开：构建等价鞅测度、校准利率和波动率模型、为奇异衍生品定价。这需要扎实的概率论、随机分析和数值方法基础——也是量化金融中最具数学深度的领域。
+\item 证明：若 $N_t$ 与 $M_t$ 都是正的可交易资产价格，则在测度 $\Qm^{N}$ 下
+$M_t/N_t$ 是鞅。并说明为什么这个结论能解释「用债券作计价单位时远期价格是鞅」。
+
+\item 在 Vasicek 模型下，若 $\kappa = 0.8$、$\sigma = 2\%$，请计算利率冲击的半衰期，
+并说明半衰期变短会如何影响 5 年期零息债券的对冲比率 $B(0,5)$。
+
+\item 用 CDS 价差近似公式 $s\approx(1-R)\lambda$ 回答：
+若某公司 5 年期 CDS 从 150bp 扩大到 450bp、回收率维持 40\%，隐含的年度违约概率如何变化？
+这个变化在数学上等价于违约概率上升了多少倍？
+
+\item 解释为什么方差互换的复制组合中，权重与行权价的平方成反比，
+并说明若只使用有限个行权价（例如 20 个），复制误差主要来自哪两个区域。
+
+\item 在 LSM 算法中，如果把回归基函数从 $(1,S,S^2)$ 增加到 10 个多项式，
+分别讨论对价格估计偏差与方差的影响，并说明为什么「基函数越多越好」是错的。
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Shreve, S. E., \emph{Stochastic Calculus for Finance II: Continuous-Time Models}, Springer, 2004.（测度变换与鞅定价的最佳入门，第 5 章讲透 Girsanov 与计价单位变换）
+\refitem Musiela, M., and Rutkowski, M., \emph{Martingale Methods in Financial Modelling}, 2nd ed., Springer, 2005.（利率与信用衍生品的鞅方法系统参考）
+\refitem Brigo, D., and Mercurio, F., \emph{Interest Rate Models --- Theory and Practice}, 2nd ed., Springer, 2006.（LMM 校准与利率波动率曲面，实务细节极其丰富）
+\refitem Heath, D., Jarrow, R., and Morton, A., ``Bond Pricing and the Term Structure of Interest Rates'', \emph{Econometrica}, 1992, 60(1): 77--105.（HJM 漂移条件的原始文献）
+\refitem Heston, S. L., ``A Closed-Form Solution for Options with Stochastic Volatility'', \emph{Review of Financial Studies}, 1993, 6(2): 327--343.（随机波动率与特征函数）
+\refitem Carr, P., and Madan, D. B., ``Option Valuation Using the Fast Fourier Transform'', \emph{Journal of Computational Finance}, 1999, 2(4): 61--73.（傅里叶定价的奠基性论文）
+\refitem Demeterfi, K., Derman, E., Kamal, M., and Zou, J., ``More Than You Ever Wanted to Know About Volatility Swaps'', \emph{Goldman Sachs Quantitative Strategies Research Notes}, 1999.（方差互换静态复制的经典推导）
+\refitem Longstaff, F. A., and Schwartz, E. S., ``Valuing American Options by Simulation: A Simple Least-Squares Approach'', \emph{Review of Financial Studies}, 2001, 14(1): 113--147.（LSM 原始文献）
+\end{furtherreading}

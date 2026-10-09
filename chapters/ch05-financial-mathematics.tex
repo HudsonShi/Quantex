@@ -1,196 +1,609 @@
 \chapter{金融数学}
 
+第 4 章讨论的是金融工程的\textbf{定价原理}，本章讨论支撑这些原理的\textbf{计算与数学工具}：
+利息理论是现金流折现的语言，债券数学是利率风险的度量，偏微分方程、树方法与蒙特卡洛是三大定价引擎，
+数值优化则是把「模型」变成「决策」的桥梁。
+
 \section{利息理论}
 
-\subsection{计息方式}
+\subsection{计息方式与利率换算}
 
-单利（Simple Interest）：
-\begin{equation}
-  A = P(1 + rt)
-\end{equation}
+三种基本计息方式的终值分别为
 
-复利（Compound Interest）：
-\begin{equation}
-  A = P(1 + r)^t
-\end{equation}
+\begin{align}
+  \text{单利：}\quad & A = P(1+rt) \label{eq:05-simple}\\
+  \text{复利：}\quad & A = P(1+i)^{t} \label{eq:05-compound}\\
+  \text{连续复利：}\quad & A = P\ee^{\delta t} \label{eq:05-cont}
+\end{align}
 
-连续复利（Continuous Compounding）：
-\begin{equation}
-  A = Pe^{rt}
-\end{equation}
+其中 $P$ 为本金，$i$ 为每期实际利率，$\delta$ 为\textbf{利息力}（force of interest）。
+三者满足 $\ee^{\delta} = 1+i$，即 $\delta = \ln(1+i)$。连续复利在理论上最重要，
+因为指数函数在求导与积分下形式优美，几乎所有随机模型都使用连续复利。
 
-\subsection{利率的数学表示}
-
-名义利率 $i^{(m)}$（每年计息 $m$ 次）与实际年利率 $i$ 的关系：
+若一年计息 $m$ 次，名义年利率记为 $i^{(m)}$，则它与实际年利率 $i$ 的关系为
 
 \begin{equation}
-  1 + i = \left(1 + \frac{i^{(m)}}{m}\right)^m \quad\Rightarrow\quad i^{(m)} = m\left[(1+i)^{1/m} - 1\right]
+  1+i = \left(1+\frac{i^{(m)}}{m}\right)^{m}
+  \quad\Longrightarrow\quad
+  i^{(m)} = m\left[(1+i)^{1/m}-1\right]
+  \label{eq:05-nominal}
 \end{equation}
 
-贴现因子（Discount Factor）：
-\begin{equation}
-  v = \frac{1}{1+i}
-\end{equation}
+\begin{example}[复利的威力与利率换算]\label{ex:05-compound}
+名义年利率 12\%、按月计息（$m=12$）时，实际年利率为
+$\left(1+0.12/12\right)^{12}-1 = 1.01^{12}-1 = 12.68\%$。
+若改为连续复利，则 $\delta = 12\%$ 对应的实际年利率为 $\ee^{0.12}-1 = 12.75\%$。
+\textbf{同一句「年利率 12\%」在不同计息口径下相差 75 个基点}——这正是监管要求披露
+「年化百分率（APR）」与「实际年利率（EAR）」的原因。
+\end{example}
 
-\subsection{年金 (Annuity)}
+\subsection{年金}
 
-期末付年金现值（Annuity-Immediate）：
-\begin{equation}
-  a_{\overline{n}|} = \frac{1 - v^n}{i}
-\end{equation}
+年金（annuity）是等间隔的一系列等额现金流。以贴现因子 $v = 1/(1+i)$、
+贴现率 $d = i/(1+i) = 1-v$ 表示，常用现值公式如下表。
 
-期初付年金现值（Annuity-Due）：
-\begin{equation}
-  \ddot{a}_{\overline{n}|} = \frac{1 - v^n}{d}, \quad d = \frac{i}{1+i}
-\end{equation}
+\begin{table}[htbp]
+\centering
+\caption{常用年金现值公式}\label{tab:05-annuity}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.4cm}L{4.6cm}Y@{}}
+\toprule
+\textbf{类型} & \textbf{现值} & \textbf{说明} \\
+\midrule
+期末付年金 $a_{\overline{n}|}$ & $\dfrac{1-v^{n}}{i}$ & 每期末支付 1 元，共 $n$ 期 \\
+期初付年金 $\ddot{a}_{\overline{n}|}$ & $\dfrac{1-v^{n}}{d}$ & 每期初支付，比期末付多一期利息 \\
+永续年金 $a_{\overline{\infty}|}$ & $\dfrac{1}{i}$ & 无限期，是 Gordon 增长模型的基础 \\
+$m$ 次年金 $a_{\overline{n}|}^{(m)}$ & $\dfrac{1-v^{n}}{i^{(m)}}$ & 每年支付 $m$ 次 \\
+递增年金 $(Ia)_{\overline{n}|}$ & $\dfrac{\ddot{a}_{\overline{n}|}-nv^{n}}{i}$ & 支付额为 $1,2,\dots,n$ \\
+递减年金 $(Da)_{\overline{n}|}$ & $\dfrac{n-a_{\overline{n}|}}{i}$ & 支付额为 $n,n-1,\dots,1$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-永续年金（Perpetuity）：
-\begin{equation}
-  a_{\overline{\infty}|} = \frac{1}{i}
-\end{equation}
+\begin{intuitionbox}[永续年金为什么是 $1/i$]
+假设利率 5\%，永续年金每期 1 元的价值是 $1/0.05 = 20$ 元。
+一个等价的解释是：把 20 元存入银行，每年产生 1 元利息，本金永远不动。
+\textbf{这个「本金 × 利率 = 永续收益」的直觉是全部估值倍数（P/E、Cap Rate、资本化率）的根源}：
+任何永续现金流的价值都等于「现金流 ÷ 贴现率」。
+\end{intuitionbox}
 
 \subsection{贷款摊销}
 
-等额本息还款：每期还款额 $R$ 满足：
+等额本息贷款的每期还款额 $R$ 满足 $L = R\,a_{\overline{n}|}$，故
+
 \begin{equation}
-  L = R \cdot a_{\overline{n}|}
+  R = \frac{L\,i}{1-(1+i)^{-n}}
+  \label{eq:05-amort}
 \end{equation}
 
-其中 $L$ 为贷款本金，$n$ 为总期数。第 $k$ 期利息部分和本金部分：
-\begin{align}
-  I_k &= R\left(1 - v^{n-k+1}\right) \\
-  P_k &= R \cdot v^{n-k+1}
-\end{align}
+第 $k$ 期的利息与本金部分分别为
+
+\begin{equation}
+  I_k = R\left(1-v^{n-k+1}\right), \qquad P_k = R\,v^{n-k+1}
+  \label{eq:05-amort-split}
+\end{equation}
+
+\begin{example}[房贷摊销的第一期与最后一期]\label{ex:05-mortgage}
+贷款 $L = 100$ 万元，年利率 4.9\%（月利率 $i = 0.40833\%$），期限 30 年（$n = 360$ 期）。
+由 \cref{eq:05-amort} 得月供
+\[
+  R = \frac{1000000\times0.0040833}{1-(1.0040833)^{-360}} \approx 5307 \text{ 元}.
+\]
+第一期利息 $I_1 = 1000000\times0.0040833 = 4083$ 元，本金仅偿还 $5307-4083 = 1224$ 元，
+\textbf{利息占月供的 77\%}。而最后一期的本金部分为
+$P_{360} = R\,v^{1} = 5307/1.0040833 \approx 5286$ 元，利息仅约 21 元。
+这种「前期几乎全付利息」的结构是等额本息的核心特征，
+也是提前还款在第 5--10 年最划算（节省的利息最多）的原因。
+\end{example}
 
 \section{债券数学}
 
-\subsection{债券价格}
+\subsection{全价、净价与收益率}
 
-含应计利息的全价（Dirty Price）：
-\begin{equation}
-  P_{\text{dirty}} = \sum_{t} \frac{C_t}{(1+y)^{t}}
-\end{equation}
-
-净价（Clean Price）= 全价 $-$ 应计利息（Accrued Interest）。
-
-\subsection{收益率曲线拟合}
-
-Nelson-Siegel 模型：
+债券价格等于未来现金流的现值：
 
 \begin{equation}
-  y(\tau) = \beta_0 + \beta_1 \frac{1 - e^{-\tau/\lambda}}{\tau/\lambda} + \beta_2 \left(\frac{1 - e^{-\tau/\lambda}}{\tau/\lambda} - e^{-\tau/\lambda}\right)
+  P = \sum_{t=1}^{n}\frac{C}{(1+y)^{t}} + \frac{F}{(1+y)^{n}}
+  \label{eq:05-bond}
 \end{equation}
 
-其中 $\beta_0$ 为长期水平，$\beta_1$ 为短期成分，$\beta_2$ 为中期驼峰，$\lambda$ 控制衰减速度。
-
-Svensson 扩展（增加一个驼峰）：
+其中 $C$ 为票息、$F$ 为面值、$y$ 为到期收益率（YTM）。在两次付息日之间交易时，需区分：
 
 \begin{equation}
-  y(\tau) = \beta_0 + \beta_1 \frac{1 - e^{-\tau/\lambda_1}}{\tau/\lambda_1} + \beta_2 \left(\frac{1 - e^{-\tau/\lambda_1}}{\tau/\lambda_1} - e^{-\tau/\lambda_1}\right) + \beta_3 \left(\frac{1 - e^{-\tau/\lambda_2}}{\tau/\lambda_2} - e^{-\tau/\lambda_2}\right)
+  P_{\text{dirty}} = P_{\text{clean}} + \text{AI},
+  \qquad \text{AI} = C\times\frac{\text{自上次付息日起的天数}}{\text{付息期天数}}
+  \label{eq:05-dirty}
 \end{equation}
+
+\begin{warningbox}[YTM 的三个隐含假设]
+到期收益率是债券市场最常用的报价方式，但它隐含了三个通常不成立的假设：
+(1) \textbf{持有至到期}且不发生违约；(2) \textbf{所有票息都能以相同的 $y$ 再投资}；
+(3) \textbf{收益率曲线是水平的}（用同一个 $y$ 贴现所有期限）。
+因此当曲线陡峭或陡峭反转时，用 YTM 比较不同期限债券会产生误导——
+正确的做法是使用\textbf{即期利率曲线}逐期贴现，或用持有期收益（horizon return）做情景分析。
+\end{warningbox}
+
+\subsection{久期、凸性与 DV01}
+
+麦考利久期是现金流到期时间的现值加权平均：
+
+\begin{equation}
+  D = \frac{\sum_{t=1}^{n} t\cdot PV(CF_t)}{P},
+  \qquad PV(CF_t) = \frac{CF_t}{(1+y)^{t}}
+  \label{eq:05-duration}
+\end{equation}
+
+修正久期与美元久期（DV01）分别为
+
+\begin{equation}
+  D^{*} = \frac{D}{1+y/f}, \qquad \text{DV01} = D^{*}\times P\times 10^{-4}
+  \label{eq:05-modified}
+\end{equation}
+
+其中 $f$ 为每年付息次数。凸性衡量久期随收益率的变化率：
+
+\begin{equation}
+  C_{\text{conv}} = \frac{1}{P}\sum_{t=1}^{n}\frac{t(t+1)\,CF_t}{(1+y)^{t+2}}
+  \label{eq:05-convexity}
+\end{equation}
+
+于是价格对收益率变动 $\Delta y$ 的二阶近似为
+
+\begin{equation}
+  \frac{\Delta P}{P} \approx -D^{*}\,\Delta y + \tfrac12 C_{\text{conv}}\left(\Delta y\right)^{2}
+  \label{eq:05-conv-adjust}
+\end{equation}
+
+\begin{example}[久期与凸性的一次完整计算]\label{ex:05-dur-conv}
+面值 100、票息 6\%、每年付息、剩余 5 年、收益率 5\% 的债券：
+现金流为 $6,6,6,6,106$，现值为 $5.714,5.442,5.183,4.936,83.054$，合计 $P = 104.330$。
+按 \cref{eq:05-duration} 计算得 $D = 467.161/104.330 = 4.478$ 年，
+故 $D^{*} = 4.478/1.05 = 4.265$，DV01 $= 4.265\times104.330\times10^{-4} = 0.0445$ 元。
+按 \cref{eq:05-convexity} 计算得 $C_{\text{conv}} \approx 23.44$。
+当收益率上升 100bp 时，二阶近似给出
+\[
+  \frac{\Delta P}{P}\approx -4.265\times0.01+\tfrac12\times23.44\times0.0001 = -4.147\%,
+\]
+而真实价格在 6\% 收益率下恰好为 100（因为票息等于收益率），即真实跌幅为
+$100/104.330-1 = -4.150\%$。\textbf{近似误差仅 0.003 个百分点}——
+这就是为什么久期与凸性足以支撑日常的利率风险限额管理。
+\end{example}
+
+\begin{keybox}
+久期有四种等价解释，理解任何一种都能在实务中正确使用它：
+(1) 现金流的\textbf{现值加权平均到期时间}；
+(2) 价格对收益率的\textbf{弹性}（负号）；
+(3) 债券实现\textbf{免疫（immunization）}所需持有的时间——在这一点上价格风险与再投资风险恰好抵消；
+(4) \textbf{利率风险的敞口规模}，DV01 因此成为交易台的基本限额单位。
+\end{keybox}
+
+\subsection{收益率曲线的构建与拟合}
+
+市场上可观测的只有附息债券的价格，因此必须先把它们「剥离（bootstrap）」成零息利率曲线。
+递归逻辑是：短端零息利率由短期工具直接给出，长端则用「长债价格 − 已知短端现金流现值」反解。
+
+\begin{example}[两步 bootstrap]\label{ex:05-bootstrap}
+已知 1 年期零息利率 $z_1 = 4.0\%$；一张 2 年期、票息 4.5\%、年付一次、面值 100 的债券价格为 100.5。
+第一年现金流现值为 $4.5/1.04 = 4.3269$。
+第二年的现金流现值为 $100.5 - 4.3269 = 96.1731 = 104.5/(1+z_2)^2$，故
+\[
+  (1+z_2)^2 = \frac{104.5}{96.1731} = 1.08658 \ \Longrightarrow\ z_2 = 4.239\%.
+\]
+继续用 3 年期债券反解 $z_3$，即可得到整条零息曲线。
+\textbf{实务中会先用 Nelson--Siegel 之类参数化模型拟合整条曲线，再从中提取零息利率}，
+以避免逐点 bootstrap 在数据稀疏或报价噪声较大时产生锯齿状的远期利率。
+\end{example}
+
+Nelson--Siegel 模型把曲线分解为水平、斜率与曲率三个成分：
+
+\begin{equation}
+  y(\tau) = \beta_0 + \beta_1\frac{1-\ee^{-\tau/\lambda}}{\tau/\lambda}
+          + \beta_2\left(\frac{1-\ee^{-\tau/\lambda}}{\tau/\lambda}-\ee^{-\tau/\lambda}\right)
+  \label{eq:05-ns}
+\end{equation}
+
+其中 $\beta_0$ 为长期水平（水平因子），$\beta_1$ 控制短端斜率（斜率因子），
+$\beta_2$ 控制中段驼峰（曲率因子），$\lambda$ 控制衰减速度。Svensson 模型再加一个驼峰项：
+
+\begin{equation}
+  y(\tau) = y_{\text{NS}}(\tau;\beta_0,\beta_1,\beta_2,\lambda_1)
+          + \beta_3\left(\frac{1-\ee^{-\tau/\lambda_2}}{\tau/\lambda_2}-\ee^{-\tau/\lambda_2}\right)
+  \label{eq:05-svensson}
+\end{equation}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.5cm, height=6.0cm, grid=major,
+  xlabel={期限 $\tau$（年）}, ylabel={收益率贡献（\%）},
+  domain=0.2:20, samples=120,
+  legend pos=north east, legend style={font=\scriptsize},
+  ymin=-1.6, ymax=5.2
+]
+\addplot[quantblue, very thick] {4.2};
+\addlegendentry{水平因子 $\beta_0$}
+\addplot[quantred, very thick] {-2.2*(1-exp(-x/1.6))/(x/1.6)};
+\addlegendentry{斜率因子 $\beta_1$}
+\addplot[quantgreen, very thick] {1.4*((1-exp(-x/1.6))/(x/1.6)-exp(-x/1.6))};
+\addlegendentry{曲率因子 $\beta_2$}
+\addplot[quantgold, very thick, dashed] {4.2 -2.2*(1-exp(-x/1.6))/(x/1.6) + 1.4*((1-exp(-x/1.6))/(x/1.6)-exp(-x/1.6))};
+\addlegendentry{合成曲线 $y(\tau)$}
+\end{axis}
+\end{tikzpicture}
+\caption{Nelson--Siegel 模型的三个成分与合成收益率曲线}\label{fig:05-ns}
+\end{figure}
+
+如 \cref{fig:05-ns} 所示，水平因子决定长期水平，斜率因子决定曲线的陡峭程度，
+曲率因子决定中段是否出现驼峰。\textbf{三个因子的经济解释分别对应「长期通胀预期」「货币政策周期」与「期限溢价的中期波动」}，
+这使 Nelson--Siegel 不仅是拟合工具，也是宏观分析的载体。
 
 \section{期权定价的数学基础}
 
-\subsection{无套利定价与鞅}
+\subsection{无套利与风险中性定价}
 
-在风险中性测度 $\mathbb{Q}$ 下，任意衍生品价格为其折现期望收益：
-
-\begin{equation}
-  V_t = e^{-r(T-t)} \mathbb{E}^{\mathbb{Q}}[H(S_T) \mid \mathcal{F}_t]
-\end{equation}
-
-\subsection{Black-Scholes 偏微分方程推导}
-
-构造 Delta 对冲组合 $\Pi = V - \Delta S$，在自融资条件下：
+在等价鞅测度 $\Qm$ 下，任意未定权益的现值为其折现期望收益：
 
 \begin{equation}
-  d\Pi = \left(\frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 V}{\partial S^2}\right)dt
+  V_t = \ee^{-r(T-t)}\,\E^{\Qm}\!\left[H(S_T)\mid\Fm_t\right]
+  \label{eq:05-rn}
 \end{equation}
 
-无套利要求 $d\Pi = r\Pi\,dt$，代入得 Black-Scholes PDE。
+这一结论的严格基础（测度变换与鞅表示）见第 6、10 章。本章关注的是\textbf{如何计算}这个期望：
+解析解（极少数情形）、树方法、有限差分、蒙特卡洛。
 
-\subsection{数值方法 I：二叉树模型}
+\subsection{Black--Scholes 偏微分方程的推导}
 
-Cox-Ross-Rubinstein (CRR) 参数化：
+设 $V(t,S)$ 为期权价值。构造自融资的对冲组合 $\Pi = V - \Delta S$，则
+
+\begin{equation}
+  \dd\Pi = \dd V - \Delta\,\dd S
+  = \left(\pd{V}{t} + \tfrac12\sigma^2S^2\pdd{V}{S}\right)\dd t
+    + \left(\pd{V}{S}-\Delta\right)\dd S
+  \label{eq:05-hedge}
+\end{equation}
+
+选取 $\Delta = \partial V/\partial S$ 消去随机项，组合在 $\dd t$ 内无风险，
+故必须满足 $\dd\Pi = r\Pi\,\dd t = r(V - \Delta S)\,\dd t$。
+令两式的 $\dd t$ 系数相等，整理得 Black--Scholes 方程：
+
+\begin{equation}
+  \pd{V}{t} + \tfrac12\sigma^2S^2\pdd{V}{S} + rS\pd{V}{S} - rV = 0
+  \label{eq:05-bspde}
+\end{equation}
+
+\begin{notebox}[推导中真正的关键一步]
+上述推导最容易被忽略的一步是：\textbf{「组合无风险」意味着它必须赚取无风险利率}。
+这一步之所以成立，前提是存在一个可以自由借贷的无风险资产，且市场无摩擦。
+如果放宽这两个条件，得到的就不是 BSM 方程，而是带融资价差与交易成本的\textbf{非线性}定价问题——
+这类问题通常只能用控制论或数值方法处理。
+\end{notebox}
+
+\subsection{数值方法之一：二叉树模型}
+
+Cox--Ross--Rubinstein（CRR）树把连续时间离散化为「每步上涨 $u$ 或下跌 $d$」，
+参数选取使离散过程的波动率与连续过程匹配：
+
+\begin{equation}
+  u = \ee^{\sigma\sqrt{\Delta t}}, \qquad d = \ee^{-\sigma\sqrt{\Delta t}} = \frac{1}{u}, \qquad
+  p = \frac{\ee^{r\Delta t}-d}{u-d}
+  \label{eq:05-crr}
+\end{equation}
+
+其中风险中性概率 $p$ 不是主观概率，而是使\textbf{标的的期望收益率等于无风险利率}的概率：
+$\E^{\Qm}[S_{t+\Delta t}] = pSu + (1-p)Sd = S\ee^{r\Delta t}$。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  scale=1.0,
+  nd/.style={circle, draw=quantblue!60, fill=white, inner sep=1.6pt,
+             font=\small\sffamily, minimum size=6.5mm},
+  ed/.style={-{Stealth[length=2mm]}, quantblue!55, thick}
+]
+  \node[nd] (n0) at (0,0) {$S$};
+  \node[nd] (u1) at (2.4,1.5) {$Su$};
+  \node[nd] (d1) at (2.4,-1.5) {$Sd$};
+  \node[nd] (uu) at (4.8,2.8) {$Su^{2}$};
+  \node[nd] (ud) at (4.8,0) {$Sud$};
+  \node[nd] (dd) at (4.8,-2.8) {$Sd^{2}$};
+  \draw[ed] (n0) -- (u1) node[midway, above, font=\scriptsize\sffamily, text=quantgreen] {$p$};
+  \draw[ed] (n0) -- (d1) node[midway, below, font=\scriptsize\sffamily, text=quantred] {$1-p$};
+  \draw[ed] (u1) -- (uu) node[midway, above, font=\scriptsize\sffamily, text=quantgreen] {$p$};
+  \draw[ed] (u1) -- (ud) node[midway, below, font=\scriptsize\sffamily, text=quantred] {$1-p$};
+  \draw[ed] (d1) -- (ud) node[midway, above, font=\scriptsize\sffamily, text=quantgreen] {$p$};
+  \draw[ed] (d1) -- (dd) node[midway, below, font=\scriptsize\sffamily, text=quantred] {$1-p$};
+  \node[font=\scriptsize\sffamily, text=inkgray] at (0,-2.4) {第 $0$ 期};
+  \node[font=\scriptsize\sffamily, text=inkgray] at (2.4,-2.4) {第 $1$ 期};
+  \node[font=\scriptsize\sffamily, text=inkgray] at (4.8,-2.4) {第 $2$ 期};
+\end{tikzpicture}
+\caption{两步 CRR 二叉树：风险中性概率 $p$ 使标的期望收益等于无风险利率}\label{fig:05-tree}
+\end{figure}
+
+定价采用\textbf{向后递推}：在到期日取收益函数，然后逐层回溯
+$V = \ee^{-r\Delta t}\left[pV_u + (1-p)V_d\right]$。
+对于\textbf{美式期权}，每一步还要比较「继续持有价值」与「立即行权价值」，取较大者：
+
+\begin{equation}
+  V_{\text{American}} = \max\left\{H(S), \ \ee^{-r\Delta t}\left[pV_u+(1-p)V_d\right]\right\}
+  \label{eq:05-american}
+\end{equation}
+
+CRR 树的收敛阶为 $O(1/M)$（$M$ 为步数），但用于障碍期权等不连续收益产品时会出现\textbf{锯齿状振荡}，
+需要用「平滑化」或有限差分方法处理。
+
+\subsection{数值方法之二：有限差分法}
+
+把 BSM 方程 \cref{eq:05-bspde} 中的时间与价格导数用差分近似，
+得到 $\theta$ 格式（$\theta = 0$ 显式、$\theta = 1$ 隐式、$\theta = \tfrac12$ Crank--Nicolson）：
+
+\begin{equation}
+  \frac{V^{n+1}_j - V^{n}_j}{\Delta t}
+  + \theta\,\mathcal{L}V^{n+1}_j + (1-\theta)\,\mathcal{L}V^{n}_j = 0
+  \label{eq:05-theta}
+\end{equation}
+
+其中 $\mathcal{L}$ 为空间差分算子（含一阶与二阶中心差分）。三种格式的性质差异显著：
+
+\begin{table}[htbp]
+\centering
+\caption{有限差分格式的对比}\label{tab:05-fd}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.0cm}L{1.8cm}L{2.6cm}Y@{}}
+\toprule
+\textbf{格式} & \textbf{时间精度} & \textbf{稳定性} & \textbf{实务要点} \\
+\midrule
+显式（$\theta=0$） & $O(\Delta t)$ & 条件稳定 $\Delta t \le \tfrac12\Delta x^2/\sigma^2S_{\max}^2$ & 实现最简单，但时间步长受严格限制 \\
+隐式（$\theta=1$） & $O(\Delta t)$ & 无条件稳定 & 需要解三对角方程组（Thomas 算法） \\
+Crank--Nicolson（$\theta=\tfrac12$） & $O(\Delta t^2)$ & 无条件稳定 & 精度最高，但对非光滑初值会产生振荡，需前几步用隐式启动（Rannacher） \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{intuitionbox}[稳定性条件的来源]
+显式格式每算一步，信息只能传播到相邻的一个网格点，因此时间步长必须足够小，
+使「网格传播速度」不低于「价格扩散速度」。当 $\Delta t$ 过大时，
+数值解会出现正负交替的振荡——这不是精度问题，而是\textbf{数值格式本身不稳定}，
+无论把网格加密到什么程度都无法消除。这也是为什么实盘系统更偏好隐式或 Crank--Nicolson 格式。
+\end{intuitionbox}
+
+\section{蒙特卡洛方法}
+
+\subsection{基本原理与误差}
+
+欧式期权的蒙特卡洛估计为
+
+\begin{equation}
+  \hat{V} = \ee^{-rT}\frac{1}{N}\sum_{i=1}^{N}H\!\left(S_T^{(i)}\right),
+  \qquad
+  S_T^{(i)} = S_0\exp\!\left(\left(r-\tfrac{\sigma^2}{2}\right)T+\sigma\sqrt{T}Z_i\right)
+  \label{eq:05-mc}
+\end{equation}
+
+其标准误为 $\se = \hat{\sigma}_V/\sqrt{N}$，因此收敛速度为 $O(N^{-1/2})$——
+\textbf{每提高一位精度需要 100 倍的样本量}。这正是方差缩减技术至关重要的原因。
+
+\subsection{方差缩减与拟蒙特卡洛}
+
+\begin{table}[htbp]
+\centering
+\caption{蒙特卡洛方差缩减技术}\label{tab:05-vr}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.8cm}Y L{3.6cm}@{}}
+\toprule
+\textbf{技术} & \textbf{原理} & \textbf{典型收益} \\
+\midrule
+对偶变量 & 用 $(Z,-Z)$ 成对模拟，利用收益函数的单调性使误差反相关 & 方差降低 50\%--90\% \\
+控制变量 & $\hat{V}_{\text{cv}} = \hat{V} - \beta(\hat{C}-\E[C])$，用已知期望的相关量修正 & 取决于相关性，可降低一个数量级 \\
+重要性抽样 & 改变抽样分布使「重要区域」样本更密，再按似然比加权 & 深度虚值期权极有效 \\
+分层抽样 & 把样本空间分层，每层分配固定样本量 & 低维问题效果显著 \\
+拟蒙特卡洛 & 用 Sobol/Halton 低差异序列替代伪随机数 & 收敛近 $O(N^{-1})$ \\
+多级蒙特卡洛 & 用不同步长的路径组合，把计算量集中在粗粒度上 & 路径依赖产品可降一至两个数量级 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{loglogaxis}[
+  width=11.0cm, height=6.0cm, grid=major,
+  xlabel={样本量 $N$}, ylabel={均方根误差},
+  domain=100:100000, samples=60,
+  legend pos=south west, legend style={font=\scriptsize},
+  xmin=100, xmax=100000, ymin=1e-4, ymax=0.5
+]
+\addplot[quantblue, very thick] {1/sqrt(x)};
+\addlegendentry{标准蒙特卡洛 $O(N^{-1/2})$}
+\addplot[quantgreen, very thick, dashed] {3/x};
+\addlegendentry{拟蒙特卡洛 $O(N^{-1})$（低维）}
+\addplot[quantred, thick, dotted] {0.6/sqrt(x)};
+\addlegendentry{对偶变量（方差减半）}
+\end{loglogaxis}
+\end{tikzpicture}
+\caption{蒙特卡洛与拟蒙特卡洛的收敛速度对比（双对数坐标）}\label{fig:05-conv}
+\end{figure}
+
+\Cref{fig:05-conv} 说明：在双对数坐标下，$O(N^{-1/2})$ 是一条斜率 $-1/2$ 的直线，
+而拟蒙特卡洛的斜率接近 $-1$。\textbf{但在高维问题（如 100 个标的的篮子期权）中，
+拟蒙特卡洛的优势会显著衰减}，这是低差异序列的有效维数限制所致。
+
+\subsection{用蒙特卡洛计算希腊字母}
+
+直接用差分法（重新模拟一次）计算 Greeks 会引入偏差且成本高昂。两种正统方法是：
 
 \begin{align}
-  u &= e^{\sigma\sqrt{\Delta t}} \\
-  d &= e^{-\sigma\sqrt{\Delta t}} = 1/u \\
-  p &= \frac{e^{r\Delta t} - d}{u - d}
+  \text{路径导数法（pathwise）：}\quad
+  \Delta &= \E^{\Qm}\!\left[\ee^{-rT}H'(S_T)\frac{S_T}{S_0}\right] \label{eq:05-pathwise}\\
+  \text{似然比法（likelihood ratio）：}\quad
+  \Delta &= \E^{\Qm}\!\left[\ee^{-rT}H(S_T)\frac{Z}{S_0\sigma\sqrt{T}}\right] \label{eq:05-lr}
 \end{align}
 
-\subsection{数值方法 II：有限差分法}
+路径导数法方差更小，但要求收益函数几乎处处可微（数字期权等不连续收益会失效）；
+似然比法对收益函数没有光滑性要求，但方差更大。\textbf{这一权衡是实务中 Greeks 计算的核心工程问题}。
 
-对于 Black-Scholes PDE，Crank-Nicolson 格式：
+\begin{lstlisting}[style=pythonstyle, caption={蒙特卡洛定价与对偶变量的方差缩减验证}, label={lst:05-mc}]
+import numpy as np
+from scipy.stats import norm
 
-\begin{equation}
-  \frac{V_j^{n+1} - V_j^n}{\Delta t} + \frac{1}{2}\left(\mathcal{L}V_j^n + \mathcal{L}V_j^{n+1}\right) = 0
-\end{equation}
+def bsm_call(S, K, r, sigma, T):
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
 
-其中 $\mathcal{L}$ 为空间差分算子。Crank-Nicolson 具有二阶精度和无条件稳定性。
+def mc_call(S, K, r, sigma, T, n, antithetic=True, seed=0):
+    """Return (price, standard error) of a European call by Monte Carlo."""
+    rng = np.random.default_rng(seed)
+    if antithetic:
+        z = rng.standard_normal(n // 2)
+        z = np.concatenate([z, -z])
+    else:
+        z = rng.standard_normal(n)
+    ST = S * np.exp((r - 0.5 * sigma ** 2) * T + sigma * np.sqrt(T) * z)
+    payoff = np.exp(-r * T) * np.maximum(ST - K, 0.0)
+    return payoff.mean(), payoff.std(ddof=1) / np.sqrt(payoff.size)
 
-\section{蒙特卡洛模拟}
-
-\subsection{基本原理}
-
-欧式期权价格的蒙特卡洛估计：
-
-\begin{equation}
-  \hat{V} = e^{-rT} \frac{1}{N} \sum_{i=1}^{N} H(S_T^{(i)})
-\end{equation}
-
-其中 $S_T^{(i)} = S_0 \exp\left((r - \sigma^2/2)T + \sigma\sqrt{T} Z_i\right)$，$Z_i \sim \mathcal{N}(0,1)$。
-
-估计标准误差：
-\begin{equation}
-  \text{SE} = \frac{\hat{\sigma}_V}{\sqrt{N}}
-\end{equation}
-
-收敛速度 $O(1/\sqrt{N})$ 是 MC 的根本局限。
-
-\subsection{方差缩减技术}
-
-\begin{itemize}[leftmargin=*]
-  \item \textbf{对偶变量 (Antithetic Variates)}：使用 $(Z, -Z)$ 成对模拟
-  \item \textbf{控制变量 (Control Variate)}：利用已知期望的相关变量修正估计
-  \item \textbf{重要性采样 (Importance Sampling)}：改变采样分布以增加"重要"区域的样本密度
-  \item \textbf{分层抽样 (Stratified Sampling)}：将样本空间分层
-\end{itemize}
-
-\subsection{拟蒙特卡洛 (QMC)}
-
-使用低差异序列（Sobol、Halton、Faure）替代伪随机数，收敛速度可达 $O((\log N)^d / N)$，优于标准 MC 的 $O(1/\sqrt{N})$。
+S, K, r, sigma, T = 100.0, 100.0, 0.05, 0.20, 1.0
+print("analytic :", round(bsm_call(S, K, r, sigma, T), 4))
+for n in (10_000, 100_000):
+    plain = mc_call(S, K, r, sigma, T, n, antithetic=False)
+    anti = mc_call(S, K, r, sigma, T, n, antithetic=True)
+    print(f"n={n:>7d}  plain={plain[0]:.4f} (se {plain[1]:.4f})"
+          f"  antithetic={anti[0]:.4f} (se {anti[1]:.4f})")
+\end{lstlisting}
 
 \section{数值优化基础}
 
 \subsection{无约束优化}
 
-梯度下降：
+\begin{align}
+  \text{梯度下降：}\quad & x_{k+1} = x_k - \alpha_k\nabla f(x_k) \label{eq:05-gd}\\
+  \text{牛顿法：}\quad & x_{k+1} = x_k - \left[\nabla^2 f(x_k)\right]^{-1}\nabla f(x_k) \label{eq:05-newton}
+\end{align}
+
+梯度下降每步只利用一阶信息，收敛线性；牛顿法利用二阶信息，在最优解附近二次收敛，
+但需要计算并求逆 Hessian 矩阵（$O(n^3)$ 且可能非正定）。
+拟牛顿法（BFGS）通过迭代更新 Hessian 的近似，在两者之间取得平衡，是实务中的默认选择。
+
+\subsection{约束优化与 KKT 条件}
+
+一般约束优化问题为
+
 \begin{equation}
-  x_{k+1} = x_k - \alpha_k \nabla f(x_k)
+  \min_{x}\ f(x) \quad \text{s.t.}\quad g_i(x)\le 0,\ h_j(x)=0
+  \label{eq:05-constrained}
 \end{equation}
 
-牛顿法：
+其拉格朗日函数与 KKT 条件为
+
 \begin{equation}
-  x_{k+1} = x_k - [\nabla^2 f(x_k)]^{-1} \nabla f(x_k)
+  \mathcal{L}(x,\lambda,\mu) = f(x) + \sum_i\lambda_i g_i(x) + \sum_j\mu_j h_j(x)
+  \label{eq:05-lagrange}
 \end{equation}
 
-BFGS（拟牛顿法）：避免 Hesse 矩阵的显式计算和求逆。
+\begin{align}
+  \text{平稳性：} & \quad \nabla_x\mathcal{L} = 0 \label{eq:05-kkt1}\\
+  \text{原始可行性：} & \quad g_i(x)\le 0,\ h_j(x) = 0 \label{eq:05-kkt2}\\
+  \text{对偶可行性：} & \quad \lambda_i \ge 0 \label{eq:05-kkt3}\\
+  \text{互补松弛：} & \quad \lambda_i g_i(x) = 0 \label{eq:05-kkt4}
+\end{align}
 
-\subsection{约束优化}
+\begin{keybox}
+互补松弛条件 $\lambda_i g_i(x)=0$ 是约束优化的核心：\textbf{要么约束不起作用（$g_i<0$，$\lambda_i=0$），
+要么约束恰好取等号且对应一个正的影子价格（$g_i=0$，$\lambda_i>0$）}。
+在组合优化中，$\lambda_i$ 就是「放松该约束一单位能带来多少目标函数改善」，
+因此它直接对应着\textbf{约束的机会成本}——例如「单票权重上限收紧 1\% 会损失多少预期收益」。
+当约束是凸集时，KKT 条件也是充分条件。
+\end{keybox}
 
-一般形式：
-\begin{equation}
-  \min_{x} f(x) \quad \text{s.t.} \quad g_i(x) \leq 0,\; h_j(x) = 0
-\end{equation}
+\begin{lstlisting}[style=pythonstyle, caption={用牛顿法反解零息利率曲线（bootstrap 的数值版本）}, label={lst:05-boot}]
+import numpy as np
+from scipy.optimize import brentq
 
-拉格朗日函数：
-\begin{equation}
-  \mathcal{L}(x,\lambda,\mu) = f(x) + \sum_i \lambda_i g_i(x) + \sum_j \mu_j h_j(x)
-\end{equation}
+def bootstrap_zero(prices, coupons, maturities):
+    """Recover zero rates from coupon bond prices, shortest maturity first."""
+    zeros, dfs = [], []
+    for price, cpn, T in sorted(zip(prices, coupons, maturities),
+                               key=lambda x: x[2]):
+        # known cash flows from already-bootstrapped short maturities
+        pv_known = sum(cpn * df for df in dfs)
+        # remaining cash flow at maturity: cpn + 100 (notional)
+        target_df = (price - pv_known) / (cpn + 100.0)
 
-KKT 条件给出最优性的必要条件。
+        def obj(z):
+            return np.exp(-z * T) - target_df
 
-\section{小结}
+        z = brentq(obj, -0.5, 1.5, xtol=1e-12)
+        zeros.append(z)
+        dfs.append(np.exp(-z * T))
+    return np.array(zeros), np.array(dfs)
 
-金融数学是量化金融的语言——从复利到 BS PDE，从蒙特卡洛到数值优化，这些工具构成了量化分析师的工具箱。扎实的数学功底是将金融直觉转化为可计算模型的前提。
+prices = [100.5, 99.2, 101.3]
+coupons = [4.5, 4.0, 5.0]
+maturities = [2.0, 3.0, 4.0]
+z, df = bootstrap_zero(prices, coupons, maturities)
+for T, rate, d in zip(maturities, z, df):
+    print(f"T={T:.1f}y  zero={rate:.4%}  discount={d:.6f}")
+\end{lstlisting}
+
+\begin{warningbox}[数值方法选择的三条经验]
+\begin{enumerate}[leftmargin=1.6em]
+  \item \textbf{维数低、需要提前行权}：用树或有限差分。树方法实现简单且能自然处理美式期权；
+        有限差分更适合障碍、回望等边界条件复杂的合约。
+  \item \textbf{维数高、路径依赖}：用蒙特卡洛。多标的、多观察日的产品几乎只能靠模拟，
+        但要注意美式期权需要用 LSM 之类的回归方法近似最优停时。
+  \item \textbf{需要快速重复定价（如日内风控）}：用傅里叶方法或参数化近似（SABR 公式），
+        它们能在毫秒级给出整条价格曲线。
+\end{enumerate}
+\vspace{0.2em}
+反过来，最常见的错误是「用最熟悉的方法而不是最合适的方法」——
+例如用蒙特卡洛给一个只需有限差分的单标的障碍期权定价，代价是数十倍的计算时间与更大的误差。
+\end{warningbox}
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em]
+  \item 利息理论的核心是等价换算：$\ee^{\delta} = 1+i = \left(1+i^{(m)}/m\right)^{m}$；
+        年金现值公式 $a_{\overline{n}|}=(1-v^n)/i$ 是全部估值倍数的基础。
+  \item 债券价格对收益率的二阶近似为 $\Delta P/P\approx -D^{*}\Delta y+\tfrac12 C_{\text{conv}}(\Delta y)^2$；
+        久期的四种解释（加权时间、价格弹性、免疫期限、风险敞口）在实务中各有用途。
+  \item 收益率曲线必须先 bootstrap 成零息曲线；Nelson--Siegel 把曲线分解为水平、斜率、
+        曲率三个因子，兼具拟合与宏观解释功能。
+  \item BSM 方程来自「Delta 对冲消除随机项 + 无风险组合必须赚取无风险利率」这两步。
+  \item 树方法适合提前行权与低维问题（收敛 $O(1/M)$）；有限差分适合复杂边界条件
+        （Crank--Nicolson 二阶精度且无条件稳定）；蒙特卡洛适合高维与路径依赖（收敛 $O(N^{-1/2})$）。
+  \item 方差缩减（对偶变量、控制变量、重要性抽样、QMC、MLMC）是让蒙特卡洛可用起来的关键；
+        Greeks 的计算必须在路径导数法（低方差、需光滑）与似然比法（通用、高方差）之间权衡。
+  \item 约束优化的 KKT 条件给出了「约束的影子价格」，是组合优化中理解权重上限、换手约束
+        等限制成本的语言。
+\end{itemize}
+\end{summarybox}
+
+\begin{exercises}
+\item 证明 $\delta = \ln(1+i)$，并计算名义年利率 8\%、按季度计息时的利息力 $\delta$ 与实际年利率。
+
+\item 某人 30 岁开始每年年末存入 2 万元，年化收益 5\%，60 岁停止存入并立即开始每年年末取出固定金额，
+期望领到 85 岁。请计算每年可领取的金额（保留两位小数）。
+
+\item 某债券面值 100、票息 5\%、年付一次、剩余 4 年、收益率 6\%。
+请计算其价格、麦考利久期、修正久期、DV01 与凸性，并用二阶近似估计收益率上升 200bp 后的价格变化。
+
+\item 用 CRR 参数 $u=\ee^{\sigma\sqrt{\Delta t}}$、$d=1/u$ 证明风险中性概率
+$p=(\ee^{r\Delta t}-d)/(u-d)$，并说明当 $r$、$\sigma$ 与 $\Delta t$ 取何值时 $p$ 会落在 $[0,1]$ 之外
+（这在实践中会发生吗？）。
+
+\item 设某期权收益函数的路径导数估计方差为 $\sigma_1^2$，似然比估计方差为 $\sigma_2^2$ 且 $\sigma_2^2 = 4\sigma_1^2$。
+若模拟成本相同，两种方法各需要多少样本量才能达到相同的标准误？在什么情形下应该选择似然比法？
+
+\item 写出带权重上限约束 $0\le w_i\le u_i$ 的最小方差组合问题的 KKT 条件，
+并解释当某个 $u_i$ 起作用时，对应的拉格朗日乘子的经济含义。
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Hull, J. C., \emph{Options, Futures, and Other Derivatives}, 10th ed., Pearson, 2018.（第 4--6 章讲清久期、凸性与利率风险，附录给出树方法与有限差分的实现细节）
+\refitem Glasserman, P., \emph{Monte Carlo Methods in Financial Engineering}, Springer, 2003.（蒙特卡洛与方差缩减的权威参考，含 Greeks 计算的系统论述）
+\refitem Kloeden, P. E., and Platen, E., \emph{Numerical Solution of Stochastic Differential Equations}, Springer, 1992.（随机微分方程数值解的标准参考）
+\refitem Filipovi\'c, D., \emph{Term-Structure Models: A Graduate Course}, Springer, 2009.（收益率曲线建模与拟合的系统教材）
+\refitem Nelson, C. R., and Siegel, A. F., ``Parsimonious Modeling of Yield Curves'', \emph{Journal of Business}, 1987, 60(4): 473--489.（Nelson--Siegel 模型的原始文献）
+\refitem Cox, J. C., Ross, S. A., and Rubinstein, M., ``Option Pricing: A Simplified Approach'', \emph{Journal of Financial Economics}, 1979, 7(3): 229--263.（二叉树定价的原始文献，推导极为清晰）
+\refitem Rockafellar, R. T., and Uryasev, S., ``Optimization of Conditional Value-at-Risk'', \emph{Journal of Risk}, 2000, 2(3): 21--41.（凸优化在风险度量中的经典应用，第 11 章会用到）
+\end{furtherreading}

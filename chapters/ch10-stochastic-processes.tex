@@ -1,213 +1,604 @@
 \chapter{随机过程}
 
+随机过程是量化金融的数学心脏。本章的目标是建立\textbf{连续时间不确定性的语言}：
+从布朗运动与伊藤积分，到跳跃过程、测度变换与 Feynman--Kac 公式。
+掌握这一章，第 6 章的定价结果就不再是「神秘的公式」，而是同一套数学的必然推论。
+
 \section{随机过程基础}
 
 \subsection{定义与分类}
 
-随机过程是定义在概率空间上的时间索引随机变量族 $\{X_t\}_{t \in T}$。按状态空间和时间索引分类：
+随机过程是定义在概率空间上的时间索引随机变量族 $\{X_t\}_{t\in T}$。按时间索引与状态空间分类：
 
-\begin{itemize}[leftmargin=*]
-  \item 离散时间、离散状态：马尔可夫链（如信用评级迁移）
-  \item 离散时间、连续状态：GARCH、ARMA
-  \item 连续时间、连续状态：布朗运动、扩散过程（金融衍生品定价的核心）
-  \item 连续时间、离散状态：泊松过程（跳跃风险建模）
-\end{itemize}
+\begin{table}[htbp]
+\centering
+\caption{随机过程的分类与金融应用}\label{tab:10-class}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{3.4cm}L{4.2cm}Y@{}}
+\toprule
+\textbf{时间 / 状态} & \textbf{典型过程} & \textbf{金融应用} \\
+\midrule
+离散时间、离散状态 & 马尔可夫链 & 信用评级迁移、状态转换模型 \\
+离散时间、连续状态 & ARMA、GARCH & 收益率与波动率的时间序列建模 \\
+连续时间、离散状态 & 泊松过程、Cox 过程 & 违约事件、交易到达、跳跃风险 \\
+连续时间、连续状态 & 布朗运动、扩散过程 & 期权定价、利率模型、组合理论 \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \subsection{马尔可夫性质}
 
-若过程的未来仅依赖于当前状态而不依赖历史，则为马尔可夫过程：
+若过程的未来条件分布只依赖当前状态，则称其具有马尔可夫性质：
 
 \begin{equation}
-  P(X_{t+s} \in A \mid \mathcal{F}_t) = P(X_{t+s} \in A \mid X_t)
+  \Prob\left(X_{t+s}\in A\mid\Fm_t\right) = \Prob\left(X_{t+s}\in A\mid X_t\right)
+  \label{eq:10-markov}
 \end{equation}
 
-许多金融模型基于此假设：资产价格的未来分布仅依赖于当前价格。
+金融模型大量使用这一假设（例如「资产价格的未来分布只依赖当前价格」），
+原因是它使\textbf{条件期望成为状态与时间的函数}，从而把随机问题转化为 PDE 问题。
+但马尔可夫假设是一个模型选择而非事实：动量、波动率聚集与长期记忆现象都\textbf{违反}马尔可夫性，
+这也是需要 ARIMA、GARCH、状态空间模型的根本原因。
 
-\subsection{鞅 (Martingale)}
+\subsection{鞅与 Doob--Meyer 分解}
 
-鞅是公平博弈的数学形式化：
+\begin{definition}[鞅与停时]\label{def:10-martingale}
+适应过程 $M_t$ 若满足 $\E\abs{M_t}<\infty$ 且 $\E[M_t\mid\Fm_s]=M_s$（$s\le t$），称为鞅。
+随机变量 $\tau$ 若满足 $\{\tau\le t\}\in\Fm_t$ 对一切 $t$ 成立，称为\textbf{停时}（stopping time）。
+\end{definition}
 
+\begin{theorem}[可选停止定理]\label{thm:10-optional}
+设 $M_t$ 为鞅，$\tau$ 为停时。在适当可积条件下（例如 $\tau$ 有界，或 $M$ 一致可积）：
 \begin{equation}
-  \mathbb{E}[X_{t+s} \mid \mathcal{F}_t] = X_t
+  \E\left[M_\tau\right] = \E\left[M_0\right]
+  \label{eq:10-ost}
 \end{equation}
+\end{theorem}
 
-在风险中性测度下，折现资产价格为鞅——这是现代衍生品定价的数学基石。
+\begin{warningbox}[可选停止定理的可积条件不可省略]
+若去掉可积条件，会得到\textbf{明显错误}的结论。经典反例是「双倍下注」：
+每输一次就把赌注加倍，策略最终必以盈利 1 元离场，于是 $\E[M_\tau]>\E[M_0]$。
+问题在于该策略所需的资金无上限（$\tau$ 无界且 $M$ 不一致可积）。
+\textbf{量化实践中的对应风险是：任何依赖「无限资金」或「无限次加仓」的策略（如马丁格尔、
+部分期权卖方策略）在有限资金下都会以小概率的巨额亏损收场}。
+理解这一点，比记住定理的严格条件更有实务价值。
+\end{warningbox}
+
+\begin{notebox}[Doob--Meyer 分解的直观]
+相当广泛的一类过程可以唯一分解为「鞅 + 可料的有界变差过程」：
+$X_t = M_t + A_t$。在金融中，$A_t$ 就是\textbf{可预测的漂移（收益来源）}，
+$M_t$ 是\textbf{不可预测的波动（风险来源）}。
+把收益率分解为这两个部分，是理解「Alpha 与 Beta」「收益与风险」的数学语言。
+\end{notebox}
 
 \section{布朗运动}
 
-\subsection{标准布朗运动}
+\subsection{定义与基本性质}
 
-布朗运动（Wiener Process）$W_t$ 的性质：
+标准布朗运动（维纳过程）$W_t$ 满足：
 
-\begin{enumerate}[leftmargin=*]
-  \item $W_0 = 0$ a.s.
-  \item \textbf{独立增量}：对 $0 \leq s < t$，$W_t - W_s$ 独立于 $\mathcal{F}_s$
-  \item \textbf{平稳增量}：$W_t - W_s \sim \mathcal{N}(0, t-s)$
-  \item \textbf{连续样本路径}：以概率 1，$t \mapsto W_t$ 连续
+\begin{enumerate}[leftmargin=1.8em]
+  \item $W_0 = 0$ 几乎必然；
+  \item \textbf{独立增量}：$0\le s<t$ 时，$W_t-W_s$ 与 $\Fm_s$ 独立；
+  \item \textbf{平稳正态增量}：$W_t-W_s\sim\N(0,t-s)$；
+  \item \textbf{路径连续}：$t\mapsto W_t$ 以概率 1 连续。
 \end{enumerate}
 
 \begin{keybox}
-布朗运动的两个关键性质：(1) 处处连续但处处不可微；(2) 在有限区间上的二次变差为区间长度：$\langle W \rangle_t = t$。
+布朗运动有两个反直觉但极重要的性质：
+(1) 样本路径\textbf{处处连续但处处不可微}，因此不能用普通微积分处理，必须发展伊藤积分；
+(2) 在 $[0,t]$ 上的\textbf{二次变差恰好等于 $t$}：$\langle W\rangle_t = t$。
+第二条是全部随机微积分的根源：它意味着 $\left(\dd W_t\right)^2 = \dd t$，
+即「随机性的平方不是高阶小量」。
 \end{keybox}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=12.0cm, height=6.4cm, grid=major,
+  xlabel={$t$（年）}, ylabel={$W_t$},
+  domain=0:1, samples=160,
+  legend pos=north west, legend style={font=\scriptsize},
+  ymin=-2.6, ymax=2.6
+]
+\addplot[quantblue, thick] {1.6*sin(deg(9*x))*sqrt(x) + 0.5*x};
+\addlegendentry{路径 1}
+\addplot[quantgreen, thick] {-1.4*sin(deg(6*x))*sqrt(x) - 0.3*x};
+\addlegendentry{路径 2}
+\addplot[quantred, thick] {0.8*sin(deg(13*x) + 1)*sqrt(x)};
+\addlegendentry{路径 3}
+\addplot[inkgray, dashed, thick] {0};
+\addlegendentry{均值 $0$}
+\end{axis}
+\end{tikzpicture}
+\caption{三条布朗运动路径：路径连续、波动幅度随 $\sqrt{t}$ 增长，且几乎必然不光滑}\label{fig:10-paths}
+\end{figure}
 
 \subsection{布朗运动的变换}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{标度性质}：$cW_{t/c^2}$ 也是布朗运动
-  \item \textbf{反射原理}：用于计算首达时分布
-  \item \textbf{时间反演}：$t W_{1/t}$ 也是布朗运动
-\end{itemize}
+\begin{align}
+  \text{标度性质：}\quad & cW_{t/c^{2}}\ \text{也是布朗运动} \label{eq:10-scale}\\
+  \text{时间反演：}\quad & tW_{1/t}\ (t>0),\ W_0=0\ \text{也是布朗运动} \label{eq:10-inverse}\\
+  \text{反射原理：}\quad & \Prob\left(\max_{0\le s\le t}W_s\ge a\right) = 2\Prob\left(W_t\ge a\right) = 2\left(1-\Phi\left(a/\sqrt{t}\right)\right) \label{eq:10-reflection}
+\end{align}
+
+由反射原理可得首达时 $\tau_a = \inf\{t: W_t = a\}$（$a>0$）的分布：
+
+\begin{equation}
+  \Prob\left(\tau_a\le t\right) = 2\left(1-\Phi\left(\frac{a}{\sqrt{t}}\right)\right),
+  \qquad \E\left[\tau_a\right] = \infty
+  \label{eq:10-hitting}
+\end{equation}
+
+\begin{intuitionbox}[为什么「等不到就永远等不到」]
+\Cref{eq:10-hitting} 说明首达时的期望是\textbf{无穷大}：布朗运动平均需要无限长时间才能到达任意给定水平。
+这意味着（在纯布朗运动模型下）「距离某个价位只差一点」并不是买入的理由——
+模型的记忆是零的。\textbf{现实中之所以有人用「均值回复」或「支撑位」交易，
+前提是标的存在均值回复或状态依赖的漂移，而不是纯布朗运动}。
+区分「随机游走」与「均值回复」是随机过程建模的第一个决策，也是最关键的一个。
+\end{intuitionbox}
 
 \section{伊藤积分}
 
-\subsection{动机与定义}
+\subsection{构造与伊藤等距}
 
-伊藤积分解决了积分对象不可微的问题。对于简单过程：
+普通黎曼积分对布朗运动不适用（路径无界变差）。伊藤积分的构造分两步：
+先对\textbf{简单可料过程}（分段常数的左连续过程）定义
 
 \begin{equation}
-  \int_0^T \phi_t dW_t = \sum_{i=0}^{n-1} \phi_{t_i}(W_{t_{i+1}} - W_{t_i})
+  \int_0^{T}\phi_t\,\dd W_t = \sum_{i=0}^{n-1}\phi_{t_i}\left(W_{t_{i+1}}-W_{t_i}\right)
+  \label{eq:10-simple}
 \end{equation}
 
-关键：积分值取左端点（非可料），这是伊藤积分区别于 Stratonovich 积分的核心。
+再通过 $L^2$ 极限推广到一般可料过程。\textbf{取左端点（可料性）是伊藤积分区别于 Stratonovich 积分的关键}，
+它保证了积分是鞅（而不是带漂移的过程）。
+
+\begin{theorem}[伊藤等距]\label{thm:10-isometry}
+对于满足 $\E\int_0^T\phi_t^2\dd t<\infty$ 的可料过程 $\phi$，
+\begin{equation}
+  \E\left[\left(\int_0^{T}\phi_t\,\dd W_t\right)^{2}\right]
+  = \E\left[\int_0^{T}\phi_t^{2}\,\dd t\right]
+  \label{eq:10-isometry}
+\end{equation}
+\end{theorem}
+
+伊藤等距是蒙特卡洛定价的理论基础：\textbf{它把「积分的不确定性」转化成了「被积函数平方的时间积分」}，
+从而给出了可控的方差表达式。
 
 \subsection{伊藤引理}
 
-若 $X_t$ 满足 $dX_t = \mu_t dt + \sigma_t dW_t$，$f(t,x)$ 为 $C^{1,2}$ 函数，则：
+\begin{theorem}[伊藤引理，一维]\label{thm:10-ito}
+设 $X_t$ 满足 $\dd X_t = \mu_t\dd t+\sigma_t\dd W_t$，$f(t,x)\in C^{1,2}$，则
+\begin{equation}
+  \dd f(t,X_t) = \left(\pd{f}{t}+\mu_t\pd{f}{x}+\frac12\sigma_t^{2}\pdd{f}{x}\right)\dd t
+              + \sigma_t\pd{f}{x}\,\dd W_t
+  \label{eq:10-ito}
+\end{equation}
+\end{theorem}
+
+\begin{proof}[证明思路]
+对 $f$ 做二阶泰勒展开，保留到 $\dd t$ 阶：
+$\dd f = f_t\dd t+f_x\dd X+\frac12f_{xx}(\dd X)^2$。
+关键在于 $(\dd X)^2 = \sigma^2(\dd W)^2 + O(\dd t^{3/2}) = \sigma^2\dd t$（因为 $(\dd W)^2=\dd t$），
+于是二阶项\textbf{不消失}，这正是一般微积分与随机微积分的分水岭。
+\end{proof}
+
+在 $d$ 维情形下，若 $\dd X^i_t = \mu^i\dd t+\sum_j\sigma^{ij}\dd W^j_t$，则
 
 \begin{equation}
-  df(t,X_t) = \left(\frac{\partial f}{\partial t} + \mu_t\frac{\partial f}{\partial x} + \frac{1}{2}\sigma_t^2\frac{\partial^2 f}{\partial x^2}\right)dt + \sigma_t\frac{\partial f}{\partial x}dW_t
+  \dd f = \left(\pd{f}{t}+\sum_i\mu^i\pd{f}{x_i}
+        +\frac12\sum_{i,j}\left(\sigma\sigma^{\top}\right)^{ij}\frac{\partial^2 f}{\partial x_i\partial x_j}\right)\dd t
+        +\sum_{i,j}\sigma^{ij}\pd{f}{x_i}\,\dd W^j_t
+  \label{eq:10-ito-multi}
 \end{equation}
 
-$\frac{1}{2}\sigma_t^2\frac{\partial^2 f}{\partial x^2}$ 项是二阶修正——这是随机微积分与普通微积分的本质差异，来源于 $(dW_t)^2 = dt$。
+由此得到两个核心运算规则：
 
-\begin{example}[几何布朗运动的伊藤引理]
-设 $S_t$ 遵循 $dS_t = \mu S_t dt + \sigma S_t dW_t$，令 $f(S) = \ln S$：
-\begin{equation}
-  d(\ln S_t) = \left(\mu - \frac{1}{2}\sigma^2\right)dt + \sigma dW_t
-\end{equation}
-因此 $\ln S_T \sim \mathcal{N}\left(\ln S_0 + (\mu - \sigma^2/2)T, \sigma^2 T\right)$。
+\begin{align}
+  \text{乘积法则：}\quad & \dd(X_tY_t) = X_t\,\dd Y_t+Y_t\,\dd X_t+\dd\langle X,Y\rangle_t \label{eq:10-product}\\
+  \text{分部积分：}\quad & \int_0^{T}X_t\,\dd Y_t = X_TY_T-X_0Y_0-\int_0^{T}Y_t\,\dd X_t-\langle X,Y\rangle_T \label{eq:10-ibp}
+\end{align}
+
+\begin{example}[几何布朗运动的对数形式]\label{ex:10-gbm}
+设 $\dd S_t = \mu S_t\dd t+\sigma S_t\dd W_t$，取 $f(S)=\ln S$。
+由 $f_x = 1/S$、$f_{xx} = -1/S^2$，\cref{eq:10-ito} 给出
+\[
+  \dd\ln S_t = \left(\mu-\frac12\sigma^{2}\right)\dd t+\sigma\,\dd W_t,
+\]
+积分得 $S_t = S_0\exp\left(\left(\mu-\frac12\sigma^2\right)t+\sigma W_t\right)$，
+且 $\ln S_T\sim\N\left(\ln S_0+(\mu-\frac12\sigma^2)T,\ \sigma^2T\right)$。
+\textbf{注意 $-\frac12\sigma^2$ 这一项：它说明波动率会侵蚀复合增长率}——
+年化波动率 40\% 的策略，其几何平均收益比算术平均低约 $0.08$（8 个百分点），
+这是「高波动长期跑输」的数学根源，也是波动率拖累（volatility drag）的准确表述。
 \end{example}
 
-\subsection{随机微分方程 (SDE)}
+\section{随机微分方程}
 
-一般形式：
+\subsection{存在唯一性}
+
+\begin{theorem}[SDE 解的存在唯一性]\label{thm:10-existence}
+若 $\mu(t,x)$、$\sigma(t,x)$ 满足 Lipschitz 条件与线性增长条件：
 \begin{equation}
-  dX_t = \mu(t,X_t)dt + \sigma(t,X_t)dW_t
+  \abs{\mu(t,x)-\mu(t,y)}+\abs{\sigma(t,x)-\sigma(t,y)}\le K\abs{x-y},
+  \qquad
+  \abs{\mu(t,x)}+\abs{\sigma(t,x)}\le K\left(1+\abs{x}\right)
+  \label{eq:10-lipschitz}
+\end{equation}
+则 SDE $\dd X_t=\mu(t,X_t)\dd t+\sigma(t,X_t)\dd W_t$ 存在唯一的强解。
+\end{theorem}
+
+\begin{notebox}[为什么金融模型经常「违规」]
+Black--Scholes 与 Vasicek 满足上述条件，但很多金融模型\textbf{不满足}：
+CIR 模型的扩散项 $\sigma\sqrt{r}$ 在 $r=0$ 处不满足 Lipschitz 条件（因此需要 Feller 条件保证非负）；
+Heston 的方差过程、以及各类跳跃过程都需要更弱的条件与更精细的分析。
+\textbf{实务含义是：这些模型在状态变量接近边界时的行为需要单独验证}——
+例如 CIR 在利率接近零时的数值实现必须防止出现负利率。
+\end{notebox}
+
+\subsection{Ornstein--Uhlenbeck 过程}
+
+OU 过程是最重要的均值回复模型：
+
+\begin{equation}
+  \dd X_t = \theta\left(\mu-X_t\right)\dd t+\sigma\,\dd W_t
+  \label{eq:10-ou}
 \end{equation}
 
-解的存在唯一性：Lipschitz 条件和线性增长条件（参考 Oksendal 的 SDE 理论）。
+其显式解与分布为
 
-常见解析解：
-\begin{itemize}[leftmargin=*]
-  \item 几何布朗运动：$S_t = S_0 \exp((\mu - \sigma^2/2)t + \sigma W_t)$
-  \item Ornstein-Uhlenbeck 过程：$X_t = X_0 e^{-\theta t} + \mu(1-e^{-\theta t}) + \sigma \int_0^t e^{-\theta(t-s)} dW_s$
-\end{itemize}
+\begin{equation}
+  X_t = \mu+\left(X_0-\mu\right)\ee^{-\theta t}+\sigma\int_0^{t}\ee^{-\theta(t-s)}\,\dd W_s,
+  \qquad
+  X_t\sim\N\!\left(\mu+(X_0-\mu)\ee^{-\theta t},\ \frac{\sigma^{2}}{2\theta}\left(1-\ee^{-2\theta t}\right)\right)
+  \label{eq:10-ou-sol}
+\end{equation}
+
+当 $t\to\infty$ 时，$X_t$ 收敛到\textbf{平稳分布} $\N\left(\mu,\ \sigma^2/(2\theta)\right)$。
+半衰期为 $\ln 2/\theta$。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11.8cm, height=6.0cm, grid=major,
+  xlabel={$t$}, ylabel={价差 $X_t$},
+  domain=0:3, samples=200,
+  legend pos=north east, legend style={font=\scriptsize},
+  ymin=-1.2, ymax=1.2
+]
+\addplot[quantblue, thick] {0.9*exp(-2.2*x) + 0.25*sin(deg(14*x))*exp(-0.6*x)};
+\addlegendentry{$\theta$ 大（快速回复）}
+\addplot[quantred, thick] {0.9*exp(-0.35*x) + 0.45*sin(deg(7*x))*exp(-0.15*x)};
+\addlegendentry{$\theta$ 小（缓慢回复）}
+\addplot[inkgray, dashed, thick] {0};
+\addlegendentry{长期均值 $\mu$}
+\end{axis}
+\end{tikzpicture}
+\caption{OU 过程：$\theta$ 决定回复速度，$\sigma^2/(2\theta)$ 决定平稳波动幅度}\label{fig:10-ou}
+\end{figure}
+
+\begin{appbox}[OU 过程在配对交易中的完整用法]
+配对交易的价差常被建模为 OU 过程，参数可用 AR(1) 回归精确估计。设
+$X_{t+\Delta}=a+bX_t+\varepsilon_t$，则
+\[
+  \theta = -\frac{\ln b}{\Delta},\qquad
+  \mu = \frac{a}{1-b},\qquad
+  \sigma = \sd(\varepsilon)\sqrt{\frac{2\theta}{1-b^{2}}}.
+\]
+交易规则通常取「$z$ 分数」$z_t = \left(X_t-\mu\right)/\sqrt{\sigma^2/(2\theta)}$：
+$z>2$ 做空价差、$z<-2$ 做多价差、$|z|<0.5$ 平仓。
+\textbf{三个必须检查的前提}：(1) 协整关系在样本外仍成立（用 Johansen 检验或滚动检验）；
+(2) 半衰期与回测周期匹配——若半衰期 60 天而策略持有期 3 天，则信号没有意义；
+(3) 交易成本与融券成本不能超过均值回复带来的收益，这通常是最容易忽略的一环。
+\end{appbox}
+
+\begin{lstlisting}[style=pythonstyle, caption={布朗运动的二次变差验证与 OU 参数估计}, label={lst:10-ou}]
+import numpy as np
+
+def quadratic_variation(n_steps=2000, n_paths=400, T=1.0, seed=7):
+    """Realised QV of W should converge to T as the grid gets finer."""
+    rng = np.random.default_rng(seed)
+    dt = T / n_steps
+    dW = rng.standard_normal((n_paths, n_steps)) * np.sqrt(dt)
+    W = np.cumsum(dW, axis=1)
+    qv = np.sum(np.diff(W, axis=1, prepend=0.0) ** 2, axis=1)
+    return qv.mean(), qv.std(ddof=1) / np.sqrt(n_paths), T
+
+def estimate_ou(x, dt=1.0):
+    """Estimate theta, mu, sigma of dX = theta(mu - X)dt + sigma dW by AR(1)."""
+    x = np.asarray(x, dtype=float)
+    x0, x1 = x[:-1], x[1:]
+    b, a = np.polyfit(x0, x1, 1)          # x1 = a + b * x0 + eps
+    resid = x1 - (a + b * x0)
+    theta = -np.log(b) / dt
+    mu = a / (1.0 - b)
+    sigma = resid.std(ddof=2) * np.sqrt(2.0 * theta / (1.0 - b ** 2))
+    half_life = np.log(2.0) / theta
+    return dict(theta=theta, mu=mu, sigma=sigma, half_life=half_life)
+
+print("QV test (mean, se, T):", quadratic_variation())
+# Simulate an OU path and recover its parameters
+rng = np.random.default_rng(1)
+theta_t, mu_t, sigma_t, n = 0.35, 0.0, 0.20, 5000
+x = np.zeros(n)
+for t in range(1, n):
+    x[t] = x[t - 1] + theta_t * (mu_t - x[t - 1]) + sigma_t * rng.standard_normal()
+print("OU estimates:", {k: round(v, 4) for k, v in estimate_ou(x).items()})
+\end{lstlisting}
 
 \section{跳跃过程}
 
-\subsection{泊松过程}
+\subsection{泊松过程与复合泊松过程}
 
-强度为 $\lambda$ 的泊松过程 $N_t$：
-\begin{itemize}[leftmargin=*]
-  \item $N_0 = 0$
-  \item 独立增量
-  \item $N_t - N_s \sim \text{Poisson}(\lambda(t-s))$
-\end{itemize}
-
-\subsection{复合泊松过程}
+强度为 $\lambda$ 的泊松过程 $N_t$ 满足 $N_0=0$、独立增量、$N_t-N_s\sim\text{Poisson}\left(\lambda(t-s)\right)$。
+复合泊松过程把每次跳跃的幅度也随机化：
 
 \begin{equation}
-  J_t = \sum_{i=1}^{N_t} Y_i
+  J_t = \sum_{i=1}^{N_t}Y_i, \qquad Y_i\stackrel{\text{i.i.d.}}{\sim}F
+  \label{eq:10-compound}
 \end{equation}
 
-其中 $Y_i \sim \text{i.i.d.}$ 为跳跃幅度。
+\subsection{跳跃扩散模型与 Lévy 过程}
 
-\subsection{跳跃扩散模型 (Merton, 1976)}
+Merton（1976）在几何布朗运动上叠加复合泊松跳跃：
 
 \begin{equation}
-  \frac{dS_t}{S_{t-}} = \mu dt + \sigma dW_t + dJ_t
+  \frac{\dd S_t}{S_{t^-}} = \left(\mu-\lambda\bar{k}\right)\dd t+\sigma\,\dd W_t+\dd J_t
+  \label{eq:10-merton-jump}
 \end{equation}
 
-其中 $J_t$ 为复合泊松过程，跳跃幅度通常取对数正态分布。Merton 模型可以生成隐含波动率微笑，弥补 BS 模型的局限。
+其中 $\bar{k}=\E[Y_i]-1$ 为跳跃幅度的期望相对变化，$\lambda\bar{k}$ 是从漂移中扣除的补偿项
+（保证风险中性下期望收益率仍为 $r$）。
 
-\subsection{L\'evy 过程}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=0.98, every node/.style={font=\small\sffamily}]
+  \draw[->, thick, inkgray] (0,0) -- (10.8,0) node[right] {$t$};
+  \draw[->, thick, inkgray] (0,0) -- (0,3.2) node[above] {$S_t$};
+  % 扩散部分
+  \draw[quantblue, thick]
+    (0,1.2) -- (1.0,1.35) -- (2.0,1.25) -- (2.8,1.6) -- (3.8,1.5)
+    -- (4.6,1.75) -- (5.4,1.62) -- (6.4,1.9) -- (7.2,1.8) -- (8.2,2.05)
+    -- (9.0,1.95) -- (10.2,2.2);
+  % 向下跳跃
+  \draw[quantred, very thick, -{Stealth[length=2.6mm]}] (3.8,1.5) -- (3.8,0.65);
+  \node[quantred, right, font=\scriptsize] at (3.85,0.72) {跳跃 $Y<0$};
+  % 向上跳跃
+  \draw[quantgreen, very thick, -{Stealth[length=2.6mm]}] (7.2,1.8) -- (7.2,2.85);
+  \node[quantgreen, right, font=\scriptsize] at (7.25,2.72) {跳跃 $Y>0$};
+  \fill[quantred] (3.8,1.5) circle (1.6pt);
+  \fill[quantgreen] (7.2,1.8) circle (1.6pt);
+\end{tikzpicture}
+\caption{跳跃扩散过程：连续扩散叠加稀疏的大幅跳跃}\label{fig:10-jump}
+\end{figure}
 
-L\'evy 过程是具有平稳独立增量和随机连续的随机过程。L\'evy-Khintchine 表示：
+\subsection{二次变差与已实现方差}
+
+这是连接连续时间理论与高频数据的桥梁。对连续扩散过程，
 
 \begin{equation}
-  \mathbb{E}[e^{iuX_t}] = \exp\left[t\left(ibu - \frac{1}{2}\sigma^2 u^2 + \int_{\mathbb{R}}(e^{iux} - 1 - iux\mathbf{1}_{|x|<1})\nu(dx)\right)\right]
+  \langle X\rangle_T = \lim_{\abs{\Pi}\to0}\sum_i\left(X_{t_{i+1}}-X_{t_i}\right)^2 = \int_0^{T}\sigma_s^{2}\,\dd s
+  \label{eq:10-qv}
 \end{equation}
 
-其中 $(b,\sigma^2,\nu)$ 为特征三元组，$\nu$ 为 L\'evy 测度（控制跳跃频率和大小）。
-
-常见金融 L\'evy 模型：VG（Variance Gamma）、NIG（Normal Inverse Gaussian）、CGMY。
-
-\section{鞅表示与对冲}
-
-\subsection{鞅表示定理}
-
-在布朗运动过滤下，任意鞅 $M_t$ 可表示为：
+\textbf{但当存在跳跃时，二次变差包含了跳跃的平方和}：
 
 \begin{equation}
-  M_t = M_0 + \int_0^t H_s dW_s
+  \langle X\rangle_T = \int_0^{T}\sigma_s^{2}\,\dd s+\sum_{0<s\le T}\left(\Delta X_s\right)^{2}
+  \label{eq:10-qv-jump}
 \end{equation}
 
-这保证了完备市场中所有未定权益可 Delta 对冲。
+\begin{keybox}
+上式是高频计量经济学最重要的方程之一：它告诉我们\textbf{已实现方差（RV）估计的是「连续波动 + 跳跃」的总和，
+而不是「波动率」本身}。若要分离出连续部分，需要使用\textbf{双幂变差（bipower variation）}：
+它在跳跃存在时仍收敛到 $\int\sigma^2\dd s$。
+因此「RV 减去双幂变差」就给出了跳跃部分的估计——这是把跳跃风险纳入风险管理与
+波动率预测（HAR-J 模型）的标准做法（详见第 9 章）。
+\end{keybox}
 
-\subsection{市场完备性}
+\subsection{Lévy 过程与 L\'evy--Khintchine 表示}
 
-在一个存在 $d$ 个布朗运动和 $n$ 个风险资产的市场：
-\begin{itemize}[leftmargin=*]
-  \item $n \geq d$：市场完备（所有未定权益可复制）
-  \item $n < d$：不完备市场（如带随机波动率的模型）
-\end{itemize}
+Lévy 过程是具有平稳独立增量与随机连续路径的过程。其特征函数由 L\'evy--Khintchine 公式给出：
 
-\section{测度变换与计价单位}
-
-\subsection{概览}
-
-测度变换（Measure Change）是 Q Quant 的核心操作：
-
-\begin{theorem}[Girsanov]
-若 $\frac{d\mathbb{Q}}{d\mathbb{P}} = \mathcal{E}\left(-\int_0^T \lambda_s dW_s\right)$，则：
 \begin{equation}
-  W_t^{\mathbb{Q}} = W_t^{\mathbb{P}} + \int_0^t \lambda_s ds
+  \E\left[\ee^{\ii uX_t}\right] = \exp\left[t\left(\ii bu-\frac12\sigma^{2}u^{2}
+  +\int_{\R}\left(\ee^{\ii ux}-1-\ii ux\ind{\abs{x}<1}\right)\nu(\dd x)\right)\right]
+  \label{eq:10-levy-khintchine}
 \end{equation}
-在 $\mathbb{Q}$ 下是布朗运动。
+
+其中 $(b,\sigma^2,\nu)$ 为特征三元组，$\nu$ 为 L\'evy 测度，控制跳跃的频率与幅度分布。
+常见金融 Lévy 模型包括 Variance Gamma（VG）、Normal Inverse Gaussian（NIG）与 CGMY，
+它们的共同优势是\textbf{能用更少的参数刻画比正态更厚的尾部与更陡的短期偏斜}。
+
+\begin{table}[htbp]
+\centering
+\caption{连续与跳跃模型的取舍}\label{tab:10-jump-tradeoff}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}Y L{3.6cm}@{}}
+\toprule
+\textbf{模型} & \textbf{能刻画的现象} & \textbf{代价} \\
+\midrule
+几何布朗运动 & 连续波动、对数正态 & 无法生成微笑与偏斜 \\
+跳跃扩散（Merton） & 短期偏斜、微笑 & 校准参数增多；风险不完全可对冲 \\
+随机波动率（Heston） & 期限结构、波动率聚集 & 短期微笑拟合能力有限 \\
+Lévy 过程（VG/NIG/CGMY） & 多期限尾部形状 & 参数经济含义弱，校准不稳定 \\
+跳跃 + 随机波动率 & 最接近市场曲面 & 计算量大，模型风险与过拟合风险高 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{鞅表示与市场完备性}
+
+\begin{theorem}[鞅表示定理]\label{thm:10-mrt}
+在布朗运动生成的（完备）信息流下，任意平方可积鞅 $M_t$ 都可以表示为
+\begin{equation}
+  M_t = M_0+\int_0^{t}H_s\,\dd W_s
+  \label{eq:10-mrt}
+\end{equation}
 \end{theorem}
 
-在金融中，$\lambda$ 为夏普比率（Sharpe Ratio），即超额收益比波动率：
+该定理保证了完备市场中所有未定权益都可以由标的与现金\textbf{动态复制}（Delta 对冲），
+也保证了「无套利价格 = 复制成本」这一等价关系的严格性。
 
+\begin{table}[htbp]
+\centering
+\caption{市场完备性的判定}\label{tab:10-complete}
+\tablefont
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}Y L{4.0cm}@{}}
+\toprule
+\textbf{情形} & \textbf{判定} & \textbf{例子} \\
+\midrule
+$n\ge d$（可交易资产数不少于风险源数） & 市场完备，$\Qm$ 唯一 & BSM：1 个资产、1 个风险源 \\
+$n<d$ & 市场不完备，$\Qm$ 不唯一 & Heston：1 个资产、2 个风险源 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{intuitionbox}[不完备市场为什么会给出一段价格区间]
+在 Heston 模型中，波动率风险无法用标的完全对冲。
+不同投资者对「波动率风险值多少钱」有不同看法，于是\textbf{每一个看法都对应一个合法的等价鞅测度，
+也就对应一个「无套利」的期权价格}。市场之所以能达成一个价格，是因为存在期权本身作为交易工具
+（加入期权后市场重新完备）。这解释了一个看似矛盾的现象：
+\textbf{「期权价格由期权市场的供需与波动率风险溢价决定」在数学上并不是缺陷，而是不完备性的必然结果。}
+\end{intuitionbox}
+
+\section{测度变换与 Feynman--Kac 公式}
+
+\subsection{Girsanov 定理}
+
+\begin{theorem}[Girsanov]\label{thm:10-girsanov}
+设 $\lambda_t$ 满足 Novikov 条件 $\E^{\Prob}\!\left[\exp\left(\frac12\int_0^T\lambda_s^2\dd s\right)\right]<\infty$，
+定义 $\left.\frac{\dd\Qm}{\dd\Prob}\right|_{\Fm_t}=\mathcal{E}\!\left(-\int_0^{\cdot}\lambda_s\dd W_s^{\Prob}\right)_t$，则
 \begin{equation}
-  \lambda_t = \frac{\mu_t - r}{\sigma_t}
+  W_t^{\Qm} = W_t^{\Prob}+\int_0^{t}\lambda_s\,\dd s
+  \label{eq:10-girsanov}
 \end{equation}
+是 $\Qm$ 下的标准布朗运动。在金融中 $\lambda_t=\left(\mu_t-r\right)/\sigma_t$，
+即\textbf{风险的市场价格（等于夏普比率）}。
+\end{theorem}
 
-\subsection{数例}
+\begin{notebox}[与第 6 章的符号约定一致]
+本书统一采用 \cref{eq:10-girsanov} 的约定：密度过程带负号、布朗运动平移带正号。
+第 6 章的测度变换定义与 Girsanov 表述采用完全相同的形式。
+\textbf{读者在阅读其他文献时会遇到符号相反的等价写法（密度带正号、平移带负号），
+两者都对，只要在同一处保持一致即可}。
+\end{notebox}
 
-$\mathbb{Q}$ 测度下股票 SDE：
+代入可得 $\Qm$ 下标的动态：$\dd S_t = rS_t\dd t+\sigma S_t\dd W_t^{\Qm}$。
+\textbf{漂移从 $\mu$ 变为 $r$，波动率 $\sigma$ 完全不变}——这正是「风险中性化只改漂移」的准确含义。
+
+\subsection{Feynman--Kac 公式}
+
+\begin{theorem}[Feynman--Kac]\label{thm:10-feynman-kac}
+若 $u(t,x)$ 满足带源项的抛物型 PDE
 \begin{equation}
-  dS_t = r S_t dt + \sigma S_t dW_t^{\mathbb{Q}}
+  \pd{u}{t}+\mu(t,x)\pd{u}{x}+\frac12\sigma^{2}(t,x)\pdd{u}{x}-r(t,x)u+f(t,x)=0,
+  \qquad u(T,x)=g(x)
+  \label{eq:10-fk-pde}
 \end{equation}
-
-漂移从 $\mu$ 变为 $r$（风险中性化）。Girsanov 定理从数学上证明：改变测度等价于改变漂移——波动率不变。
-
-\section{Feynman-Kac 公式}
-
-偏微分方程与随机过程的桥梁：
-
-\begin{theorem}[Feynman-Kac]
-若 $u(t,x)$ 满足：
+则
 \begin{equation}
-  \frac{\partial u}{\partial t} + \mu(t,x)\frac{\partial u}{\partial x} + \frac{1}{2}\sigma^2(t,x)\frac{\partial^2 u}{\partial x^2} - r(t,x)u + f(t,x) = 0
-\end{equation}
-且终端条件 $u(T,x) = g(x)$，则：
-\begin{equation}
-  u(t,x) = \mathbb{E}\left[\int_t^T e^{-\int_t^s r(\tau,X_\tau)d\tau} f(s,X_s)ds + e^{-\int_t^T r(\tau,X_\tau)d\tau} g(X_T) \mid X_t = x\right]
+  u(t,x) = \E\left[\int_t^{T}\ee^{-\int_t^{s}r(\tau,X_\tau)\dd\tau}f(s,X_s)\,\dd s
+        +\ee^{-\int_t^{T}r(\tau,X_\tau)\dd\tau}g(X_T)\ \Big|\ X_t=x\right]
+  \label{eq:10-fk}
 \end{equation}
 \end{theorem}
 
-这建立了 BS PDE 与风险中性期望的等价性——数学上的同一座桥，从两个方向架设。
+\begin{keybox}
+Feynman--Kac 公式是量化金融的「罗塞塔石碑」：它把\textbf{偏微分方程（PDE）、
+随机微分方程（SDE）与条件期望}三种表述连接为同一件事。
+由此可以得到三个实用推论：
+(1) 能用 PDE 数值方法（有限差分）解的，也能用蒙特卡洛解，反之亦然——选择取决于维度；
+(2) 第 6 章的风险中性定价公式正是 $f=0$、$r$ 常数时的特例；
+(3) 含「连续收益流」（如分红、票息、持有成本）的产品可以用 $f\ne0$ 直接处理。
+\end{keybox}
 
-\section{小结}
+\section{随机控制与美式期权}
 
-随机过程是量化金融的数学心脏。布朗运动提供了基准随机性，伊藤积分使我们能够在"处处不可微"的世界中做微积分，L\'evy 过程将跳跃风险纳入模型，Girsanov 和 Feynman-Kac 构建了 PDE、SDE 和鞅定价的统一框架。这是通向 Q Quant 的必修数学通道。
+\subsection{HJB 方程与 Merton 问题}
+
+动态规划原理把最优控制问题转化为\textbf{Hamilton--Jacobi--Bellman（HJB）方程}。
+以 Merton（1969, 1971）的连续时间消费--投资问题为例：
+
+\begin{equation}
+  \max_{c_t,\ \pi_t}\ \E\left[\int_0^{T}\ee^{-\rho t}U(c_t)\,\dd t+U(W_T)\right]
+  \label{eq:10-merton}
+\end{equation}
+
+在 CRRA 效用 $U(c)=c^{1-\gamma}/(1-\gamma)$ 下，最优股票配置为
+
+\begin{equation}
+  \pi^{*} = \frac{\mu-r}{\gamma\sigma^{2}},
+  \qquad \text{等价地}\qquad
+  \pi^{*} = \frac{1}{\gamma}\cdot\frac{\text{夏普比率}}{\text{波动率}}
+  \label{eq:10-merton-ratio}
+\end{equation}
+
+\begin{intuitionbox}[Merton 比率的可读性]
+\Cref{eq:10-merton-ratio} 说明最优仓位与\textbf{夏普比率成正比、与波动率成反比、
+与风险厌恶成反比}。若 $\mu-r=6\%$、$\sigma=20\%$、$\gamma=3$，则 $\pi^{*}=1.5$（150\% 仓位，需要杠杆）。
+这个公式的实务价值在于它\textbf{把「该不该加杠杆」变成了一道可计算题}：
+要么提高夏普比率（选股），要么降低波动率（分散），要么降低风险厌恶（但那是心理参数，难以改变）。
+注意该解假设投资机会集恒定——一旦引入随机利率或随机波动率，最优仓位会变成状态依赖的，
+这就是「择时」在理论上的位置。
+\end{intuitionbox}
+
+\subsection{Snell 包络与美式期权}
+
+美式期权的最优行权问题是一个\textbf{最优停时}问题，其价值由 Snell 包络给出：
+
+\begin{equation}
+  V_t = \sup_{\tau\in\mathcal{T}_{t,T}}\ \E^{\Qm}\!\left[\ee^{-r(\tau-t)}H(X_\tau)\mid\Fm_t\right]
+  \label{eq:10-snell}
+\end{equation}
+
+即「在所有停时上取下确界」。这一定义解释了为什么美式期权定价比欧式困难：
+它需要在\textbf{整个时间维度上做最优决策}，等价于一个自由边界问题（Free Boundary Problem）。
+树方法与有限差分通过逐层比较「继续持有 vs 立即行权」隐式求解；
+LSM 则用回归近似继续持有价值（算法见第 6 章）。
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=1.4em]
+  \item 马尔可夫性把随机问题化为 PDE；鞅刻画「公平博弈」；停时的可积条件不可省略（马丁格尔反例）。
+  \item 布朗运动连续但处处不可微，二次变差 $\langle W\rangle_t=t$ 是随机微积分的根源。
+  \item 伊藤引理的核心是保留二阶项：$\dd f=f_t\dd t+f_x\dd X+\frac12f_{xx}(\dd X)^2$，
+        由此得到乘积法则与分部积分公式。
+  \item OU 过程是均值回复的标准模型，参数可用 AR(1) 回归估计，半衰期 $\ln2/\theta$ 决定策略周期。
+  \item 跳跃使二次变差包含跳跃平方和；双幂变差可以分离连续波动与跳跃，
+        这是已实现波动率研究（第 9 章）的基础。
+  \item 鞅表示定理给出完备市场中的动态复制；$n<d$ 时不完备，$\Qm$ 不唯一，价格成为区间。
+  \item Girsanov 定理（本书统一符号约定）说明测度变换只改漂移；Feynman--Kac 连接 PDE、SDE 与期望。
+  \item HJB 方程给出连续时间最优控制（Merton 比率）；Snell 包络刻画美式期权的最优行权。
+\end{itemize}
+\end{summarybox}
+
+\begin{exercises}
+\item 用伊藤引理计算 $\dd\left(W_t^{2}\right)$ 与 $\dd\left(\ee^{aW_t}\right)$，
+并由此验证 $\E\left[W_t^{2}\right]=t$、$\E\left[\ee^{aW_t}\right]=\ee^{a^2t/2}$。
+
+\item 证明布朗运动的首达时 $\tau_a$ 满足 $\Prob(\tau_a\le t)=2\left(1-\Phi\left(a/\sqrt{t}\right)\right)$（提示：使用反射原理），
+并说明为什么 $\E[\tau_a]=\infty$ 与该分布在 $t\to\infty$ 时的衰减速度有关。
+
+\item 设 $\dd X_t=\theta(\mu-X_t)\dd t+\sigma\dd W_t$，$\theta=0.4$、$\mu=0$、$\sigma=0.25$。
+求平稳分布、半衰期，以及「从 $X_0=1$ 出发回复到 $0.5$ 以内」所需时间的期望近似值。
+
+\item 已知某高频数据的已实现方差 $RV=0.048$、双幂变差 $BV=0.036$（年化）。
+请估计连续波动部分与跳跃部分，并说明为什么两者之和与 $RV$ 的差异可以作为跳跃检验统计量。
+
+\item 对 Heston 模型（1 个可交易资产、2 个风险源），解释为什么市场不完备，
+并说明「加入方差互换作为可交易资产」后市场如何重新完备。
+
+\item 用 Merton 比率公式回答：若某策略的夏普比率 0.8、波动率 25\%，风险厌恶系数 4，
+最优仓位是多少？若希望把仓位限制在 100\% 以内，在风险厌恶不变的前提下需要把波动率降到多少？
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Karatzas, I., and Shreve, S. E., \emph{Brownian Motion and Stochastic Calculus}, 2nd ed., Springer, 1991.（随机分析的严格参考，鞅论与伊藤积分的标准出处）
+\refitem \O ksendal, B., \emph{Stochastic Differential Equations: An Introduction with Applications}, 6th ed., Springer, 2003.（SDE 与 HJB 的经典教材，Merton 问题讲得很清楚）
+\refitem Shreve, S. E., \emph{Stochastic Calculus for Finance II: Continuous-Time Models}, Springer, 2004.（最适合量化从业者的入门到进阶路径）
+\refitem Cont, R., and Tankov, P., \emph{Financial Modelling with Jump Processes}, Chapman \& Hall/CRC, 2004.（跳跃与 Lévy 过程的系统教材）
+\refitem Applebaum, D., \emph{L\'evy Processes and Stochastic Calculus}, 2nd ed., Cambridge University Press, 2009.（Lévy--Khintchine 表示的严格处理）
+\refitem Merton, R. C., ``Optimum Consumption and Portfolio Rules in a Continuous-Time Model'', \emph{Journal of Economic Theory}, 1971, 3(4): 373--413.（连续时间最优控制的奠基论文）
+\refitem Andersen, T. G., Bollerslev, T., Diebold, F. X., and Labys, P., ``Modeling and Forecasting Realized Volatility'', \emph{Econometrica}, 2003, 71(2): 579--625.（已实现波动率的理论与实证，连接本章与第 9 章）
+\end{furtherreading}

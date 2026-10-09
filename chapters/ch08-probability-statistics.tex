@@ -1,237 +1,937 @@
 \chapter{金融概率与统计分析}
 
-\section{概率论基础回顾}
+金融数据与教科书里的独立同分布样本有一段距离：收益的尾部比正态厚得多，
+波动率会成簇出现，横截面上的个体差异与时间效应纠缠在一起，而研究者又往往在同一个数据集上
+反复试验。本章按「分布假定—估计—检验—回归—贝叶斯—尾部」的顺序铺设 P Quant 的统计基础设施，
+并在每一个环节标出金融数据的特殊之处。
 
-\subsection{随机变量与分布}
+\section{概率论基础与分布族}
 
-累积分布函数（CDF）：
-\begin{equation}
-  F_X(x) = P(X \leq x)
-\end{equation}
+\subsection{随机变量、矩与特征函数}
 
-概率密度函数（PDF）：
-\begin{equation}
-  f_X(x) = \frac{d}{dx}F_X(x)
-\end{equation}
-
-\subsection{矩与特征函数}
-
-$k$ 阶原点矩：$\mu_k' = \mathbb{E}[X^k]$
-
-$k$ 阶中心矩：$\mu_k = \mathbb{E}[(X - \mathbb{E}[X])^k]$
-
-偏度（Skewness）：
-\begin{equation}
-  \gamma_1 = \frac{\mu_3}{\mu_2^{3/2}}
-\end{equation}
-
-峰度（Kurtosis）：
-\begin{equation}
-  \gamma_2 = \frac{\mu_4}{\mu_2^2} - 3
-\end{equation}
-
-超额峰度 $>0$ 意味着"肥尾"——极端事件比正态分布预测的更频繁，这对金融风险管理至关重要。
-
-\subsection{矩母函数与特征函数}
-
-矩母函数（MGF）：
-\begin{equation}
-  M_X(t) = \mathbb{E}[e^{tX}]
-\end{equation}
-
-特征函数（CF）：
-\begin{equation}
-  \phi_X(t) = \mathbb{E}[e^{itX}]
-\end{equation}
-
-特征函数始终存在且唯一确定分布，是 Fourier 期权定价方法的数学基础。
-
-\section{金融中的关键概率分布}
-
-\subsection{正态分布与对数正态分布}
-
-对数正态分布是 Black-Scholes 模型中资产价格的假设：
+随机变量 $X$ 的分布由累积分布函数 $F_X(x) = \Prob(X \le x)$ 完全刻画，
+若 $F_X$ 绝对连续则概率密度为 $f_X(x) = \dd F_X(x)/\dd x$。
+分布的形态由矩与特征函数描述
 
 \begin{equation}
-  S_T = S_0 \exp\left((\mu - \sigma^2/2)T + \sigma\sqrt{T} Z\right), \quad Z \sim \mathcal{N}(0,1)
+  \mu_k' = \E\!\left[X^{k}\right], \qquad
+  \mu_k = \E\!\left[(X - \E[X])^{k}\right], \qquad
+  \gamma_1 = \frac{\mu_3}{\mu_2^{3/2}}, \qquad
+  \gamma_2 = \frac{\mu_4}{\mu_2^{2}} - 3
+  \label{eq:08-moments}
 \end{equation}
 
-对数正态的 PDF：
+其中 $\mu_k'$ 为 $k$ 阶原点矩，$\mu_k$ 为 $k$ 阶中心矩，$\gamma_1$ 为偏度，
+$\gamma_2$ 为超额峰度（正态分布下为 $0$）。$\gamma_2 > 0$ 意味着肥尾：
+极端事件比正态预测的更频繁。以标准正态为基准，$\abs{Z} > 3$ 的概率约为 $0.27\%$；
+而自由度 $\nu = 5$ 的 $t$ 分布对应概率约为 $1.9\%$，是正态的 $7$ 倍。
+这正是风险管理不能简单套用正态假设的原因。
+
+\begin{warningbox}[厚尾下样本矩的失效]
+当 $\nu \le 4$ 时 $t$ 分布的四阶矩不存在，样本峰度的期望不收敛，
+用有限样本估计的峰度会随样本长度剧烈跳动，且系统性低估真实尾部厚度。
+当 $\nu \le 2$ 时连方差都不存在，样本标准差不再是有效的离散度度量。
+因此对高频收益，宁可报告分位数与分位数间距，也不要报告标准差。
+\end{warningbox}
+
+矩母函数 $M_X(t) = \E[\ee^{tX}]$ 并非总存在（厚尾分布常常没有），
+而特征函数 $\phi_X(t) = \E[\ee^{\ii tX}]$ 对任意分布都存在，且唯一决定分布。
+这一性质是 Fourier 变换类期权定价方法的基础：只要知道标的对数价格的特征函数，
+就能通过数值积分反演密度或直接计算期权价格。
+常用性质包括 $\phi_{aX+b}(t) = \ee^{\ii bt}\phi_X(at)$，
+以及独立随机变量和的特征函数等于各自特征函数之积。
+
+\subsection{金融收益的分布族}
+
+\begin{table}[htbp]
+\centering
+\caption{金融收益建模常用的分布族对比}\label{tab:08-dists}
+\tablefont
+\begin{tabular}{@{}lllL{4.6cm}@{}}
+\toprule
+分布 & 尾部行为 & 典型参数 & 适用与局限 \\
+\midrule
+正态 & 指数衰减 & $\mu,\ \sigma$ & 基准模型；对日频收益严重低估尾部 \\
+对数正态 & 指数衰减 & $\mu,\ \sigma$ & 适用于价格；收益仍非正态 \\
+学生 $t$ & 幂律 & $\nu$ & 日频收益首选；$\nu$ 常估在 $3$ 至 $6$ \\
+偏 $t$ & 幂律且不对称 & $\nu,\ \lambda$ & 刻画下跌尾部更厚；参数估计较难 \\
+GED & 幂律可变 & $\nu$ & $\nu<2$ 厚尾、$\nu>2$ 薄尾 \\
+稳定分布 & 幂律 & $\alpha,\beta,\gamma,\delta$ & 方差可能无穷；$\alpha$ 常估在 $1.6$ 至 $1.9$ \\
+GEV & 幂律 & $\xi,\ \mu,\ \sigma$ & 建模极值块最大值 \\
+GPD & 幂律 & $\xi,\ \beta$ & 超阈值超额损失，EVT 风险度量核心 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\cref{tab:08-dists} 中最常用的两个是学生 $t$ 分布与广义误差分布。$t$ 分布的密度为
+
 \begin{equation}
-  f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left(-\frac{(\ln x - \mu)^2}{2\sigma^2}\right), \quad x > 0
+  f(x;\nu) = \frac{\Gamma\!\left(\frac{\nu+1}{2}\right)}{\sqrt{\nu\pi}\,\Gamma\!\left(\frac{\nu}{2}\right)}
+  \left(1 + \frac{x^{2}}{\nu}\right)^{-\frac{\nu+1}{2}}
+  \label{eq:08-t}
 \end{equation}
 
-\subsection{学生 $t$ 分布}
-
-$t$ 分布的肥尾特性使其更适合金融收益建模：
+其中 $\nu > 0$ 为自由度，$\Gamma(\cdot)$ 为 Gamma 函数。当 $\nu \to \infty$ 时
+$f(x;\nu)$ 逐点收敛到标准正态密度；$\nu$ 越小尾部越厚。
+GED 的密度为
 
 \begin{equation}
-  f(x; \nu) = \frac{\Gamma\left(\frac{\nu+1}{2}\right)}{\sqrt{\nu\pi}\,\Gamma\left(\frac{\nu}{2}\right)} \left(1 + \frac{x^2}{\nu}\right)^{-(\nu+1)/2}
+  f(x;\nu) = \frac{\nu\,\exp\!\left(-\frac{1}{2}\abs{x/\lambda}^{\nu}\right)}
+  {\lambda\,2^{1+1/\nu}\,\Gamma(1/\nu)}, \qquad
+  \lambda = \left(\frac{2^{-2/\nu}\,\Gamma(1/\nu)}{\Gamma(3/\nu)}\right)^{1/2}
+  \label{eq:08-ged}
 \end{equation}
 
-随着 $\nu \to \infty$，$t$ 分布收敛于正态分布。
+其中 $\nu$ 控制尾部形状（$\nu = 2$ 退化为正态），$\lambda$ 为尺度参数，
+其取值由方差归一化条件决定。GED 在 GARCH 族的实证中比正态显著改善对数似然，
+且在 $\nu > 2$ 时可以刻画比正态更薄的尾部，因此适用范围比 $t$ 分布更宽。
 
-\subsection{广义误差分布 (GED)}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.4cm, grid=major,
+  xlabel={标准化收益 $x$}, ylabel={对数密度 $\ln f(x)$},
+  legend pos=south west, legend style={font=\scriptsize},
+  ymin=-14, ymax=-0.4, xmin=-8, xmax=8, samples=200, domain=-7.8:7.8
+]
+\addplot[quantblue, very thick] {ln(1/sqrt(2*pi)) - x^2/2};
+\addlegendentry{正态}
+\addplot[quantred, very thick, dashed] {-1.9546 - 3.0*ln(1 + x^2/5)};
+\addlegendentry{学生 $t$，$\nu = 5$}
+\addplot[quantgreen, very thick, dotted] {-0.6931 - 1.5*ln(1 + x^2/2)};
+\addlegendentry{学生 $t$，$\nu = 2$}
+\end{axis}
+\end{tikzpicture}
+\caption{正态分布与 $t$ 分布的尾部对比：在 $\abs{x} = 6$ 处，$t(5)$ 的对数密度比正态高约 $7$ 个自然对数单位，对应概率相差千倍}\label{fig:08-tails}
+\end{figure}
 
-GED 是广义肥尾分布族，由 Nelson (1991) 引入金融：
+\cref{fig:08-tails} 用对数密度作图，因为直接画密度时尾部差异在视觉上会被完全压缩。
+在 $\abs{x} = 6$ 处，正态的对数密度约为 $-18.4$，而 $t(5)$ 的对应值约为 $-11.2$，
+二者相差约 $7.2$，即概率相差约 $\ee^{7.2} \approx 1300$ 倍。
+把这一差异代入日频 VaR：若日波动率为 $2\%$，
+正态假设下 $99.9\%$ 的 VaR 约为 $2\% \times 3.09 = 6.2\%$，
+而 $t(5)$ 假设下同一分位数对应的倍数约为 $5.9$，VaR 约为 $11.8\%$，
+几乎翻倍。低估的这 $5.6$ 个百分点在压力期就是真实的资本缺口。
+
+\section{估计方法}
+
+\subsection{极大似然估计与渐近正态性}
+
+设样本 $x_1,\dots,x_n$ 独立同分布，密度为 $f(x;\theta)$，$\theta \in \Theta \subset \R^{p}$。
+对数似然为 $\ell(\theta) = \sum_{i=1}^{n} \ln f(x_i;\theta)$，极大似然估计为
 
 \begin{equation}
-  f(x; \nu) = \frac{\nu \exp\left(-\frac{1}{2}|x/\lambda|^{\nu}\right)}{\lambda \cdot 2^{1+1/\nu} \Gamma(1/\nu)}
+  \hat{\theta}_{\text{MLE}} = \argmax_{\theta \in \Theta} \ell(\theta)
+  \label{eq:08-mle}
 \end{equation}
 
-其中 $\nu$ 控制尾部厚度（$\nu=2$ 对应正态分布）。
+在正则条件下，$\hat{\theta}_{\text{MLE}}$ 具有一致性与渐近正态性
 
-\subsection{极值理论分布}
-
-广义极值分布 (GEV)：
 \begin{equation}
-  G(z) = \exp\left[-\left(1 + \xi\frac{z-\mu}{\sigma}\right)^{-1/\xi}\right]
+  \sqrt{n}\left(\hat{\theta}_{\text{MLE}} - \theta_0\right)
+  \xrightarrow{\ \dd\ } \N\!\left(0,\ \mathcal{I}(\theta_0)^{-1}\right), \qquad
+  \mathcal{I}(\theta) = -\E\!\left[\pdd{\ln f(X;\theta)}{\theta}\right]
+  \label{eq:08-mleasym}
 \end{equation}
 
-$\xi > 0$（Fr\'echet）对应肥尾，$\xi = 0$（Gumbel）对应正态尾，$\xi < 0$（Weibull）对应有限上界。
+其中 $\mathcal{I}(\theta)$ 为 Fisher 信息矩阵，$\theta_0$ 为真值。
+由 Cramér--Rao 下界，任何无偏估计量的方差都不小于 $\mathcal{I}(\theta_0)^{-1}/n$，
+因此 MLE 渐近达到最小方差。实务中用观测信息矩阵
+$\hat{\mathcal{I}} = -\frac{1}{n}\sum_i \pdd{\ln f(x_i;\hat{\theta})}{\theta}$
+或外积形式 $\frac{1}{n}\sum_i \left(\pd{\ln f(x_i;\hat{\theta})}{\theta}\right)\left(\pd{\ln f(x_i;\hat{\theta})}{\theta}\right)^{\top}$
+代入即可得到标准误。
 
-\begin{keybox}
-极值理论（EVT）是量化极端风险管理（如 VaR 99.9\% 下的修正）的核心工具。使用 POT（Peaks Over Threshold）方法拟合广义 Pareto 分布来估计尾部风险是业界标准做法。
-\end{keybox}
+\begin{example}[学生 t 分布自由度的矩估计与 MLE]\label{ex:08-tmle}
+对某指数 $3000$ 个日对数收益做标准化后，样本超额峰度为 $4.8$。
+由 $t(\nu)$ 的超额峰度公式 $\gamma_2 = 6/(\nu-4)$（$\nu>4$），
+矩估计给出 $\nu \approx 4 + 6/4.8 = 5.25$。
+经验上 $t$ 分布的 MLE 在 $\nu$ 较小时会给出比矩估计略大的值，
+本例中若 MLE 输出 $\hat{\nu} = 5.6$，则对应的理论超额峰度为 $6/1.6 = 3.75$，
+低于样本峰度 $4.8$。这一差异并不矛盾：样本峰度本身方差极大，
+MLE 是在整个似然面上做权衡，而不是硬性匹配四阶矩。
+\cref{lst:08-tmle} 给出可直接运行的实现。
+\end{example}
 
-\section{统计推断}
+\subsection{广义矩方法与最优权重}
 
-\subsection{估计方法}
+当密度难以写出但矩条件明确时，GMM 更合适。设矩条件为
+$\E[g(X_i,\theta_0)] = 0$，$g \in \R^{q}$ 且 $q \ge p$，样本矩为
+$\bar{g}_n(\theta) = \frac{1}{n}\sum_{i=1}^{n} g(X_i,\theta)$，则
 
-\textbf{极大似然估计 (MLE)}：
 \begin{equation}
-  \hat{\theta}_{\text{MLE}} = \arg\max_{\theta} \sum_{i=1}^{n} \log f(x_i; \theta)
+  \hat{\theta}_{\text{GMM}} = \argmin_{\theta \in \Theta}\ \bar{g}_n(\theta)^{\top} W_n\, \bar{g}_n(\theta)
+  \label{eq:08-gmm}
 \end{equation}
 
-\textbf{广义矩方法 (GMM)}：
+其中 $W_n$ 为 $q\times q$ 的权重矩阵。若取 $W_n = S^{-1}$，
+$S = \E[g(X_i,\theta_0)g(X_i,\theta_0)^{\top}]$ 为矩条件的协方差矩阵，
+则 $\hat{\theta}_{\text{GMM}}$ 是渐近有效的，其渐近方差为
+$(G^{\top}S^{-1}G)^{-1}$，$G = \E[\pd{g(X_i,\theta_0)}{\theta}]$。
+实践中的两步法：第一步用 $W_n = I$ 得到一致估计 $\hat{\theta}_1$，
+用它估计 $\hat{S}$，第二步用 $W_n = \hat{S}^{-1}$ 重新最小化。
+
+矩条件个数超过参数个数（$q > p$）时模型存在过度识别，可用 J 检验考察矩条件是否成立
+
 \begin{equation}
-  \hat{\theta}_{\text{GMM}} = \arg\min_{\theta} \left[\frac{1}{n}\sum_i g(x_i,\theta)\right]^T W \left[\frac{1}{n}\sum_i g(x_i,\theta)\right]
+  J = n\,\bar{g}_n(\hat{\theta})^{\top}\hat{S}^{-1}\bar{g}_n(\hat{\theta})
+  \xrightarrow{\ \dd\ } \chi^{2}_{q-p}
+  \label{eq:08-jtest}
 \end{equation}
 
-GMM 在条件矩约束下非常灵活，广泛用于资产定价的实证检验。
+其中 $\chi^{2}_{q-p}$ 为自由度 $q-p$ 的卡方分布。$J$ 统计量过大意味着
+数据拒绝了模型隐含的矩关系，例如在资产定价中意味着因子无法解释横截面收益。
 
-\subsection{假设检验}
+\section{假设检验与多重检验}
 
-\textbf{似然比检验 (LRT)}：
+\subsection{三种渐近等价检验}
+
+设原假设 $H_0: \theta = \theta_0$ 把参数约束到 $p - r$ 维子空间，
+无约束 MLE 为 $\hat{\theta}$，约束 MLE 为 $\tilde{\theta}$。三种经典检验为
+
+\begin{align}
+  LR &= 2\left(\ell(\hat{\theta}) - \ell(\tilde{\theta})\right)
+     \xrightarrow{\ \dd\ } \chi^{2}_{r}
+     \label{eq:08-lrt} \\
+  W  &= n\left(\hat{\theta} - \theta_0\right)^{\top}\hat{\mathcal{I}}\left(\hat{\theta} - \theta_0\right)
+     \xrightarrow{\ \dd\ } \chi^{2}_{r}
+     \label{eq:08-wald} \\
+  S  &= n\,\bar{s}(\theta_0)^{\top}\hat{\mathcal{I}}^{-1}\bar{s}(\theta_0)
+     \xrightarrow{\ \dd\ } \chi^{2}_{r},
+     \qquad \bar{s}(\theta) = \frac{1}{n}\sum_{i=1}^{n}\pd{\ln f(x_i;\theta)}{\theta}
+     \label{eq:08-score}
+\end{align}
+
+其中 $\bar{s}(\theta)$ 为得分函数（score），$r$ 为约束个数，$\hat{\mathcal{I}}$ 为观测信息矩阵。
+三者在 $H_0$ 下渐近同分布，有限样本中的表现不同：
+Wald 检验对参数的重新参数化不敏感（不满足不变性），Score 检验只需在 $H_0$ 下估计，
+适合约束估计困难的场景；LR 检验通常最稳健，但需要同时求解两个优化问题。
+
+\begin{table}[htbp]
+\centering
+\caption{三种经典检验在金融应用中的选择}\label{tab:08-tests}
+\tablefont
+\begin{tabular}{@{}lllL{4.4cm}@{}}
+\toprule
+检验 & 需要的估计 & 优点 & 典型金融用途 \\
+\midrule
+LR & 无约束与约束 MLE & 最优不变性 & 检验 GARCH 参数约束、模型阶数 \\
+Wald & 无约束 MLE & 计算最简便 & 检验因子载荷是否为零、Granger 因果 \\
+Score & 仅约束下估计 & 只需估一次 & 检验附加因子是否提供增量信息 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{多重检验与 FDR}
+
+因子研究几乎总是在同一数据集上试验大量假设。若对 $m$ 个真实无效的信号逐一用
+$5\%$ 水平检验，期望假发现数为 $0.05m$；当 $m = 200$ 时约 $10$ 个。
+控制假发现比例（FDR）的 Benjamini--Hochberg 程序把 $p$ 值排序后取
+
 \begin{equation}
-  LR = -2(\log L_0 - \log L_1) \sim \chi^2_{df}
+  k = \max\left\{i:\ p_{(i)} \le \frac{i}{m}\,\alpha\right\}
+  \label{eq:08-bh}
 \end{equation}
 
-\textbf{Wald 检验}和\textbf{Score 检验}是另外两种渐近等价的大样本检验。
+并拒绝前 $k$ 个假设，其中 $\alpha$ 为目标 FDR。与原假设全为真时的 Bonferroni 校正
+$p_{(i)} \le \alpha/m$ 相比，BH 在备择假设较多时严格更宽松。
+两个程序的差别在 \cref{tab:08-multtest} 中用一个 $m = 200$ 的例子说明。
 
-\subsection{Bootstrap}
+\begin{table}[htbp]
+\centering
+\caption{$m = 200$ 次真实无效检验下的假发现控制对比（$\alpha = 5\%$，均为期望值）}\label{tab:08-multtest}
+\tablefont
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+控制程序 & 最小 $p$ 值门槛 & 第 $10$ 小 $p$ 值门槛 & 期望假发现数 \\
+\midrule
+不校正 & $0.0500$ & $0.0500$ & $10.0$ \\
+Bonferroni（FWER） & $0.00025$ & $0.00025$ & $0.05$ \\
+Benjamini--Hochberg（FDR） & $0.00025$ & $0.00250$ & $\le 0.10$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-金融时间序列的独立性假设不成立，因此需使用块 Bootstrap（Block Bootstrap）：
-\begin{itemize}[leftmargin=*]
-  \item Moving Block Bootstrap (MBB)
-  \item Stationary Bootstrap（随机块长度）
-  \item 用于计算统计量的置信区间，无需分布假设
-\end{itemize}
+\cref{tab:08-multtest} 显示 BH 的判据随序位放宽，因此在因子筛选中能保留更多真信号。
+需要强调的是：FDR 控制的是\emph{被拒绝假设中假发现的比例期望}，
+它不保证每一个被选中的因子都真实有效，因此在实盘配置前仍需样本外验证与成本核算。
+
+\begin{appbox}[极值理论在银行内部模型中的实际用法]
+按巴塞尔市场风险框架，银行内部模型需同时报告 $97.5\%$ 的 ES 与压力情景下的损失。
+实务流程是：先用 GARCH 类模型得到条件波动率的过滤序列（把波动率聚集剥离），
+再对标准化残差做 POT/GPD 拟合，最后把 GPD 分位数乘回当期波动率，
+得到随市场状态调整的 EVT-VaR 与 EVT-ES。这样做的好处是
+$99.9\%$ 这类极端分位不再依赖单一的历史窗口，同时保留了波动的时变特征。
+\end{appbox}
+
+\begin{warningbox}[多重检验导致的假发现]
+若研究者不记录试验次数，FDR 与 DSR 类校正都无从实施。
+更隐蔽的问题是“隐式多重检验”：试用多个数据供应商、多个预处理方式、
+多个回测区间，每次只报告最好的一次。控制这类偏差的唯一办法是
+在项目开始时就登记全部试验配置，并在报告中披露总试验次数。
+\end{warningbox}
+
+\section{Bootstrap 与重抽样}
+
+Bootstrap 用重抽样模拟统计量的抽样分布，无需假定分布的解析形式。
+独立同分布情形下有两种基本做法：非参数 bootstrap 从原始样本中有放回抽取 $n$ 个观测；
+参数 bootstrap 从拟合分布 $\hat{F}$ 中抽样。
+对统计量 $\hat{\theta}$，其标准误由 $B$ 次重抽样估计
+
+\begin{equation}
+  \widehat{\se}_{\text{boot}}(\hat{\theta}) =
+  \sqrt{\frac{1}{B-1}\sum_{b=1}^{B}\left(\hat{\theta}^{(b)} - \bar{\theta}^{*}\right)^{2}},
+  \qquad \bar{\theta}^{*} = \frac{1}{B}\sum_{b=1}^{B}\hat{\theta}^{(b)}
+  \label{eq:08-bootse}
+\end{equation}
+
+其中 $\hat{\theta}^{(b)}$ 为第 $b$ 次重抽样得到的估计值，$B$ 常取 $1000$ 至 $10000$。
+百分位置信区间直接取 $\{\hat{\theta}^{(b)}\}$ 的 $\alpha/2$ 与 $1-\alpha/2$ 分位数。
+
+金融时间序列不满足独立性，直接对单点重抽样会破坏自相关结构，因此需要块方法：
+移动块 bootstrap 把序列切成等长块 $L$ 后对有放回的块序列拼接；
+平稳 bootstrap 的块长服从几何分布（期望 $1/q$），在保持平稳性的同时避免块边界的生硬拼接。
+块长 $L$ 的选取遵循 $L \propto n^{1/3}$ 的经验法则，
+更严谨的做法是用 Politis--White 自动选择程序。
+对波动率、自相关与 Sharpe 比率这类依赖序列结构的统计量，
+块 bootstrap 与独立 bootstrap 的置信区间宽度可以相差一倍以上。
+
+\begin{notebox}[bootstrap 的三个适用边界]
+第一，样本量太小时 bootstrap 会复制原始样本的偶然特征，$n < 30$ 时结论不可靠；
+第二，统计量不连续或依赖极端分位数（如最大值、极值指数）时，
+普通 bootstrap 会系统性低估不确定性，需要用 $m$ 折 bootstrap 或子抽样；
+第三，序列存在结构突变（regime shift）时，重抽样会把两个不同机制的数据混合，
+得到无意义的区间。
+\end{notebox}
 
 \section{回归分析}
 
-\subsection{线性回归}
+\subsection{OLS 的代数与几何}
 
-OLS 估计量：
+对模型 $y = X\beta + \varepsilon$，$\E[\varepsilon \mid X] = 0$，
+最小化残差平方和 $\norm{y - X\beta}^{2}$ 得一阶条件 $X^{\top}(y - X\hat{\beta}) = 0$，即正规方程
+
 \begin{equation}
-  \hat{\beta} = (X^TX)^{-1}X^T y
+  X^{\top}X\hat{\beta} = X^{\top}y, \qquad
+  \hat{\beta} = (X^{\top}X)^{-1}X^{\top}y, \qquad
+  \hat{y} = Py, \quad P = X(X^{\top}X)^{-1}X^{\top}
+  \label{eq:08-ols}
 \end{equation}
 
-高斯-马尔可夫定理：在经典假设下，OLS 是最佳线性无偏估计（BLUE）。
+其中 $P$ 为投影矩阵，它把 $y$ 正交投影到 $X$ 的列空间上，残差
+$e = (I - P)y$ 与 $X$ 的每一列正交。几何上 OLS 就是找列空间中离 $y$ 最近的点，
+而 $R^{2} = 1 - \norm{e}^{2}/\norm{y - \bar{y}\mathbf{1}}^{2}$ 度量这个投影解释了多少变异。
+若 $X$ 列满秩且 $\Var(\varepsilon \mid X) = \sigma^{2}I$，
+则 $\Var(\hat{\beta} \mid X) = \sigma^{2}(X^{\top}X)^{-1}$，$\hat{\sigma}^{2} = \norm{e}^{2}/(n-k)$。
 
-\subsection{回归诊断}
+\begin{theorem}[Gauss--Markov]\label{thm:08-gm}
+在 $\E[\varepsilon \mid X] = 0$ 与 $\Var(\varepsilon \mid X) = \sigma^{2}I$ 下，
+OLS 估计量 $\hat{\beta}$ 是 $\beta$ 的最佳线性无偏估计（BLUE）：
+任何其他线性无偏估计量 $\tilde{\beta} = Cy$ 都满足
+$\Var(\tilde{\beta} \mid X) - \Var(\hat{\beta} \mid X) \succeq 0$。
+\end{theorem}
 
-\begin{itemize}[leftmargin=*]
-  \item \textbf{多重共线性}：VIF（方差膨胀因子）$> 10$ 表示严重共线性
-  \item \textbf{异方差}：Breusch-Pagan 检验；White 异方差一致性标准误
-  \item \textbf{自相关}：Durbin-Watson 统计量（时间序列回归中尤为重要）
-\end{itemize}
+\begin{proof}[证明思路]
+无偏性要求 $CX = I$。把 $C$ 写成 $C = (X^{\top}X)^{-1}X^{\top} + D$，
+由 $CX = I$ 得 $DX = 0$。于是
+$\Var(\tilde{\beta}\mid X) = \sigma^{2}CC^{\top}
+= \sigma^{2}\left[(X^{\top}X)^{-1} + DD^{\top}\right]
+= \Var(\hat{\beta}\mid X) + \sigma^{2}DD^{\top}$，
+其中交叉项因 $DX = 0$ 而消失，而 $DD^{\top}$ 半正定，故结论成立。
+\end{proof}
 
-\subsection{面板数据回归}
+注意证明完全依赖 $\Var(\varepsilon\mid X) = \sigma^{2}I$：一旦存在异方差或自相关，
+右端多出的 $DD^{\top}$ 可以被选得为负，OLS 就不再是最优的，
+这正是 \cref{tab:08-se} 中稳健标准误与 GLS 存在的理由。
 
-固定效应模型（控制不可观测的个体异质性）：
+\subsection{稳健标准误与 HAC}
+
+金融回归几乎必然违反同方差与无自相关假设。White 异方差一致性估计量为
+
 \begin{equation}
-  y_{it} = \alpha_i + \beta X_{it} + \varepsilon_{it}
+  \widehat{\Var}_{\text{White}}(\hat{\beta}) =
+  (X^{\top}X)^{-1}\left(\sum_{i=1}^{n} e_i^{2}\, x_i x_i^{\top}\right)(X^{\top}X)^{-1}
+  \label{eq:08-white}
 \end{equation}
 
-随机效应模型：$\alpha_i$ 为随机变量（GLS 估计）。
+其中 $x_i$ 为第 $i$ 个观测的解释变量行向量，$e_i$ 为残差。
+存在自相关时改用 Newey--West 的 HAC 形式
 
-Fama-MacBeth 两步法（资产定价的标准方法）：
+\begin{equation}
+  \hat{S}_{\text{HAC}} = \hat{\Gamma}_0 + \sum_{l=1}^{L}
+  \left(1 - \frac{l}{L+1}\right)\left(\hat{\Gamma}_l + \hat{\Gamma}_l^{\top}\right),
+  \qquad \hat{\Gamma}_l = \frac{1}{n}\sum_{t=l+1}^{n} e_t x_t\, e_{t-l} x_{t-l}^{\top}
+  \label{eq:08-hac}
+\end{equation}
+
+其中 $L$ 为带宽，常按 $L \approx 4(n/100)^{2/9}$ 的经验公式选取，
+$\hat{S}_{\text{HAC}}$ 再代入三明治公式
+$(X^{\top}X)^{-1}\hat{S}_{\text{HAC}}(X^{\top}X)^{-1}$。
+系数标准误在 HAC 修正下通常会变大，因为正自相关意味着有效样本量小于名义样本量。
+
+\begin{table}[htbp]
+\centering
+\caption{回归标准误的选择指南}\label{tab:08-se}
+\tablefont
+\begin{tabular}{@{}llL{5.4cm}@{}}
+\toprule
+设定 & 估计量 & 使用条件与代价 \\
+\midrule
+经典 & $\hat{\sigma}^{2}(X^{\top}X)^{-1}$ & 同方差且无自相关；金融数据中很少成立 \\
+White & 三明治形式 & 异方差但无自相关；样本小时偏乐观 \\
+Newey--West & HAC 三明治 & 兼有异方差与自相关；带宽选择影响结果 \\
+聚类 & 按个体或时间聚类 & 组内任意相关；组数太少时失效 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{example}[聚类标准误对显著性的影响]\label{ex:08-cluster}
+某面板回归估计市值因子对下期收益的系数为 $0.0042$，
+按个体聚类的标准误为 $0.0009$（$t = 4.7$），
+按时间聚类（月度，共 $120$ 个时间点）的标准误为 $0.0021$（$t = 2.0$）。
+两者相差一倍以上，原因是残差在时间维度上高度相关：
+同一月的所有股票共享市场冲击，个体聚类无法捕捉这一共同成分。
+若因子只在少数几个月贡献收益，正确的标准误应接近后者，
+结论也会从“强显著”退化为“边际显著”。报告回归结果时，
+必须说明标准误的聚类维度，并优先报告更保守的版本。
+\end{example}
+
+\subsection{面板数据与固定效应}
+
+面板数据同时具有个体维度 $i$ 与时间维度 $t$。若遗漏的个体特征 $\alpha_i$
+与解释变量相关，混合 OLS 会产生遗漏变量偏误。固定效应模型通过组内变换消除 $\alpha_i$
+
+\begin{equation}
+  y_{it} - \bar{y}_i = \beta^{\top}\left(x_{it} - \bar{x}_i\right) + \left(\varepsilon_{it} - \bar{\varepsilon}_i\right),
+  \qquad \bar{y}_i = \frac{1}{T}\sum_{t=1}^{T} y_{it}
+  \label{eq:08-within}
+\end{equation}
+
+其中 $\bar{y}_i$、$\bar{x}_i$ 为个体时间均值。这一变换等价于为每个个体加一个哑变量，
+代价是损失 $n$ 个自由度并抹掉所有不随时间变化的变量（如行业归属）的系数。
+随机效应模型则假定 $\alpha_i$ 与 $x_{it}$ 不相关，用 GLS 提高效率；
+Hausman 检验通过比较两套系数的差异来判断该假定是否成立，
+拒绝则使用固定效应。金融应用的常见折中是双向固定效应：
+同时加入个体效应与时间效应，时间效应自动吸收市场层面的共同冲击。
+
+\subsection{Fama--MacBeth 回归}
+
+资产定价实证的标准做法是 Fama--MacBeth 两步法，它把横截面溢价与横截面相关性同时纳入推断。
+
 \begin{enumerate}[leftmargin=*]
-  \item 时间序列回归估计 $\beta$
-  \item 横截面回归：$\bar{R}_i = \lambda_0 + \lambda_1 \hat{\beta}_i + \eta_i$
+  \item 对每只资产 $i$ 做时间序列回归 $r_{it} = \alpha_i + \beta_i^{\top} f_t + \varepsilon_{it}$，
+  得到载荷估计 $\hat{\beta}_i$；
+  \item 对每期 $t$ 做横截面回归 $r_{it} = \lambda_{0t} + \lambda_t^{\top}\hat{\beta}_i + \eta_{it}$，
+  得到因子溢价的逐期估计 $\hat{\lambda}_t$；
+  \item 对 $\{\hat{\lambda}_t\}$ 取时间平均 $\bar{\lambda} = \frac{1}{T}\sum_t \hat{\lambda}_t$，
+  标准误为 $\sd(\hat{\lambda}_t)/\sqrt{T}$（可再用 Newey--West 修正自相关）。
 \end{enumerate}
+
+该方法的关键优点是它自动处理横截面残差的相关性：因为每期只做一次横截面回归，
+残差在时间上取平均后，横截面相关被“折叠”进 $\hat{\lambda}_t$ 的方差中，
+不需要估计巨大的横截面协方差矩阵。其代价是忽略了载荷的估计误差（errors-in-variables），
+在资产数较少或 $\beta$ 估计不精确时会低估真实标准误。
+
+\begin{example}[Fama--MacBeth 数值示例]\label{ex:08-fm}
+对 $500$ 只股票、$240$ 个月的样本，按上述步骤得到某因子的逐期溢价序列，
+月均溢价 $\bar{\lambda} = 0.42\%$，逐期溢价的标准差 $\sd(\hat{\lambda}_t) = 2.6\%$。
+则标准误为 $2.6\%/\sqrt{240} = 0.168\%$，$t$ 值为 $0.42/0.168 = 2.5$，
+在 $5\%$ 水平上显著。若逐期溢价存在一阶自相关 $\rho = 0.25$，
+有效样本量降为 $240 \times \frac{1-0.25}{1+0.25} \approx 144$，
+修正后的标准误为 $2.6\%/\sqrt{144} = 0.217\%$，$t$ 值降至 $1.9$，
+显著性恰好消失。这个例子再次说明：时间序列相关是金融实证中最重要的标准误来源之一。
+\end{example}
 
 \section{贝叶斯方法}
 
-\subsection{贝叶斯定理}
+\subsection{共轭先验与后验推导}
+
+贝叶斯推断把参数视为随机变量，通过贝叶斯定理更新信念
 
 \begin{equation}
-  P(\theta \mid D) = \frac{P(D \mid \theta) P(\theta)}{P(D)}
+  \pi(\theta \mid D) = \frac{\mathcal{L}(D \mid \theta)\,\pi(\theta)}{\int \mathcal{L}(D \mid \theta')\,\pi(\theta')\,\dd\theta'}
+  \propto \mathcal{L}(D \mid \theta)\,\pi(\theta)
+  \label{eq:08-bayes}
 \end{equation}
 
-其中：
-\begin{itemize}[leftmargin=*]
-  \item $P(\theta \mid D)$：后验分布（Posterior）
-  \item $P(D \mid \theta)$：似然（Likelihood）
-  \item $P(\theta)$：先验分布（Prior）
-  \item $P(D)$：边缘似然（证据）
-\end{itemize}
+其中 $\pi(\theta)$ 为先验，$\mathcal{L}(D\mid\theta)$ 为似然，$\pi(\theta\mid D)$ 为后验，
+分母为边缘似然（证据），与 $\theta$ 无关，因此在推断中可以只保留比例关系。
 
-\subsection{Black-Litterman 模型}
+最常用的共轭结构是正态—正态。设 $x_1,\dots,x_n \mid \mu \sim \N(\mu,\sigma^{2})$，
+$\sigma^{2}$ 已知，先验 $\mu \sim \N(\mu_0,\tau_0^{2})$，则后验仍为正态
 
-BL 模型将主观观点与市场均衡回报融合，本质是贝叶斯收缩估计：
+\begin{equation}
+  \mu \mid D \sim \N\!\left(\mu_n,\ \tau_n^{2}\right), \qquad
+  \mu_n = \frac{\frac{1}{\tau_0^{2}}\mu_0 + \frac{n}{\sigma^{2}}\bar{x}}
+  {\frac{1}{\tau_0^{2}} + \frac{n}{\sigma^{2}}}, \qquad
+  \frac{1}{\tau_n^{2}} = \frac{1}{\tau_0^{2}} + \frac{n}{\sigma^{2}}
+  \label{eq:08-conjugate}
+\end{equation}
+
+其中 $\bar{x}$ 为样本均值。后验均值是先验均值与样本均值的\emph{精度加权平均}，
+精度（方差的倒数）直接相加。这一形式正是贝叶斯收缩的来源：
+当 $n$ 小时后验靠近先验，当 $n$ 大时后验靠近样本均值，
+收缩强度由信噪比 $n\tau_0^{2}/\sigma^{2}$ 自动决定。
+
+\begin{example}[基金收益均值的贝叶斯收缩]\label{ex:08-shrink}
+某基金过去 $36$ 个月的月均超额收益为 $\bar{x} = 0.55\%$，
+月度收益标准差为 $\sigma = 4\%$，故样本均值的标准误为 $4\%/\sqrt{36} = 0.67\%$。
+若行业先验设定为“真正具备选股能力的基金月均超额收益为 $\mu_0 = 0.10\%$、
+跨基金标准差 $\tau_0 = 0.30\%$”，代入 \cref{eq:08-conjugate}：
+样本精度 $n/\sigma^{2} = 36/16 = 2.25$，先验精度 $1/\tau_0^{2} = 11.1$，
+后验均值 $\mu_n = (11.1 \times 0.10 + 2.25 \times 0.55)/(11.1 + 2.25) = (1.11 + 1.24)/13.35 = 0.176\%$。
+后验均值只有样本均值的 $32\%$。这一收缩与“三年业绩不足以证明能力”的直觉一致，
+也与 \cref{eq:08-conjugate} 的精度加权逻辑一致。
+\end{example}
+
+\subsection{可信区间与置信区间}
+
+频率派的 $95\%$ 置信区间含义是：重复抽样中有 $95\%$ 的区间包含真值，
+真值本身是固定的。贝叶斯 $95\%$ 可信区间的含义是：给定数据与先验，
+$\theta$ 落在该区间的后验概率为 $95\%$。在平坦先验下两者数值常接近，
+但在小样本、有信息先验或存在边界约束时差异显著。
+风险管理中需要回答“亏损超过阈值的主观概率是多少”，
+这类问题只有可信区间能直接作答，因此贝叶斯方法在压力测试与情景分析中更自然。
+
+\subsection{Black--Litterman 模型}
+
+Black--Litterman 模型把市场均衡隐含收益与投资者主观观点融合，
+是贝叶斯收缩在组合构建中最成功的应用。其推导分三步。
+
+\textbf{第一步：由市场均衡反推隐含收益。} 若市场组合就是均值—方差最优组合，
+则其权重 $w_{\text{mkt}}$ 必满足一阶条件，于是
+
+\begin{equation}
+  \Pi = \delta\,\Sigmamat\, w_{\text{mkt}}
+  \label{eq:08-blprior}
+\end{equation}
+
+其中 $\Pi$ 为隐含均衡收益向量，$\Sigmamat$ 为收益协方差矩阵，
+$w_{\text{mkt}}$ 为市值权重，$\delta$ 为风险厌恶系数（常用市场 Sharpe 比率反解）。
+这一先验的好处是它与市场组合自洽，因此不会在无观点时给出极端权重。
+
+\textbf{第二步：把观点写成线性约束。} 观点表示为
+
+\begin{equation}
+  P\,\mu = Q + \epsilon, \qquad \epsilon \sim \N(0,\Omega)
+  \label{eq:08-blviews}
+\end{equation}
+
+其中 $P$ 为 $k\times n$ 的观点选择矩阵，$Q$ 为观点收益向量，$\Omega$ 为观点不确定性的对角矩阵。
+例如“科技板块将跑赢大盘 $2\%$”对应 $P$ 的一行在科技板块权重为 $1$、其余为 $0$，$Q = 0.02$；
+“资产 A 比资产 B 多涨 $1\%$”对应一行为 $1$ 与 $-1$。
+
+\textbf{第三步：正态—正态共轭给出后验。} 把 $\mu$ 的先验取为
+$\N(\Pi,\tau\Sigmamat)$，观点似然为 $\N(P\mu,\Omega)$，
+直接套用 \cref{eq:08-conjugate} 的矩阵形式即得
 
 \begin{align}
-  \mathbb{E}[R] &= \left[(\tau\Sigma)^{-1} + P^T\Omega^{-1}P\right]^{-1} \left[(\tau\Sigma)^{-1}\Pi + P^T\Omega^{-1}Q\right] \\
-  \text{Cov}(R) &= \Sigma + \left[(\tau\Sigma)^{-1} + P^T\Omega^{-1}P\right]^{-1}
+  \E[\mu \mid \text{views}] &= \Pi + \tau\Sigmamat P^{\top}
+    \left(P\,\tau\Sigmamat\,P^{\top} + \Omega\right)^{-1}\left(Q - P\Pi\right)
+    \label{eq:08-blpost} \\
+  \Cov(\mu \mid \text{views}) &= \Sigmamat + \tau\Sigmamat -
+    \tau\Sigmamat P^{\top}\left(P\,\tau\Sigmamat\,P^{\top} + \Omega\right)^{-1} P\,\tau\Sigmamat
+    \label{eq:08-blcov}
 \end{align}
 
-其中 $\Pi$ 为均衡回报，$Q$ 为观点向量，$P$ 为观点选择矩阵，$\Omega$ 为观点不确定性。
+其中 $\tau$ 为刻画先验不确定性的标量（常取 $0.02$ 至 $0.10$）。
+\cref{eq:08-blpost} 的结构非常直观：后验均值等于先验加上“观点与先验的偏离”
+乘以一个增益矩阵；当观点不确定性 $\Omega \to 0$（极度自信）时，
+后验均值趋向满足 $P\mu = Q$ 的最小调整解；当 $\Omega \to \infty$（完全不信）
+时后验回到 $\Pi$。
 
-\subsection{MCMC}
+\begin{intuitionbox}[Black--Litterman 为什么比直接给预期收益稳健]
+直接给主观预期收益，等价于在均值—方差优化器中输入一组未被协方差结构约束的数字，
+优化器会把这些数字放大成极端权重。BL 的做法是先给市场均衡一个基准，
+再把观点作为对基准的\emph{偏离}输入，偏离的幅度由 $\Omega$ 与 $\tau$ 共同封顶。
+因此 BL 组合的权重对观点强度不敏感，这正是它在实务中被广泛采用的原因。
+\end{intuitionbox}
 
-在高维贝叶斯推断中，MCMC（马尔可夫链蒙特卡洛）是标准工具：
-\begin{itemize}[leftmargin=*]
-  \item Metropolis-Hastings 算法
-  \item Gibbs 采样
-  \item Hamiltonian Monte Carlo (HMC) / NUTS (Stan、PyMC 使用)
-\end{itemize}
+\subsection{马尔可夫链蒙特卡洛}
 
-\section{金融数据处理专题}
+当后验没有解析形式时，MCMC 通过构造以后验为平稳分布的马尔可夫链来抽样。
+Metropolis--Hastings 算法给定当前状态 $\theta$ 与提议分布 $q(\theta' \mid \theta)$，
+以概率
 
-\subsection{缺失数据处理}
-
-金融数据中缺失值很常见（非交易日、数据供应商差异）。常用方法：
-\begin{itemize}[leftmargin=*]
-  \item 前值填充（Forward Fill）
-  \item 线性/样条插值
-  \item 多重插补（Multiple Imputation）
-  \item MICE（链式方程多重插补）
-\end{itemize}
-
-\subsection{异常值处理}
-
-MAD（Median Absolute Deviation）方法：
 \begin{equation}
-  \text{MAD} = \text{median}(|x_i - \text{median}(x)|)
+  a(\theta,\theta') = \min\left\{1,\
+  \frac{\pi(\theta' \mid D)\,q(\theta \mid \theta')}{\pi(\theta \mid D)\,q(\theta' \mid \theta)}\right\}
+  \label{eq:08-mh}
 \end{equation}
 
-偏离中位数超过 $k \times \text{MAD}$ 的观测标记为异常（$k=3$ 是常用阈值）。
+接受提议 $\theta'$，否则保持在 $\theta$。其中 $\pi(\theta\mid D)$ 为目标后验，
+比例形式使归一化常数自动消去，这是 MH 能够在高维下工作的关键。
+Gibbs 抽样是 MH 的特例：轮流从各分量的完全条件分布 $\pi(\theta_j \mid \theta_{-j}, D)$ 中抽样，
+接受概率恒为 $1$，在条件分布可解析抽样时效率极高。
 
-金融时间序列中更常用 Winsorization（缩尾）而非删除——将极端值替换为分位数边界值，保留样本量。
+Hamiltonian Monte Carlo（HMC）引入辅助动量变量，利用后验对数的梯度
+沿哈密顿动力学模拟轨迹，再由 MH 步骤校正数值误差。相比随机游走型 MH，
+HMC 在高维参数空间中能以更少的步数获得低自相关的样本。
+NUTS（No-U-Turn Sampler）自动选择轨迹长度，是 Stan 与 PyMC 的默认采样器。
+判断 MCMC 是否收敛的标准做法是运行多条链并计算 $\hat{R}$ 统计量
+（要求 $\hat{R} < 1.01$）与有效样本量（ESS）。
 
-\subsection{平稳性检验}
+\section{惩罚回归}
 
-ADF 检验（Augmented Dickey-Fuller）：
+高维特征下普通最小二乘会过拟合。惩罚回归在损失函数中加入系数惩罚项
+
+\begin{align}
+  \hat{\beta}^{\text{Ridge}} &= \argmin_{\beta}\ \norm{y - X\beta}^{2} + \lambda\norm{\beta}_{2}^{2}
+    \label{eq:08-ridge} \\
+  \hat{\beta}^{\text{Lasso}} &= \argmin_{\beta}\ \norm{y - X\beta}^{2} + \lambda\norm{\beta}_{1}
+    \label{eq:08-lasso} \\
+  \hat{\beta}^{\text{ENet}} &= \argmin_{\beta}\ \norm{y - X\beta}^{2}
+    + \lambda\left(\alpha\norm{\beta}_{1} + \frac{1-\alpha}{2}\norm{\beta}_{2}^{2}\right)
+    \label{eq:08-enet}
+\end{align}
+
+其中 $\lambda \ge 0$ 控制惩罚强度，$\alpha \in [0,1]$ 在 Lasso 与 Ridge 之间插值。
+Ridge 的解为 $\hat{\beta}^{\text{Ridge}} = (X^{\top}X + \lambda I)^{-1}X^{\top}y$，
+它把系数向零收缩但不置零，因此不做变量选择；
+Lasso 的 $L_1$ 惩罚在零点不可微，使得解在 $\lambda$ 足够大时恰好稀疏。
+几何解释是：$L_1$ 球的顶点落在坐标轴上，等高线与球的切点大概率在顶点，
+而 $L_2$ 球是光滑的，切点不会精确落在坐标轴上。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm, grid=major,
+  xlabel={惩罚强度 $\lambda$（相对量级）}, ylabel={均方误差},
+  legend pos=north west, legend style={font=\scriptsize},
+  ymin=0, ymax=1.05, xmin=0, xmax=1
+]
+\addplot[quantblue, very thick, domain=0:1, samples=80] {0.35*exp(-4*x) + 0.05};
+\addlegendentry{偏差$^{2}$（随 $\lambda$ 上升）}
+\addplot[quantred, very thick, dashed, domain=0:1, samples=80] {0.55/(1+14*x) + 0.04};
+\addlegendentry{方差（随 $\lambda$ 下降）}
+\addplot[quantgreen, very thick, domain=0:1, samples=120] {0.35*exp(-4*x) + 0.05 + 0.55/(1+14*x) + 0.04};
+\addlegendentry{总误差（存在最优 $\lambda$）}
+\end{axis}
+\end{tikzpicture}
+\caption{惩罚回归的偏差—方差权衡：总误差在中间某个 $\lambda^{*}$ 处最小，两端分别对应过拟合与欠拟合}\label{fig:08-biasvar}
+\end{figure}
+
+\cref{fig:08-biasvar} 展示权衡的全貌。$\lambda \to 0$ 时方差大、偏差小；
+$\lambda \to \infty$ 时系数全被压向零，偏差主导。
+实践中的 $\lambda$ 通过时间序列交叉验证选取，并且必须使用与
+机器学习选股相同的 Purged $k$-折结构，否则验证集误差会被信息泄漏压低，
+选出的 $\lambda$ 偏小、模型偏复杂。
+
+\begin{warningbox}[惩罚回归在因子研究中的两个陷阱]
+第一，惩罚项不区分因果与相关：若把未来收益相关的特征（如未来披露的财务数据）
+放入 $X$，Lasso 会稳定地把它选出来，稀疏性反而强化了前视偏差。
+第二，$\lambda$ 与 $\alpha$ 的调参本身构成多重检验，
+在 \cref{tab:08-multtest} 的意义下会把样本内的最优惩罚参数“挑选”得更乐观，
+因此最终绩效必须在独立的样本外区间上重新评估。
+\end{warningbox}
+
+\section{极值理论与尾部风险}
+
+\subsection{GEV 与 GPD}
+
+极值理论（EVT）专门研究样本极端值的分布极限。Fisher--Tippett 定理指出，
+若适当标准化后的块最大值收敛，则极限必为广义极值分布
+
 \begin{equation}
-  \Delta y_t = \alpha + \beta t + \gamma y_{t-1} + \sum_{i=1}^{p} \delta_i \Delta y_{t-i} + \varepsilon_t
+  G(z) = \exp\left\{-\left(1 + \xi\frac{z - \mu}{\sigma}\right)^{-1/\xi}\right\},
+  \qquad 1 + \xi\frac{z-\mu}{\sigma} > 0
+  \label{eq:08-gev}
 \end{equation}
 
-原假设 $H_0: \gamma = 0$（存在单位根），拒绝则序列平稳。
+其中 $\mu$ 为位置参数，$\sigma > 0$ 为尺度参数，$\xi$ 为形状参数。
+$\xi > 0$ 对应 Fréchet 型（幂律尾，金融收益的典型情形），
+$\xi = 0$ 对应 Gumbel 型（指数尾），$\xi < 0$ 对应 Weibull 型（有界尾）。
 
-KPSS 检验作为互补——其原假设为平稳，与 ADF 结合使用可提高判断的可靠性。
+比块最大值更节省数据的是超阈值法（POT）。Pickands--Balkema--de Haan 定理指出，
+对足够大的阈值 $u$，超额损失 $Y = X - u$ 的条件分布近似为广义 Pareto 分布
 
-\section{小结}
+\begin{equation}
+  \bar{F}_u(y) = \Prob(X - u > y \mid X > u) =
+  \left(1 + \frac{\xi y}{\beta}\right)^{-1/\xi}, \qquad y > 0,\ \beta > 0
+  \label{eq:08-gpd}
+\end{equation}
 
-金融概率与统计分析是 P Quant 的数学基础设施。从分布建模到假设检验，从回归分析到贝叶斯推断，这些工具支撑着因子研究、风险测量和投资决策的全流程。金融数据的特殊性——肥尾、异方差、自相关——要求选择适合的统计方法而非简单套用经典工具箱。
+其中 $\beta$ 为尺度参数，$\xi$ 与 \cref{eq:08-gev} 中的形状参数含义一致。
+由 \cref{eq:08-gpd} 可反解任意高水平的 VaR 与 ES。设 $n$ 为样本总量，
+$N_u$ 为超过阈值的观测数，则
+
+\begin{align}
+  \widehat{\VaR}_q &= u + \frac{\hat{\beta}}{\hat{\xi}}
+    \left[\left(\frac{n}{N_u}(1-q)\right)^{-\hat{\xi}} - 1\right]
+    \label{eq:08-evtvar} \\
+  \widehat{\ES}_q &= \frac{\widehat{\VaR}_q}{1-\hat{\xi}} + \frac{\hat{\beta} - \hat{\xi}u}{1-\hat{\xi}},
+  \qquad \hat{\xi} < 1
+    \label{eq:08-evtes}
+\end{align}
+
+其中 $q$ 为置信水平（如 $0.999$）。\cref{eq:08-evtes} 要求 $\hat{\xi} < 1$，
+否则 ES 发散——这提醒我们，若估计出的形状参数接近或超过 $1$，
+数据的尾部厚到使一阶矩不存在，任何基于均值的风险度量都失去意义。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=11cm, height=6.2cm, grid=major,
+  xlabel={超额损失 $y$（\%）}, ylabel={$\Prob(Y > y)$（对数刻度）},
+  legend pos=north east, legend style={font=\scriptsize},
+  ymin=0.0005, ymax=0.12, xmin=0, xmax=8, ymode=log
+]
+\addplot[quantblue, only marks, mark=*, mark size=1.4pt] coordinates {
+  (0.2,0.088) (0.5,0.071) (0.8,0.058) (1.1,0.047) (1.4,0.038)
+  (1.7,0.031) (2.0,0.025) (2.4,0.019) (2.8,0.0145) (3.2,0.011)
+  (3.7,0.0080) (4.2,0.0058) (4.8,0.0040) (5.4,0.0027) (6.1,0.0017)
+};
+\addlegendentry{经验超越概率}
+\addplot[quantred, very thick, dashed, domain=0:8, samples=100]
+  {0.1*(1 + 0.25*x/1.2)^(-1/0.25)};
+\addlegendentry{$\mathrm{GPD}$ 拟合，$\hat{\xi}=0.25$}
+\addplot[quantgreen, very thick, dotted, domain=0:8, samples=100] {0.1*exp(-x/1.2)};
+\addlegendentry{指数尾，$\xi = 0$}
+\end{axis}
+\end{tikzpicture}
+\caption{POT 方法的 GPD 尾拟合：对数刻度下幂律尾（直线）与指数尾（弯曲）的差异在 $y > 3\%$ 后清晰可见}\label{fig:08-gpd}
+\end{figure}
+
+\cref{fig:08-gpd} 的关键读法是对数刻度下的形状：GPD 的超越概率
+$\bar{F}_u(y) \propto y^{-1/\xi}$，取对数后是斜率为 $-1/\xi$ 的直线。
+若经验点在这张图上明显向上偏离指数尾的曲线，就说明尾部是幂律而非指数，
+用正态或指数模型度量极高分位的风险会系统性低估。
+
+\subsection{Hill 估计与阈值选择}
+
+在 $\xi > 0$ 的假设下，Hill 估计量给出形状参数的非参数估计
+
+\begin{equation}
+  \hat{\xi}^{\text{Hill}} = \frac{1}{k}\sum_{j=1}^{k}
+  \ln X_{(n-j+1)} - \ln X_{(n-k)}, \qquad k = N_u
+  \label{eq:08-hill}
+\end{equation}
+
+其中 $X_{(1)} \le \dots \le X_{(n)}$ 为顺序统计量，$k$ 为使用的最大观测个数。
+Hill 估计量对 $k$ 敏感：$k$ 太小时方差大，$k$ 太大时混入非尾部分布造成偏差，
+实践中通过 Hill 图寻找 $\hat{\xi}$ 对 $k$ 相对平稳的平台区间。
+阈值 $u$ 的选择是 POT 方法的核心难点，常用诊断手段包括平均超额函数图
+（均值余函数在阈值以上应呈线性）与参数稳定性图（$\hat{\xi}$ 与 $\hat{\beta}$ 随 $u$ 变化平稳）。
+
+\begin{example}[POT 拟合与 EVT-VaR/ES 计算]\label{ex:08-evt}
+某股票指数 $2500$ 个交易日（约十年）的日对数收益，取 $5\%$ 分位对应的损失为阈值
+$u = 2.0\%$，超过阈值的观测 $N_u = 125$。用 GPD 拟合超额损失得
+$\hat{\xi} = 0.25$、$\hat{\beta} = 1.2\%$。
+计算 $q = 99.9\%$ 水平的 VaR：$(n/N_u)(1-q) = (2500/125)\times 0.001 = 0.02$，
+$0.02^{-0.25} = \ee^{0.25\times 3.912} = \ee^{0.978} = 2.66$，故
+$\widehat{\VaR}_{0.999} = 2.0\% + \frac{1.2\%}{0.25}(2.66 - 1) = 2.0\% + 4.8\% \times 1.66 = 9.97\%$。
+再算 ES：$\widehat{\ES}_{0.999} = \frac{9.97\%}{0.75} + \frac{1.2\% - 0.25\times 2.0\%}{0.75}
+= 13.29\% + \frac{0.70\%}{0.75} = 13.29\% + 0.93\% = 14.22\%$。
+作为对照，若假定正态且日波动率 $1.2\%$，$99.9\%$ 的 VaR 约为 $1.2\% \times 3.09 = 3.7\%$，
+ES 约为 $1.2\% \times 4.06 = 4.9\%$。EVT 给出的 ES 是正态假设的近三倍。
+在组合规模 $100$ 亿元的情形下，两者对应的尾部损失相差约 $9.3$ 亿元——
+这解释了为什么监管资本计量与内部压力测试都要求使用厚尾模型。
+\end{example}
+
+\section{数据清洗与平稳性}
+
+\subsection{去极值与缺失值}
+
+金融面板的极端值既可能是错误数据，也可能是真实的风险事件，处理时必须区分。
+中位数绝对偏差为
+
+\begin{equation}
+  \mathrm{MAD} = \mathrm{median}\left(\abs{x_i - \mathrm{median}(x)}\right),
+  \qquad \hat{\sigma}_{\text{robust}} = 1.4826\,\mathrm{MAD}
+  \label{eq:08-mad}
+\end{equation}
+
+其中常数 $1.4826$ 使 $\hat{\sigma}_{\text{robust}}$ 在正态数据下与样本标准差一致。
+与标准差相比，MAD 的崩溃点是 $50\%$，即接近一半的观测被污染后仍然稳健，
+而标准差的崩溃点是 $0\%$。缩尾（Winsorize）把超出
+$[\mathrm{median} - k\hat{\sigma}_{\text{robust}},\ \mathrm{median} + k\hat{\sigma}_{\text{robust}}]$
+的值替换为边界值，通常取 $k = 3$，从而在保留样本量的同时限制单个观测的影响力。
+
+缺失值的处理方式取决于缺失机制。完全随机缺失可用均值或中位数填补；
+与可观测变量相关的缺失适合用回归或 $k$ 近邻填补；
+与缺失值本身相关的非随机缺失（如业绩差的基金停止披露）则任何填补都会引入偏差，
+只能通过敏感性分析量化。多重插补通过对填补模型加入随机扰动生成 $M$ 个完整数据集
+（$M$ 常取 $5$ 至 $20$），分别估计后再用 Rubin 规则合并，
+从而把填补的不确定性计入标准误。链式方程多重插补（MICE）
+允许每个变量使用不同的条件模型，是目前处理混合类型金融面板的默认方法。
+
+\subsection{平稳性与单位根}
+
+平稳性是用时间序列做统计推断的前提。弱平稳要求均值与方差不随时间变化、
+自协方差只依赖于时间间隔。ADF 检验回归
+
+\begin{equation}
+  \Delta y_t = \alpha + \beta t + \gamma y_{t-1} + \sum_{i=1}^{p}\delta_i \Delta y_{t-i} + \varepsilon_t
+  \label{eq:08-adf}
+\end{equation}
+
+原假设为 $H_0: \gamma = 0$（存在单位根），备择假设为 $\gamma < 0$（平稳）。
+注意该检验的分布是非标准的 Dickey--Fuller 分布，
+不能直接用正态临界值；滞后阶数 $p$ 通常按 AIC 或 BIC 选取。
+KPSS 检验的逻辑正好相反：原假设为平稳（趋势平稳），
+因此“ADF 不拒绝 + KPSS 拒绝”支持单位根，
+“ADF 拒绝 + KPSS 不拒绝”支持平稳，两者都拒绝通常意味着存在结构突变。
+Phillips--Perron 检验则通过非参数修正处理残差自相关，无需设定滞后阶数。
+
+\begin{notebox}[价格、收益与波动率序列的平稳性差异]
+价格序列通常含单位根（$I(1)$），收益序列通常平稳（$I(0)$），
+而波动率序列虽然平稳但自相关极强，接近长记忆过程。
+这一层次差异决定了建模顺序：先对价格差分得到收益，
+再对收益建模均值方程，最后对残差平方建模波动率方程。
+若跳过差分直接对价格回归，即使两个独立的价格序列也会给出
+高 $R^{2}$ 与显著 $t$ 值，这就是伪回归（spurious regression）。
+\end{notebox}
+
+\section{因果推断简介}
+
+相关性不足以支撑“某因素导致了某收益”的结论。金融中常用两类准实验方法。
+双重差分（DID）比较处理组与对照组在政策前后的变化差
+
+\begin{equation}
+  y_{it} = \alpha + \beta_1 \text{Treat}_i + \beta_2 \text{Post}_t
+  + \delta\left(\text{Treat}_i \times \text{Post}_t\right) + \varepsilon_{it}
+  \label{eq:08-did}
+\end{equation}
+
+其中 $\delta$ 为政策效应。DID 成立的关键假设是平行趋势：
+若无政策，处理组与对照组的时间趋势应当一致，这一假设需要用政策前的数据检验。
+合成控制法在只有一个处理单位（如某国、某交易所）时更适用：
+用其他单位的加权组合构造一个“合成对照组”，使它在政策前尽可能贴合处理单位的路径，
+然后把政策后的差异归因于处理。两类方法的共同弱点是都无法排除与处理同时发生的
+其他冲击，因此在解读金融领域的自然实验时必须同时报告替代解释。
+
+\section{代码实现：t 分布 MLE 与 POT/GPD}
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={用极大似然估计学生 t 分布自由度并与矩估计对比},
+                   label={lst:08-tmle}]
+import numpy as np
+import pandas as pd
+from scipy import stats, optimize
+
+rng = np.random.default_rng(3)
+returns = stats.t.rvs(df=5.0, size=3000, random_state=7) * 0.012
+returns = returns - returns.mean()
+
+def neg_loglik(params, x):
+    nu, loc, scale = params
+    if nu <= 2.05 or scale <= 0:
+        return 1e10
+    return -np.sum(stats.t.logpdf(x, df=nu, loc=loc, scale=scale))
+
+fit = optimize.minimize(neg_loglik, x0=np.array([6.0, 0.0, 0.01]),
+                        args=(returns,), method="Nelder-Mead",
+                        options={"xatol": 1e-6, "fatol": 1e-8, "maxiter": 4000})
+nu_hat, loc_hat, scale_hat = fit.x
+print("MLE df = %.2f  loc = %.5f  scale = %.5f" % (nu_hat, loc_hat, scale_hat))
+
+excess_kurt = stats.kurtosis(returns, fisher=True, bias=False)
+nu_moment = 4.0 + 6.0 / excess_kurt if excess_kurt > 0 else np.inf
+print("sample excess kurtosis = %.2f -> moment df = %.2f" % (excess_kurt, nu_moment))
+normal_ll = np.sum(stats.norm.logpdf(returns, loc=returns.mean(), scale=returns.std()))
+print("loglik gain over normal = %.1f" % (-fit.fun - normal_ll))
+\end{lstlisting}
+
+\begin{lstlisting}[style=pythonstyle,
+                   caption={POT 方法拟合 GPD 并计算极端分位的 VaR 与 ES},
+                   label={lst:08-pot}]
+import numpy as np
+from scipy import stats
+
+rng = np.random.default_rng(21)
+n = 2500
+losses = np.abs(stats.t.rvs(df=4.0, size=n, random_state=5)) * 0.012
+u = np.quantile(losses, 0.95)
+excess = losses[losses > u] - u
+n_u = excess.size
+print("threshold = %.4f  exceedances = %d" % (u, n_u))
+
+xi, loc, beta = stats.genpareto.fit(excess, floc=0.0)
+print("GPD xi = %.3f  beta = %.4f" % (xi, beta))
+
+def evt_var_es(losses, u, xi, beta, q=0.999):
+    n, n_u = losses.size, int(np.sum(losses > u))
+    factor = (n / n_u * (1.0 - q)) ** (-xi)
+    var_q = u + beta / xi * (factor - 1.0)
+    es_q = var_q / (1.0 - xi) + (beta - xi * u) / (1.0 - xi)
+    return var_q, es_q
+
+var_999, es_999 = evt_var_es(losses, u, xi, beta, 0.999)
+sigma = losses.std()
+print("EVT  VaR99.9 = %.4f  ES99.9 = %.4f" % (var_999, es_999))
+print("Normal VaR99.9 = %.4f  ES99.9 = %.4f"
+      % (sigma * 3.0902, sigma * stats.norm.pdf(3.0902) / 0.001))
+print("empirical worst 5 losses:", np.sort(losses)[-5:])
+\end{lstlisting}
+
+\cref{lst:08-tmle,lst:08-pot} 给出两段可直接运行的实现。
+第一段把 MLE 与 \cref{ex:08-tmle} 的矩估计并排比较，
+并报告相对正态分布的对数似然增益——这是判断是否需要厚尾模型的直接依据。
+第二段实现 \cref{eq:08-evtvar} 与 \cref{eq:08-evtes}，
+并与正态假设下的结果以及经验最差损失对照。
+若 EVT 的 $\widehat{\ES}$ 明显小于经验最差损失，说明阈值取得太高、
+超越观测太少，应下调阈值重新拟合。
+
+\begin{keybox}[统计推断在金融数据上的三条纪律]
+第一，先看尾部再谈均值：报告的每一个均值与 Sharpe 比率都应附上基于厚尾或 EVT 的区间；
+第二，标准误必须稳健：面板数据用双向聚类，时间序列用 HAC，极值用 bootstrap；
+第三，区分统计显著与经济显著：一个 $t$ 值为 $2.5$ 的因子，若扣掉交易成本后收益归零，
+它在经济上不显著。
+\end{keybox}
+
+\begin{summarybox}
+\begin{itemize}[leftmargin=*]
+  \item 金融收益的尾部远厚于正态：$\nu = 5$ 的 $t$ 分布在 $\abs{x}=6$ 处的概率密度
+  比正态高约三个数量级，直接决定极高分位风险度量的准确性。
+  \item MLE 在正则条件下渐近正态且达到 Cramér--Rao 下界；GMM 在矩条件框架下
+  以 $W_n = S^{-1}$ 达到渐近有效，J 检验用于诊断过度识别。
+  \item LRT、Wald 与 Score 检验渐近等价但有限样本表现不同；
+  多重检验必须用 Bonferroni 或 Benjamini--Hochberg FDR 校正，前提是如实记录试验次数。
+  \item bootstrap 需按数据结构选择：独立数据用普通 bootstrap，
+  时间序列用移动块或平稳 bootstrap，权重的选择直接决定区间宽度。
+  \item 回归推断的关键在于标准误：White 处理异方差，Newey--West 处理自相关，
+  聚类处理组内相关；Fama--MacBeth 用逐期横截面回归绕开协方差矩阵估计。
+  \item 贝叶斯方法的核心是共轭更新 \cref{eq:08-conjugate} 的精度加权，
+  Black--Litterman 是它在组合构建中的成功应用，MCMC 解决后验无解析形式的情形。
+  \item 极值理论用 GPD 拟合超阈值超额损失，给出远超正态假设的 VaR 与 ES，
+  是监管资本与压力测试的必备工具。
+\end{itemize}
+\end{summarybox}
+
+\begin{exercises}
+  \item 设某资产日收益服从 $t$ 分布，自由度 $\nu = 4$。请说明为何其四阶矩不存在，
+  并解释这对样本峰度估计意味着什么。若把 $\nu$ 改为 $6$，结论如何变化？
+  \item 用 \cref{eq:08-conjugate} 计算：先验 $\mu \sim \N(0.05, 0.10^{2})$（年化收益），
+  样本 $n = 200$ 天的日均收益 $0.06\%$、日标准差 $1.5\%$。
+  求后验均值与后验标准差，并解释收缩幅度为何与你预期的一致。
+  \item 在 \cref{ex:08-evt} 中，若阈值下调为 $u = 1.5\%$、$N_u = 250$，
+  重新拟合得 $\hat{\xi} = 0.22$、$\hat{\beta} = 1.1\%$。
+  重算 $q = 99.9\%$ 的 VaR 与 ES，并讨论阈值变化对结果的影响方向。
+  \item 对 Black--Litterman 模型，设两只资产的协方差矩阵为
+  $\Sigmamat = \begin{pmatrix} 0.04 & 0.01 \\ 0.01 & 0.09 \end{pmatrix}$，
+  市场权重各 $50\%$，$\delta = 2.5$。
+  求 $\Pi$；再设观点为“资产 1 比资产 2 多涨 $3\%$”，$\Omega = 0.0001$、$\tau = 0.05$，
+  用 \cref{eq:08-blpost} 求后验均值。
+  \item 解释为什么 Ridge 回归不产生稀疏解而 Lasso 会产生，
+  并用 $L_1$、$L_2$ 球的几何图形说明。若特征高度相关，
+  Elastic Net 相比 Lasso 有什么优势？
+  \item 写出检验“某因子月均溢价为零”的三种检验统计量形式，
+  并说明在只有 $60$ 个月样本、残差存在自相关时应优先选择哪一种，理由是什么。
+\end{exercises}
+
+\begin{furtherreading}
+\refitem Greene, W., \emph{Econometric Analysis}, 8th ed., Pearson, 2018.
+（假设检验、面板数据与稳健标准误的标准教材，推导完整且例子丰富）
+\refitem McNeil, A., Frey, R., and Embrechts, P., \emph{Quantitative Risk Management}, 2nd ed., Princeton University Press, 2015.
+（第 7 章系统讲解 EVT、POT 与 EVT-VaR/ES，是尾部风险建模的权威参考）
+\refitem Efron, B., and Tibshirani, R., \emph{An Introduction to the Bootstrap}, Chapman and Hall, 1993.
+（bootstrap 的原始系统论述，块方法与置信区间的构造讲得最清楚）
+\refitem Gelman, A., Carlin, J., Stern, H., Dunson, D., Vehtari, A., and Rubin, D., \emph{Bayesian Data Analysis}, 3rd ed., CRC Press, 2013.
+（贝叶斯推断与 MCMC 的标准参考，包含收敛诊断与模型检验）
+\refitem Black, F., and Litterman, R., ``Global Portfolio Optimization'', \emph{Financial Analysts Journal}, 1992.
+（Black--Litterman 模型的原始文献，推导简洁，直觉解释至今最清晰）
+\refitem Harvey, C., Liu, Y., and Zhu, H., ``...and the Cross-Section of Expected Returns'', \emph{Review of Financial Studies}, 2016.
+（用多重检验框架重估因子显著性，是理解 FDR 在因子研究中作用的必读文献）
+\end{furtherreading}
